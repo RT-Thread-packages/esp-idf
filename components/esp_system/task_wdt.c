@@ -29,6 +29,8 @@
 #include "esp_private/eh_frame_parser.h"
 #endif // CONFIG_ESP_SYSTEM_USE_EH_FRAME
 
+#if CONFIG_ESP_TASK_WDT
+
 #if CONFIG_IDF_TARGET_ARCH_RISCV && !CONFIG_ESP_SYSTEM_USE_EH_FRAME
 /* Function used to print all the registers pointed by the given frame .*/
 extern void panic_print_registers(const void *frame, int core);
@@ -784,3 +786,5 @@ esp_err_t esp_task_wdt_status(TaskHandle_t task_handle)
 
     return ret;
 }
+
+#endif

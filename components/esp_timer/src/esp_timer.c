@@ -460,10 +460,12 @@ out:
     return ESP_ERR_NO_MEM;
 }
 
+#if !defined CONFIG_IDF_RTOS_RTTHREAD
 ESP_SYSTEM_INIT_FN(esp_timer_startup_init, BIT(0), 100)
 {
     return esp_timer_init();
 }
+#endif
 
 esp_err_t esp_timer_deinit(void)
 {

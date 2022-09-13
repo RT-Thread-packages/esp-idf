@@ -34,8 +34,9 @@
 struct _reent *__getreent(void)
 {
     // No lock needed because if this changes, we won't be running anymore.
-    TCB_t *pxCurTask = xTaskGetCurrentTaskHandle();
     struct _reent *ret;
+#if !defined CONFIG_IDF_RTOS_RTTHREAD
+    TCB_t *pxCurTask = xTaskGetCurrentTaskHandle();
     if (pxCurTask == NULL) {
         // No task running. Return global struct.
         ret = _GLOBAL_REENT;
@@ -43,6 +44,9 @@ struct _reent *__getreent(void)
         // We have a task; return its reentrant struct.
         ret = &pxCurTask->xNewLib_reent;
     }
+#else
+    ret = _GLOBAL_REENT;
+#endif
     return ret;
 }
 #endif // configUSE_NEWLIB_REENTRANT == 1

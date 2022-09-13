@@ -178,6 +178,26 @@ SECTIONS
     _noinit_end = ABSOLUTE(.);
   } > dram0_0_seg
 
+  .stack :
+  {
+      . = ALIGN(8);
+      __STACKSIZE__ = 40960; 
+      __stack_start__ = .;
+      *(.stack*)
+      . += __STACKSIZE__;
+      __stack_cpu0 = .;
+      __stack_end__ = .;
+  } > dram0_0_seg
+
+  .heap :
+  {
+      . = ALIGN(8);
+      __HEAPSIZE__ = 40960; 
+      __heap_start__ = .;
+      . += __HEAPSIZE__;
+      __heap_end__ = .;
+  } > dram0_0_seg
+
   /* Shared RAM */
   .dram0.bss (NOLOAD) :
   {
@@ -217,6 +237,17 @@ SECTIONS
     *(.fini.literal)
     *(.fini)
     *(.gnu.version)
+
+    /* section information for finsh shell */
+    . = ALIGN(8);
+    __fsymtab_start = .;
+    KEEP(*(FSymTab))
+    __fsymtab_end = .;
+    . = ALIGN(8);
+    __vsymtab_start = .;
+    KEEP(*(VSymTab))
+    __vsymtab_end = .;
+    . = ALIGN(8);
 
     /** CPU will try to prefetch up to 16 bytes of
       * of instructions. This means that any configuration (e.g. MMU, PMS) must allow
@@ -318,6 +349,12 @@ SECTIONS
     _esp_system_init_fn_array_start = ABSOLUTE(.);
     KEEP (*(SORT_BY_INIT_PRIORITY(.esp_system_init_fn.*)))
     _esp_system_init_fn_array_end = ABSOLUTE(.);
+    /* section information for initial. */
+    . = ALIGN(4);
+    __rt_init_start = .;
+    KEEP(*(SORT(.rti_fn*)))
+    __rt_init_end = .;
+    . = ALIGN(4);
     _rodata_end = ABSOLUTE(.);
     /* Literals are also RO data. */
     _lit4_start = ABSOLUTE(.);

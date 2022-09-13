@@ -6,7 +6,36 @@ endif()
 
 idf_build_get_property(target IDF_TARGET)
 
-if(CONFIG_FREERTOS_SMP)
+if(CONFIG_IDF_RTOS_RTTHREAD)
+    set(freertos_root "../../../FreeRTOS_Wrapper-latest/FreeRTOS")
+    set(srcs
+        "${freertos_root}/portable/esp-idf/riscv/port.c")
+
+    set(include_dirs
+        "${freertos_root}/include"
+        esp_additions/include
+        esp_additions/include/freertos
+        "${freertos_root}/portable/esp-idf/riscv/include")
+
+    set(private_include_dirs
+        "${freertos_root}/portable/esp-idf/riscv/include/freertos")
+
+    list(APPEND srcs
+        "${freertos_root}/portable/esp-idf/port_common.c"
+        "${freertos_root}/portable/esp-idf/port_rt.c"
+        "${freertos_root}/event_groups.c"
+        "${freertos_root}/queue.c"
+        "${freertos_root}/tasks.c"
+        "${freertos_root}/timers.c"
+        "${freertos_root}/list.c"
+        "FreeRTOS-openocd.c"
+        "esp_additions/freertos_v8_compat.c")
+
+    list(APPEND private_include_dirs
+        "${freertos_root}/include/freertos"
+        "esp_additions/private_include")
+
+elseif(CONFIG_FREERTOS_SMP)
     set(ldfragments linker_smp.lf)
     if(CONFIG_IDF_TARGET_ARCH_XTENSA)
         set(srcs
@@ -133,11 +162,19 @@ else()
     endif()
 endif()
 
+if(CONFIG_IDF_RTOS_RTTHREAD)
+idf_component_register(SRCS "${srcs}"
+                    INCLUDE_DIRS ${include_dirs}
+                    PRIV_INCLUDE_DIRS  ${private_include_dirs}
+                    PRIV_REQUIRES soc esp_pm)
+else()
 idf_component_register(SRCS "${srcs}"
                     INCLUDE_DIRS ${include_dirs}
                     PRIV_INCLUDE_DIRS  ${private_include_dirs}
                     LDFRAGMENTS "${ldfragments}"
+                    REQUIRES main
                     PRIV_REQUIRES soc esp_pm)
+endif()
 
 idf_component_get_property(COMPONENT_DIR freertos COMPONENT_DIR)
 
@@ -153,6 +190,16 @@ if(CONFIG_FREERTOS_DEBUG_OCDAWARE)
     idf_build_set_property(COMPILE_OPTIONS "-DconfigENABLE_FREERTOS_DEBUG_OCDAWARE=1" APPEND)
 endif()
 
+if(CONFIG_IDF_RTOS_RTTHREAD)
+set_source_files_properties(
+    tasks.c
+    event_groups.c
+    timers.c
+    queue.c
+    PROPERTIES COMPILE_DEFINITIONS
+    _ESP_FREERTOS_INTERNAL
+    )
+else()
 set_source_files_properties(
     tasks.c
     event_groups.c
@@ -162,6 +209,7 @@ set_source_files_properties(
     PROPERTIES COMPILE_DEFINITIONS
     _ESP_FREERTOS_INTERNAL
     )
+endif()
 
 # The freertos component provides the `start_app` and `start_app_other_cores`
 # if it is included in the build. It then calls `app_main`
