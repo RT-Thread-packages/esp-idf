@@ -7,7 +7,6 @@ endif()
 idf_build_get_property(target IDF_TARGET)
 
 if(CONFIG_IDF_RTOS_RTTHREAD)
-    set(freertos_root "../../../FreeRTOS_Wrapper-latest/FreeRTOS")
     set(srcs
         "${freertos_root}/portable/esp-idf/riscv/port.c")
 
