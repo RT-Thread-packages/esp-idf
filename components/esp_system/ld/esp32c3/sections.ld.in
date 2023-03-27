@@ -188,6 +188,7 @@ SECTIONS
       __stack_cpu0 = .;
       __stack_end__ = .;
   } > dram0_0_seg
+  PROVIDE( __rt_rvstack = __stack_end__);
 
   .heap :
   {
