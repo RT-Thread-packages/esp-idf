@@ -3952,7 +3952,9 @@ void btm_sec_auth_complete (UINT16 handle, UINT8 status)
             }
         }
     }
-
+	if (!p_dev_rec) {
+        return;
+    }
     p_dev_rec->sec_state = BTM_SEC_STATE_IDLE;
 
 #if (CLASSIC_BT_INCLUDED == TRUE)
