@@ -200,7 +200,12 @@ static void print_ep_desc(const usb_ep_desc_t *ep_desc)
     printf("\t\tbEndpointAddress 0x%x\tEP %d %s\n", ep_desc->bEndpointAddress,
            USB_EP_DESC_GET_EP_NUM(ep_desc),
            USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT");
-    printf("\t\tbmAttributes 0x%x\t%s\n", ep_desc->bmAttributes, ep_type_str);
+    if(ep_type_str!=NULL){
+        printf("\t\tbmAttributes 0x%x\t%s\n", ep_desc->bmAttributes, ep_type_str);
+    }
+    else{
+        printf("\t\tError:bmAttributes type mismatch CTRL/ISOC/BULK/INT, please check!\n");
+    }
     printf("\t\twMaxPacketSize %d\n", ep_desc->wMaxPacketSize);
     printf("\t\tbInterval %d\n", ep_desc->bInterval);
 }
