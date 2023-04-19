@@ -99,7 +99,7 @@ void run_tasks(const char *task1_description, void (* task1_func)(void *), const
     if(task2_func != NULL) xTaskCreate(task2_func, task2_description, 2048, &exit_sema[1], UNITY_FREERTOS_PRIORITY - 1, &th[1]);
 #endif
 
-    printf("start wait for %d seconds [Test %s and %s]\n", delay_ms/1000, task1_description, task2_description);
+    printf("start wait for %u seconds [Test %s and %s]\n", delay_ms/1000, task1_description, task2_description);
     vTaskDelay(delay_ms / portTICK_PERIOD_MS);
 
     // set exit flag to let thread exit
