@@ -23,9 +23,9 @@ typedef enum {
 /* These MAC-related functions are defined in the closed source part of
  * RTC library
  */
-extern void pm_mac_init(void);
-extern int pm_check_mac_idle(void);
-extern void pm_mac_deinit(void);
+// extern void pm_mac_init(void);
+// extern int pm_check_mac_idle(void);
+// extern void pm_mac_deinit(void);
 
 /* This sleep-related function is called from the closed source part of RTC
  * library.
@@ -34,11 +34,11 @@ pm_sw_reject_t pm_set_sleep_mode(pm_sleep_mode_t sleep_mode, void(*pmac_save_par
 {
     (void) pmac_save_params; /* unused */
 
-    pm_mac_deinit();
-    if (pm_check_mac_idle()) {
-        pm_mac_init();
-        return PM_SW_REJECT;
-    }
+    // pm_mac_deinit();
+    // if (pm_check_mac_idle()) {
+    //     pm_mac_init();
+    //     return PM_SW_REJECT;
+    // }
 
     rtc_sleep_config_t cfg = { 0 };
 
