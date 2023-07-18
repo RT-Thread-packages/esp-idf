@@ -23,7 +23,7 @@ extern "C" {
  *
  * @param hw Start address of the peripheral registers.
  */
-inline void xt_wdt_ll_enable(rtc_cntl_dev_t *hw, bool enable)
+__attribute__((always_inline)) inline void xt_wdt_ll_enable(rtc_cntl_dev_t *hw, bool enable)
 {
     hw->ext_xtl_conf.xtal32k_wdt_en = enable;
 }
@@ -34,7 +34,7 @@ inline void xt_wdt_ll_enable(rtc_cntl_dev_t *hw, bool enable)
  * @param hw Start address of the peripheral registers.
  * @return True if XT WDT is enabled
  */
-inline bool xt_wdt_ll_check_if_enabled(rtc_cntl_dev_t *hw)
+__attribute__((always_inline)) inline bool xt_wdt_ll_check_if_enabled(rtc_cntl_dev_t *hw)
 {
     return (hw->ext_xtl_conf.xtal32k_wdt_en) ? true : false;
 }
@@ -45,7 +45,7 @@ inline bool xt_wdt_ll_check_if_enabled(rtc_cntl_dev_t *hw)
  * @param hw Start address of the peripheral registers.
  * @param timeout timeout value in RTC_CLK cycles
  */
-inline void xt_wdt_ll_set_timeout(rtc_cntl_dev_t *hw, uint8_t timeout)
+__attribute__((always_inline)) inline void xt_wdt_ll_set_timeout(rtc_cntl_dev_t *hw, uint8_t timeout)
 {
     hw->xtal32k_conf.xtal32k_wdt_timeout = timeout;
 }
@@ -56,7 +56,7 @@ inline void xt_wdt_ll_set_timeout(rtc_cntl_dev_t *hw, uint8_t timeout)
  *
  * @param hw Start address of the peripheral registers.
  */
-inline void xt_wdt_ll_reset(rtc_cntl_dev_t *hw)
+__attribute__((always_inline)) inline void xt_wdt_ll_reset(rtc_cntl_dev_t *hw)
 {
     hw->ext_xtl_conf.xtal32k_wdt_reset = 1;
     hw->ext_xtl_conf.xtal32k_wdt_reset = 0;
@@ -69,7 +69,7 @@ inline void xt_wdt_ll_reset(rtc_cntl_dev_t *hw)
  * @param hw Start address of the peripheral registers.
  * @param backup_clk_val Backup clock value, see TRM for definition
  */
-inline void xt_wdt_ll_set_backup_clk_factor(rtc_cntl_dev_t *hw, uint32_t backup_clk_val)
+__attribute__((always_inline)) inline void xt_wdt_ll_set_backup_clk_factor(rtc_cntl_dev_t *hw, uint32_t backup_clk_val)
 {
     hw->xtal32k_clk_factor = backup_clk_val;
 }
@@ -80,7 +80,7 @@ inline void xt_wdt_ll_set_backup_clk_factor(rtc_cntl_dev_t *hw, uint32_t backup_
  * @param hw Start address of the peripheral registers.
  * @param enable True - enable, False - disable
  */
-inline void xt_wdt_ll_auto_backup_enable(rtc_cntl_dev_t *hw, bool enable)
+__attribute__((always_inline)) inline void xt_wdt_ll_auto_backup_enable(rtc_cntl_dev_t *hw, bool enable)
 {
     hw->ext_xtl_conf.xtal32k_auto_backup = enable;
 }
@@ -91,7 +91,7 @@ inline void xt_wdt_ll_auto_backup_enable(rtc_cntl_dev_t *hw, bool enable)
  * @param hw Start address of the peripheral registers.
  * @param enable True - enable, False - disable
  */
-inline void xt_wdt_ll_intr_enable(rtc_cntl_dev_t *hw, bool enable)
+__attribute__((always_inline)) inline void xt_wdt_ll_intr_enable(rtc_cntl_dev_t *hw, bool enable)
 {
     hw->int_ena.rtc_xtal32k_dead = enable;
 }
