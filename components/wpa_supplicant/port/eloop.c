@@ -11,11 +11,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "includes.h"
-
-#include "common.h"
-#include "list.h"
-#include "eloop.h"
+#include "utils/includes.h"
+#include "utils/common.h"
+#include "utils/list.h"
+#include "utils/eloop.h"
 
 struct eloop_timeout {
 	struct dl_list list;

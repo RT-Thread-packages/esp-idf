@@ -329,7 +329,11 @@ static const struct osi_funcs_t osi_funcs_ro = {
     ._interrupt_handler_set = interrupt_handler_set_wrapper,
     ._interrupt_disable = interrupt_disable,
     ._interrupt_restore = interrupt_restore,
+#ifdef CONFIG_IDF_RTOS_RTTHREAD
+    ._task_yield = rt_thread_yield,
+#else
     ._task_yield = vPortYield,
+#endif
     ._task_yield_from_isr = task_yield_from_isr,
     ._semphr_create = semphr_create_wrapper,
     ._semphr_delete = semphr_delete_wrapper,
@@ -1517,7 +1521,9 @@ int IRAM_ATTR esp_bt_h4tl_eif_io_event_notify(int event)
 
 uint16_t esp_bt_get_tx_buf_num(void)
 {
+#ifndef CONFIG_IDF_RTOS_RTTHREAD
     return l2c_ble_link_get_tx_buf_num();
+#endif
 }
 
 static void coex_wifi_sleep_set_hook(bool sleep)

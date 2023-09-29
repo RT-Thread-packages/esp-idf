@@ -6,9 +6,9 @@
  * See README for more details.
  */
 
-#include "includes.h"
+#include "utils/includes.h"
 
-#include "common.h"
+#include "utils/common.h"
 #include "wps_i.h"
 #include "wps_dev_attr.h"
 

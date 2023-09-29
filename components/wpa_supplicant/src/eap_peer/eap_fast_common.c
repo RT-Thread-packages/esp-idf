@@ -6,9 +6,9 @@
  * See README for more details.
  */
 
-#include "includes.h"
+#include "utils/includes.h"
 
-#include "common.h"
+#include "utils/common.h"
 #include "crypto/sha1.h"
 #include "crypto/tls.h"
 #include "eap_peer/eap_defs.h"
