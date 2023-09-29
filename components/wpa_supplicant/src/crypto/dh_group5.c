@@ -6,9 +6,9 @@
  * See README for more details.
  */
 
-#include "includes.h"
+#include "utils/includes.h"
 
-#include "common.h"
+#include "utils/common.h"
 #include "dh_groups.h"
 #include "dh_group5.h"
 

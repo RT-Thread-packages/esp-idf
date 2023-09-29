@@ -6,9 +6,9 @@
  * See README for more details.
  */
 
-#include "includes.h"
+#include "utils/includes.h"
 
-#include "common.h"
+#include "utils/common.h"
 #include "eap_peer/eap_defs.h"
 #include "eap_peer/eap_common.h"
 #include "wps/wps.h"

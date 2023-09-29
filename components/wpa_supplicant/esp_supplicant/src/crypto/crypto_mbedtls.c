@@ -9,9 +9,9 @@
 
 #include "utils/includes.h"
 #include "utils/common.h"
-#include "crypto.h"
-#include "random.h"
-#include "sha256.h"
+#include "crypto/crypto.h"
+#include "crypto/random.h"
+#include "crypto/sha256.h"
 
 #include "mbedtls/ecp.h"
 #include "mbedtls/entropy.h"
@@ -25,15 +25,15 @@
 #include "mbedtls/des.h"
 #include "mbedtls/ccm.h"
 
-#include "common.h"
+#include "utils/common.h"
 #include "utils/wpabuf.h"
-#include "dh_group5.h"
-#include "md5.h"
-#include "sha1.h"
-#include "sha256.h"
-#include "sha384.h"
-#include "aes_wrap.h"
-#include "crypto.h"
+#include "crypto/dh_group5.h"
+#include "crypto/md5.h"
+#include "crypto/sha1.h"
+#include "crypto/sha256.h"
+#include "crypto/sha384.h"
+#include "crypto/aes_wrap.h"
+#include "crypto/crypto.h"
 #include "mbedtls/esp_config.h"
 
 #ifdef MBEDTLS_ARC4_C

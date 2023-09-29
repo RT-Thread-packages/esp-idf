@@ -277,7 +277,12 @@ void gdbstub_handle_uart_int(esp_gdbstub_frame_t *regs_frame)
         esp_gdbstub_flush();
     }
 }
-
+#ifdef CONFIG_IDF_RTOS_RTTHREAD
+// 这里是为了提供一个esp_gdbstub_getfifo函数防止编译出错
+int esp_gdbstub_getfifo() {
+    return 0;
+}
+#endif
 void gdbstub_handle_debug_int(esp_gdbstub_frame_t *regs_frame)
 {
     bp_count = 0;

@@ -473,14 +473,14 @@ static esp_err_t nvs_open_wrapper(const char* name, unsigned int open_mode, nvs_
 
 static void esp_log_writev_wrapper(unsigned int level, const char *tag, const char *format, va_list args)
 {
-    return esp_log_writev((esp_log_level_t)level,tag,format,args);
+    // return esp_log_writev((esp_log_level_t)level,tag,format,args);
 }
 
 static void esp_log_write_wrapper(unsigned int level,const char *tag,const char *format, ...)
 {
     va_list list;
     va_start(list, format);
-    esp_log_writev((esp_log_level_t)level, tag, format, list);
+    // esp_log_writev((esp_log_level_t)level, tag, format, list);
     va_end(list);
 }
 

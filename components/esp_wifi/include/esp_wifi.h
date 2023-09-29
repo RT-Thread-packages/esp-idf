@@ -55,7 +55,14 @@
 #include "esp_wifi_types.h"
 #include "esp_event.h"
 #include "esp_private/esp_wifi_private.h"
+#if !defined(CONFIG_IDF_RTOS_RTTHREAD) || defined(BSP_USING_BLE) 
+/*
+* 这里由于wifi组件和ble组件使用的不同的lwip库，wifi使用的是RT-Thread所提
+* 供的LWIP库，无需使用esp-idf的neiif层；而ble使用的是ESP-IDF所提供的LWIP
+* 库（只是依赖，并未使用lwip库进行操作），所以使用了netif层
+*/ 
 #include "esp_wifi_default.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {

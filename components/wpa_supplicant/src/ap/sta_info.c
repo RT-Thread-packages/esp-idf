@@ -19,7 +19,9 @@
 #include "sta_info.h"
 
 static void ap_sta_delayed_1x_auth_fail_cb(void *eloop_ctx, void *timeout_ctx);
-void hostapd_wps_eap_completed(struct hostapd_data *hapd);
+void hostapd_wps_eap_completed(struct hostapd_data *hapd)
+{
+}
 
 int ap_for_each_sta(struct hostapd_data *hapd,
 		    int (*cb)(struct hostapd_data *hapd, struct sta_info *sta,

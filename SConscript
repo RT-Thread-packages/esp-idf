@@ -19,11 +19,11 @@ esp32c3_path = [cwd + '/components/hal/esp32c3/include',
                 cwd + '/components/newlib/platform_include',
                 cwd + '/components/esp_ringbuf/include',
                 cwd + '/components/soc/include',
+                cwd + '/components/mbedtls/port/include',
                 cwd + '/components/mbedtls/mbedtls/include',
                 cwd + '/components/mbedtls/mbedtls/library',
                 cwd + '/components/log/include',
                 cwd + '/components/esp_hw_support/include/soc/esp32c3',
-                cwd + '/components/mbedtls/port/include',
                 cwd + '/components/mbedtls/port/aes/dma/include',
                 cwd + '/components/mbedtls/port/sha/dma/include',
 
@@ -58,7 +58,15 @@ esp32c3_path = [cwd + '/components/hal/esp32c3/include',
 
                 cwd + '/components/esp_timer/private_include',
                 cwd + '/components/mbedtls/esp_crt_bundle/include',
-                cwd + '/components/hal/esp32c3/include']
+                cwd + '/components/hal/esp32c3/include',
+
+                cwd + '/components/esp_system/port/include/riscv',
+
+                cwd + '/components/esp_gdbstub/include',
+                cwd + '/components/esp_gdbstub/private_include',
+                cwd + '/components/esp_gdbstub/esp32c3',
+                cwd + '/components/esp_gdbstub/riscv/'
+            ]
 
 esp32c3_src = Split("""
 components/esp_app_format/esp_app_desc.c
@@ -77,9 +85,9 @@ components/bootloader_support/src/esp32c3/bootloader_esp32c3.c
 components/bootloader_support/src/esp32c3/bootloader_soc.c
 components/bootloader_support/src/bootloader_init.c
 components/bootloader_support/src/bootloader_console.c
-components/freertos/esp_additions/freertos_v8_compat.c
 components/mbedtls/esp_crt_bundle/esp_crt_bundle.c
 """)
+# components/freertos/esp_additions/freertos_v8_compat.c
 
 esp32c3_mbedtls_src = Split("""
 components/mbedtls/mbedtls/library/timing.c
@@ -341,6 +349,7 @@ components/esp_system/port/soc/esp32c3/clk.c
 components/esp_system/port/arch/riscv/debug_stubs.c
 components/esp_system/port/arch/riscv/expression_with_stack.c
 components/esp_system/port/arch/riscv/panic_arch.c
+components/esp_system/eh_frame_parser.c
 """)
 
 esp32c3_esp_rom_src = Split("""
@@ -472,6 +481,347 @@ components/esp_timer/src/esp_timer.c
 components/esp_timer/src/ets_timer_legacy.c
 """)
 
+esp32c3_wifi_src = Split("""
+components/esp_wifi/src/coexist.c
+components/esp_wifi/src/mesh_event.c
+components/esp_wifi/src/smartconfig.c
+components/esp_wifi/src/smartconfig_ack.c
+components/esp_wifi/src/wifi_init.c
+components/esp_wifi/src/wifi_netif.c
+components/esp_wifi/src/wifi_default_ap.c
+components/esp_wifi/esp32c3/esp_adapter.c
+components/esp_wifi/lib/esp32c3/libcoexist.a
+components/esp_wifi/lib/esp32c3/libcore.a
+components/esp_wifi/lib/esp32c3/libespnow.a
+components/esp_wifi/lib/esp32c3/libmesh.a
+components/esp_wifi/lib/esp32c3/libnet80211.a
+components/esp_wifi/lib/esp32c3/libpp.a
+components/esp_wifi/lib/esp32c3/libsmartconfig.a
+components/esp_wifi/lib/esp32c3/libwapi.a
+""")
+#components/esp_wifi/src/wifi_default.c
+
+esp32c3_wpa_supplicant_src = Split("""
+components/wpa_supplicant/port/os_xtensa.c
+components/wpa_supplicant/port/eloop.c
+components/wpa_supplicant/src/ap/ap_config.c
+components/wpa_supplicant/src/ap/ieee802_1x.c
+components/wpa_supplicant/src/ap/wpa_auth.c
+components/wpa_supplicant/src/ap/wpa_auth_ie.c
+components/wpa_supplicant/src/ap/sta_info.c
+components/wpa_supplicant/src/common/sae.c
+components/wpa_supplicant/src/common/wpa_common.c
+components/wpa_supplicant/src/utils/bitfield.c
+components/wpa_supplicant/src/crypto/aes-siv.c
+components/wpa_supplicant/src/crypto/sha256-kdf.c
+components/wpa_supplicant/src/crypto/ccmp.c
+components/wpa_supplicant/src/crypto/aes-gcm.c
+components/wpa_supplicant/src/crypto/crypto_ops.c
+components/wpa_supplicant/src/crypto/dh_group5.c
+components/wpa_supplicant/src/crypto/dh_groups.c
+components/wpa_supplicant/src/crypto/ms_funcs.c
+components/wpa_supplicant/src/crypto/sha1-tlsprf.c
+components/wpa_supplicant/src/crypto/sha256-tlsprf.c
+components/wpa_supplicant/src/crypto/sha384-tlsprf.c
+components/wpa_supplicant/src/crypto/sha256-prf.c
+components/wpa_supplicant/src/crypto/sha1-prf.c
+components/wpa_supplicant/src/crypto/sha384-prf.c
+components/wpa_supplicant/src/crypto/md4-internal.c
+components/wpa_supplicant/src/crypto/sha1-tprf.c
+components/wpa_supplicant/src/eap_common/eap_wsc_common.c
+components/wpa_supplicant/src/common/ieee802_11_common.c
+components/wpa_supplicant/src/eap_peer/chap.c
+components/wpa_supplicant/src/eap_peer/eap.c
+components/wpa_supplicant/src/eap_peer/eap_common.c
+components/wpa_supplicant/src/eap_peer/eap_mschapv2.c
+components/wpa_supplicant/src/eap_peer/eap_peap.c
+components/wpa_supplicant/src/eap_peer/eap_peap_common.c
+components/wpa_supplicant/src/eap_peer/eap_tls.c
+components/wpa_supplicant/src/eap_peer/eap_tls_common.c
+components/wpa_supplicant/src/eap_peer/eap_ttls.c
+components/wpa_supplicant/src/eap_peer/mschapv2.c
+components/wpa_supplicant/src/eap_peer/eap_fast.c
+components/wpa_supplicant/src/eap_peer/eap_fast_common.c
+components/wpa_supplicant/src/rsn_supp/pmksa_cache.c
+components/wpa_supplicant/src/rsn_supp/wpa.c
+components/wpa_supplicant/src/rsn_supp/wpa_ie.c
+components/wpa_supplicant/src/utils/base64.c
+components/wpa_supplicant/src/utils/common.c
+components/wpa_supplicant/src/utils/ext_password.c
+components/wpa_supplicant/src/utils/uuid.c
+components/wpa_supplicant/src/utils/wpabuf.c
+components/wpa_supplicant/src/utils/wpa_debug.c
+components/wpa_supplicant/src/utils/json.c
+components/wpa_supplicant/src/wps/wps.c
+components/wpa_supplicant/src/wps/wps_attr_build.c
+components/wpa_supplicant/src/wps/wps_attr_parse.c
+components/wpa_supplicant/src/wps/wps_attr_process.c
+components/wpa_supplicant/src/wps/wps_common.c
+components/wpa_supplicant/src/wps/wps_dev_attr.c
+components/wpa_supplicant/src/wps/wps_enrollee.c
+components/wpa_supplicant/esp_supplicant/src/esp_wpa2.c
+components/wpa_supplicant/esp_supplicant/src/esp_wpa_main.c
+components/wpa_supplicant/esp_supplicant/src/esp_wpas_glue.c
+components/wpa_supplicant/esp_supplicant/src/esp_common.c
+components/wpa_supplicant/esp_supplicant/src/esp_wps.c
+components/wpa_supplicant/esp_supplicant/src/esp_wpa3.c
+components/wpa_supplicant/esp_supplicant/src/esp_owe.c
+components/wpa_supplicant/esp_supplicant/src/esp_hostap.c
+components/wpa_supplicant/esp_supplicant/src/crypto/tls_mbedtls.c
+components/wpa_supplicant/esp_supplicant/src/crypto/crypto_mbedtls.c
+components/wpa_supplicant/esp_supplicant/src/crypto/crypto_mbedtls-bignum.c
+components/wpa_supplicant/esp_supplicant/src/crypto/crypto_mbedtls-rsa.c
+components/wpa_supplicant/esp_supplicant/src/crypto/crypto_mbedtls-ec.c
+components/wpa_supplicant/src/crypto/rc4.c
+components/wpa_supplicant/src/crypto/des-internal.c
+components/wpa_supplicant/src/crypto/aes-omac1.c
+components/wpa_supplicant/src/crypto/aes-wrap.c
+components/wpa_supplicant/src/crypto/aes-unwrap.c
+components/wpa_supplicant/src/crypto/aes-ccm.c
+""")
+
+# components/wpa_supplicant/src/eap_peer/eap_fast_pac.c
+
+esp32c3_netif_src = Split("""
+components/esp_netif/esp_netif_handlers.c
+components/esp_netif/esp_netif_objects.c
+components/esp_netif/esp_netif_defaults.c
+components/esp_netif/lwip/esp_netif_lwip.c
+components/esp_netif/lwip/esp_netif_lwip_defaults.c
+components/esp_netif/lwip/netif/wlanif.c
+components/esp_netif/lwip/netif/ethernetif.c
+components/esp_netif/lwip/netif/esp_pbuf_ref.c
+components/esp_netif/loopback/esp_netif_loopback.c
+""")
+
+esp32c3_lwip_src = Split("""
+components/lwip/apps/sntp/sntp.c
+components/lwip/lwip/src/api/api_lib.c
+components/lwip/lwip/src/api/api_msg.c
+components/lwip/lwip/src/api/err.c
+components/lwip/lwip/src/api/if_api.c
+components/lwip/lwip/src/api/netbuf.c
+components/lwip/lwip/src/api/netdb.c
+components/lwip/lwip/src/api/netifapi.c
+components/lwip/lwip/src/api/sockets.c
+components/lwip/lwip/src/api/tcpip.c
+components/lwip/lwip/src/apps/sntp/sntp.c
+components/lwip/lwip/src/apps/netbiosns/netbiosns.c
+components/lwip/lwip/src/core/def.c
+components/lwip/lwip/src/core/dns.c
+components/lwip/lwip/src/core/inet_chksum.c
+components/lwip/lwip/src/core/init.c
+components/lwip/lwip/src/core/ip.c
+components/lwip/lwip/src/core/mem.c
+components/lwip/lwip/src/core/memp.c
+components/lwip/lwip/src/core/netif.c
+components/lwip/lwip/src/core/pbuf.c
+components/lwip/lwip/src/core/raw.c
+components/lwip/lwip/src/core/stats.c
+components/lwip/lwip/src/core/sys.c
+components/lwip/lwip/src/core/tcp.c
+components/lwip/lwip/src/core/tcp_in.c
+components/lwip/lwip/src/core/tcp_out.c
+components/lwip/lwip/src/core/timeouts.c
+components/lwip/lwip/src/core/udp.c
+components/lwip/lwip/src/core/ipv4/autoip.c
+components/lwip/lwip/src/core/ipv4/dhcp.c
+components/lwip/lwip/src/core/ipv4/etharp.c
+components/lwip/lwip/src/core/ipv4/icmp.c
+components/lwip/lwip/src/core/ipv4/igmp.c
+components/lwip/lwip/src/core/ipv4/ip4.c
+components/lwip/lwip/src/core/ipv4/ip4_napt.c
+components/lwip/lwip/src/core/ipv4/ip4_addr.c
+components/lwip/lwip/src/core/ipv4/ip4_frag.c
+components/lwip/lwip/src/core/ipv6/dhcp6.c
+components/lwip/lwip/src/core/ipv6/ethip6.c
+components/lwip/lwip/src/core/ipv6/icmp6.c
+components/lwip/lwip/src/core/ipv6/inet6.c
+components/lwip/lwip/src/core/ipv6/ip6_addr.c
+components/lwip/lwip/src/core/ipv6/ip6.c
+components/lwip/lwip/src/core/ipv6/ip6_frag.c
+components/lwip/lwip/src/core/ipv6/mld6.c
+components/lwip/lwip/src/core/ipv6/nd6.c
+components/lwip/lwip/src/netif/ethernet.c
+components/lwip/lwip/src/netif/bridgeif.c
+components/lwip/lwip/src/netif/bridgeif_fdb.c
+components/lwip/lwip/src/netif/slipif.c
+components/lwip/lwip/src/netif/ppp/auth.c
+components/lwip/lwip/src/netif/ppp/ccp.c
+components/lwip/lwip/src/netif/ppp/chap-md5.c
+components/lwip/lwip/src/netif/ppp/chap-new.c
+components/lwip/lwip/src/netif/ppp/chap_ms.c
+components/lwip/lwip/src/netif/ppp/demand.c
+components/lwip/lwip/src/netif/ppp/eap.c
+components/lwip/lwip/src/netif/ppp/ecp.c
+components/lwip/lwip/src/netif/ppp/eui64.c
+components/lwip/lwip/src/netif/ppp/fsm.c
+components/lwip/lwip/src/netif/ppp/ipcp.c
+components/lwip/lwip/src/netif/ppp/ipv6cp.c
+components/lwip/lwip/src/netif/ppp/lcp.c
+components/lwip/lwip/src/netif/ppp/mppe.c
+components/lwip/lwip/src/netif/ppp/magic.c
+components/lwip/lwip/src/netif/ppp/multilink.c
+components/lwip/lwip/src/netif/ppp/ppp.c
+components/lwip/lwip/src/netif/ppp/pppapi.c
+components/lwip/lwip/src/netif/ppp/pppcrypt.c
+components/lwip/lwip/src/netif/ppp/pppoe.c
+components/lwip/lwip/src/netif/ppp/pppol2tp.c
+components/lwip/lwip/src/netif/ppp/pppos.c
+components/lwip/lwip/src/netif/ppp/upap.c
+components/lwip/lwip/src/netif/ppp/utils.c
+components/lwip/lwip/src/netif/ppp/vj.c
+components/lwip/port/esp32/hooks/tcp_isn_default.c
+components/lwip/port/esp32/hooks/lwip_default_hooks.c
+components/lwip/port/esp32/debug/lwip_debug.c
+components/lwip/port/esp32/freertos/sys_arch.c
+components/lwip/port/esp32/sockets_ext.c
+components/lwip/port/esp32/vfs_lwip.c
+components/lwip/apps/ping/esp_ping.c
+components/lwip/apps/ping/ping.c
+components/lwip/apps/ping/ping_sock.c
+components/lwip/apps/dhcpserver/dhcpserver.c
+""")
+
+esp32c3_vfs_src = Split("""
+components/vfs/vfs_eventfd.c
+components/vfs/vfs.c
+components/vfs/vfs_uart.c
+components/vfs/vfs_semihost.c
+components/vfs/vfs_console.c
+components/vfs/vfs_usb_serial_jtag.c
+""")
+
+esp32c3_nvs_flash_src = Split("""
+components/nvs_flash/src/nvs_api.cpp
+components/nvs_flash/src/nvs_cxx_api.cpp
+components/nvs_flash/src/nvs_item_hash_list.cpp
+components/nvs_flash/src/nvs_page.cpp
+components/nvs_flash/src/nvs_pagemanager.cpp
+components/nvs_flash/src/nvs_storage.cpp
+components/nvs_flash/src/nvs_handle_simple.cpp
+components/nvs_flash/src/nvs_handle_locked.cpp
+components/nvs_flash/src/nvs_partition.cpp
+components/nvs_flash/src/nvs_partition_lookup.cpp
+components/nvs_flash/src/nvs_partition_manager.cpp
+components/nvs_flash/src/nvs_types.cpp
+""")
+
+esp32c3_esp_event_src = Split("""
+components/esp_event/esp_event.c
+components/esp_event/default_event_loop.c
+components/esp_event/esp_event_private.c
+""")
+
+esp32c3_bt_src = Split("""
+components/bt/controller/esp32c3/bt.c
+components/bt/common/btc/core/btc_alarm.c
+components/bt/common/api/esp_blufi_api.c
+components/bt/common/btc/core/btc_task.c
+components/bt/common/btc/core/btc_manage.c
+components/bt/common/btc/profile/esp/blufi/blufi_prf.c
+components/bt/common/btc/profile/esp/blufi/blufi_protocol.c
+components/bt/common/osi/alarm.c
+components/bt/common/osi/allocator.c
+components/bt/common/osi/buffer.c
+components/bt/common/osi/config.c
+components/bt/common/osi/fixed_queue.c
+components/bt/common/osi/pkt_queue.c
+components/bt/common/osi/fixed_pkt_queue.c
+components/bt/common/osi/future.c
+components/bt/common/osi/hash_functions.c
+components/bt/common/osi/hash_map.c
+components/bt/common/osi/list.c
+components/bt/common/osi/mutex.c
+components/bt/common/osi/thread.c
+components/bt/common/osi/osi.c
+components/bt/common/osi/semaphore.c
+components/bt/porting/mem/bt_osi_mem.c
+components/bt/host/nimble/nimble/nimble/host/util/src/addr.c
+components/bt/host/nimble/nimble/nimble/host/services/gatt/src/ble_svc_gatt.c
+components/bt/host/nimble/nimble/nimble/host/services/tps/src/ble_svc_tps.c
+components/bt/host/nimble/nimble/nimble/host/services/ias/src/ble_svc_ias.c
+components/bt/host/nimble/nimble/nimble/host/services/ipss/src/ble_svc_ipss.c
+components/bt/host/nimble/nimble/nimble/host/services/ans/src/ble_svc_ans.c
+components/bt/host/nimble/nimble/nimble/host/services/gap/src/ble_svc_gap.c
+components/bt/host/nimble/nimble/nimble/host/services/bas/src/ble_svc_bas.c
+components/bt/host/nimble/nimble/nimble/host/services/dis/src/ble_svc_dis.c
+components/bt/host/nimble/nimble/nimble/host/services/lls/src/ble_svc_lls.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_conn.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_store_util.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_sm.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_shutdown.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap_sig_cmd.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci_cmd.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_att_svr.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_id.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_gatts_lcl.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_ibeacon.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_atomic.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_sm_alg.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_stop.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci_evt.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_mqueue.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_periodic_sync.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_att.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_gattc.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_store.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_sm_lgcy.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_cfg.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_monitor.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_att_clt.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap_coc.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_mbuf.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_att_cmd.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_log.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_eddystone.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_startup.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap_sig.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_gap.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_sm_cmd.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_uuid.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_pvcy.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_flow.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_sm_sc.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_misc.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_gatts.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_adv.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci_util.c
+components/bt/host/nimble/nimble/nimble/host/src/ble_hs_resolv.c
+components/bt/host/nimble/nimble/nimble/host/store/ram/src/ble_store_ram.c
+components/bt/host/nimble/nimble/nimble/host/store/config/src/ble_store_config.c
+components/bt/host/nimble/nimble/nimble/host/store/config/src/ble_store_nvs.c
+components/bt/host/nimble/nimble/porting/nimble/src/nimble_port.c
+components/bt/host/nimble/nimble/porting/npl/freertos/src/nimble_port_freertos.c
+components/bt/host/nimble/nimble/porting/nimble/src/endian.c
+components/bt/host/nimble/nimble/porting/nimble/src/os_mempool.c
+components/bt/host/nimble/nimble/porting/nimble/src/mem.c
+components/bt/host/nimble/nimble/porting/nimble/src/os_mbuf.c
+components/bt/host/nimble/nimble/porting/nimble/src/os_msys_init.c
+components/bt/host/nimble/nimble/porting/npl/freertos/src/npl_os_freertos.c
+components/bt/host/nimble/esp-hci/src/esp_nimble_hci.c
+components/bt/common/btc/profile/esp/blufi/nimble_host/esp_blufi.c
+components/bt/controller/lib_esp32c3_family/esp32c3/libbtdm_app.a
+""")
+
+esp32c3_esp_phy_src = Split("""
+components/esp_phy/src/lib_printf.c
+components/esp_phy/src/phy_override.c
+components/esp_phy/src/phy_init.c
+components/esp_phy/lib/esp32c3/libphy.a
+components/esp_phy/lib/esp32c3/libbtbb.a
+""")
+
+esp32c3_esp_gdbsub_src = Split("""
+components/esp_gdbstub/esp32c3/gdbstub_esp32c3.c
+components/esp_gdbstub/riscv/gdbstub_riscv.c
+components/esp_gdbstub/src/gdbstub.c
+components/esp_gdbstub/src/packet.c
+""")
+
 if GetDepend(['SOC_ESP32_C3']):
     src += esp32c3_src
     src += esp32c3_riscv_src
@@ -490,17 +840,105 @@ if GetDepend(['SOC_ESP32_C3']):
     src += esp32c3_pthread_src
     src += esp32c3_efuse_src
     src += esp32c3_esp_timer_src
+    src += esp32c3_esp_gdbsub_src
     path += esp32c3_path
-    CPPDEFINES = [ 'IDF_VER=\\"999\\\"', 'PROJECT_VER=\\"999\\"' ,'_GNU_SOURCE' , 'MULTI_HEAP_FREERTOS', 'ESP_PLATFORM=1', 'IDF_TARGET=esp32c3', '_POSIX_READER_WRITER_LOCKS' , 'PROJECT_NAME=\\"rtthread\\"' , 'MBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"']
-# [163/442] /home/balance/.espressif/tools/riscv32-esp-elf/esp-2022r1-11.2.0/riscv32-esp-elf/bin/riscv32-esp-elf-gcc -DMBEDTLS_CONFIG_FILE=\"mbedtls/esp_config.h\" -Iconfig -I../packages/ESP-IDF-latest/components/esp_system/include -I../packages/ESP-IDF-latest/components/esp_system/port/include -I../packages/ESP-IDF-latest/components/esp_system/port/. -I../packages/ESP-IDF-latest/components/esp_system/port/soc -I../packages/ESP-IDF-latest/components/esp_system/port/include/riscv -I../packages/ESP-IDF-latest/components/esp_system/port/include/private -I../packages/ESP-IDF-latest/components/newlib/platform_include -I../packages/FreeRTOS_Wrapper-latest/FreeRTOS/include -I../packages/ESP-IDF-latest/components/freertos/esp_additions/include -I../packages/ESP-IDF-latest/components/freertos/esp_additions/include/freertos -I../packages/FreeRTOS_Wrapper-latest/FreeRTOS/portable/esp-idf/riscv/include -I../packages/ESP-IDF-latest/components/esp_hw_support/include -I../packages/ESP-IDF-latest/components/esp_hw_support/include/soc -I../packages/ESP-IDF-latest/components/esp_hw_support/include/soc/esp32c3 -I../packages/ESP-IDF-latest/components/esp_hw_support/port/esp32c3/. -I../packages/ESP-IDF-latest/components/esp_hw_support/port/esp32c3/private_include -I../packages/ESP-IDF-latest/components/heap/include -I../packages/ESP-IDF-latest/components/log/include -I../packages/ESP-IDF-latest/components/soc/include -I../packages/ESP-IDF-latest/components/soc/esp32c3/. -I../packages/ESP-IDF-latest/components/soc/esp32c3/include -I../packages/ESP-IDF-latest/components/hal/esp32c3/include -I../packages/ESP-IDF-latest/components/hal/include -I../packages/ESP-IDF-latest/components/hal/platform_port/include -I../packages/ESP-IDF-latest/components/esp_rom/include -I../packages/ESP-IDF-latest/components/esp_rom/include/esp32c3 -I../packages/ESP-IDF-latest/components/esp_rom/esp32c3 -I../packages/ESP-IDF-latest/components/esp_common/include -I../packages/ESP-IDF-latest/components/riscv/include -I/home/balance/Desktop/rt-thread/libcpu/risc-v/common -I/home/balance/Desktop/rt-thread/components/drivers/include -I../drivers -I/home/balance/Desktop/rt-thread/components/finsh -I../ -I/home/balance/Desktop/rt-thread/include -I../packages/ESP-IDF-latest/components/esp_ringbuf/include -I../packages/ESP-IDF-latest/components/efuse/include -I../packages/ESP-IDF-latest/components/efuse/esp32c3/include -I../packages/ESP-IDF-latest/components/esp_timer/include -I../packages/ESP-IDF-latest/components/driver/include -I../packages/ESP-IDF-latest/components/driver/deprecated -I../packages/ESP-IDF-latest/components/esp_pm/include -I../packages/ESP-IDF-latest/components/mbedtls/port/include -I../packages/ESP-IDF-latest/components/mbedtls/mbedtls/include -I../packages/ESP-IDF-latest/components/mbedtls/mbedtls/library -I../packages/ESP-IDF-latest/components/mbedtls/esp_crt_bundle/include -I../packages/ESP-IDF-latest/components/esp_app_format/include -I../packages/ESP-IDF-latest/components/bootloader_support/include -I../packages/ESP-IDF-latest/components/bootloader_support/bootloader_flash/include -I../packages/ESP-IDF-latest/components/app_update/include -I../packages/ESP-IDF-latest/components/spi_flash/include -I../packages/ESP-IDF-latest/components/pthread/include -march=rv32imc    -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=deprecated-declarations -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -nostartfiles -Og -fmacro-prefix-map=/home/balance/Desktop/rt-thread/bsp/ESP32_C3=. -fmacro-prefix-map=/home/balance/Desktop/rt-thread/bsp/ESP32_C3/packages/ESP-IDF-latest=/IDF -fstrict-volatile-bitfields -Wno-error=unused-but-set-variable -fno-jump-tables -fno-tree-switch-conversion -std=gnu17 -Wno-old-style-declaration -D_GNU_SOURCE -DIDF_VER=\"v5.0-dev-5148-g259c1776e9\" -DESP_PLATFORM -D_POSIX_READER_WRITER_LOCKS -Wno-format -MD  -c ../packages/ESP-IDF-latest/components/esp_system/crosscore_int.c
-# [391/442] /home/balance/.espressif/tools/riscv32-esp-elf/esp-2022r1-11.2.0/riscv32-esp-elf/bin/riscv32-esp-elf-gcc -DMBEDTLS_CONFIG_FILE=\"mbedtls/esp_config.h\" -Iconfig -I../packages/ESP-IDF-latest/components/esp_timer/include -I../packages/ESP-IDF-latest/components/esp_timer/private_include -I../packages/ESP-IDF-latest/components/newlib/platform_include -I../packages/FreeRTOS_Wrapper-latest/FreeRTOS/include -I../packages/ESP-IDF-latest/components/freertos/esp_additions/include -I../packages/ESP-IDF-latest/components/freertos/esp_additions/include/freertos -I../packages/FreeRTOS_Wrapper-latest/FreeRTOS/portable/esp-idf/riscv/include -I../packages/ESP-IDF-latest/components/esp_hw_support/include -I../packages/ESP-IDF-latest/components/esp_hw_support/include/soc -I../packages/ESP-IDF-latest/components/esp_hw_support/include/soc/esp32c3 -I../packages/ESP-IDF-latest/components/esp_hw_support/port/esp32c3/. -I../packages/ESP-IDF-latest/components/esp_hw_support/port/esp32c3/private_include -I../packages/ESP-IDF-latest/components/heap/include -I../packages/ESP-IDF-latest/components/log/include -I../packages/ESP-IDF-latest/components/soc/include -I../packages/ESP-IDF-latest/components/soc/esp32c3/. -I../packages/ESP-IDF-latest/components/soc/esp32c3/include -I../packages/ESP-IDF-latest/components/hal/esp32c3/include -I../packages/ESP-IDF-latest/components/hal/include -I../packages/ESP-IDF-latest/components/hal/platform_port/include -I../packages/ESP-IDF-latest/components/esp_rom/include -I../packages/ESP-IDF-latest/components/esp_rom/include/esp32c3 -I../packages/ESP-IDF-latest/components/esp_rom/esp32c3 -I../packages/ESP-IDF-latest/components/esp_common/include -I../packages/ESP-IDF-latest/components/esp_system/include -I../packages/ESP-IDF-latest/components/esp_system/port/soc -I../packages/ESP-IDF-latest/components/esp_system/port/include/riscv -I../packages/ESP-IDF-latest/components/esp_system/port/include/private -I../packages/ESP-IDF-latest/components/riscv/include -I/home/balance/Desktop/rt-thread/libcpu/risc-v/common -I/home/balance/Desktop/rt-thread/components/drivers/include -I../drivers -I/home/balance/Desktop/rt-thread/components/finsh -I../ -I/home/balance/Desktop/rt-thread/include -I../packages/ESP-IDF-latest/components/esp_ringbuf/include -I../packages/ESP-IDF-latest/components/efuse/include -I../packages/ESP-IDF-latest/components/efuse/esp32c3/include -I../packages/ESP-IDF-latest/components/driver/include -I../packages/ESP-IDF-latest/components/driver/deprecated -I../packages/ESP-IDF-latest/components/esp_pm/include -I../packages/ESP-IDF-latest/components/mbedtls/port/include -I../packages/ESP-IDF-latest/components/mbedtls/mbedtls/include -I../packages/ESP-IDF-latest/components/mbedtls/mbedtls/library -I../packages/ESP-IDF-latest/components/mbedtls/esp_crt_bundle/include -I../packages/ESP-IDF-latest/components/esp_app_format/include -I../packages/ESP-IDF-latest/components/bootloader_support/include -I../packages/ESP-IDF-latest/components/bootloader_support/bootloader_flash/include -I../packages/ESP-IDF-latest/components/app_update/include -I../packages/ESP-IDF-latest/components/spi_flash/include -I../packages/ESP-IDF-latest/components/pthread/include -march=rv32imc    -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=deprecated-declarations -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -nostartfiles -Og -fmacro-prefix-map=/home/balance/Desktop/rt-thread/bsp/ESP32_C3=. -fmacro-prefix-map=/home/balance/Desktop/rt-thread/bsp/ESP32_C3/packages/ESP-IDF-latest=/IDF -fstrict-volatile-bitfields -Wno-error=unused-but-set-variable -fno-jump-tables -fno-tree-switch-conversion -std=gnu17 -Wno-old-style-declaration -D_GNU_SOURCE -DIDF_VER=\"v5.0-dev-5148-g259c1776e9\" -DESP_PLATFORM -D_POSIX_READER_WRITER_LOCKS -MD -MT esp-idf/esp_timer/CMakeFiles/__idf_esp_timer.dir/src/esp_timer.c.obj -MF esp-idf/esp_timer/CMakeFiles/__idf_esp_timer.dir/src/esp_timer.c.obj.d -o esp-idf/esp_timer/CMakeFiles/__idf_esp_timer.dir/src/esp_timer.c.obj   -c ../packages/ESP-IDF-latest/components/esp_timer/src/esp_timer.c
-# [159/442] /home/balance/.espressif/tools/riscv32-esp-elf/esp-2022r1-11.2.0/riscv32-esp-elf/bin/riscv32-esp-elf-gcc -DMBEDTLS_CONFIG_FILE=\"mbedtls/esp_config.h\" -Iconfig -I../packages/ESP-IDF-latest/components/pthread/include -I../packages/ESP-IDF-latest/components/newlib/platform_include -I../packages/FreeRTOS_Wrapper-latest/FreeRTOS/include -I../packages/ESP-IDF-latest/components/freertos/esp_additions/include -I../packages/ESP-IDF-latest/components/freertos/esp_additions/include/freertos -I../packages/FreeRTOS_Wrapper-latest/FreeRTOS/portable/esp-idf/riscv/include -I../packages/ESP-IDF-latest/components/esp_hw_support/include -I../packages/ESP-IDF-latest/components/esp_hw_support/include/soc -I../packages/ESP-IDF-latest/components/esp_hw_support/include/soc/esp32c3 -I../packages/ESP-IDF-latest/components/esp_hw_support/port/esp32c3/. -I../packages/ESP-IDF-latest/components/esp_hw_support/port/esp32c3/private_include -I../packages/ESP-IDF-latest/components/heap/include -I../packages/ESP-IDF-latest/components/log/include -I../packages/ESP-IDF-latest/components/soc/include -I../packages/ESP-IDF-latest/components/soc/esp32c3/. -I../packages/ESP-IDF-latest/components/soc/esp32c3/include -I../packages/ESP-IDF-latest/components/hal/esp32c3/include -I../packages/ESP-IDF-latest/components/hal/include -I../packages/ESP-IDF-latest/components/hal/platform_port/include -I../packages/ESP-IDF-latest/components/esp_rom/include -I../packages/ESP-IDF-latest/components/esp_rom/include/esp32c3 -I../packages/ESP-IDF-latest/components/esp_rom/esp32c3 -I../packages/ESP-IDF-latest/components/esp_common/include -I../packages/ESP-IDF-latest/components/esp_system/include -I../packages/ESP-IDF-latest/components/esp_system/port/soc -I../packages/ESP-IDF-latest/components/esp_system/port/include/riscv -I../packages/ESP-IDF-latest/components/esp_system/port/include/private -I../packages/ESP-IDF-latest/components/riscv/include -I/home/balance/Desktop/rt-thread/libcpu/risc-v/common -I/home/balance/Desktop/rt-thread/components/drivers/include -I../drivers -I/home/balance/Desktop/rt-thread/components/finsh -I../ -I/home/balance/Desktop/rt-thread/include -I../packages/ESP-IDF-latest/components/esp_ringbuf/include -I../packages/ESP-IDF-latest/components/efuse/include -I../packages/ESP-IDF-latest/components/efuse/esp32c3/include -I../packages/ESP-IDF-latest/components/esp_timer/include -I../packages/ESP-IDF-latest/components/driver/include -I../packages/ESP-IDF-latest/components/driver/deprecated -I../packages/ESP-IDF-latest/components/esp_pm/include -I../packages/ESP-IDF-latest/components/mbedtls/port/include -I../packages/ESP-IDF-latest/components/mbedtls/mbedtls/include -I../packages/ESP-IDF-latest/components/mbedtls/mbedtls/library -I../packages/ESP-IDF-latest/components/mbedtls/esp_crt_bundle/include -I../packages/ESP-IDF-latest/components/esp_app_format/include -I../packages/ESP-IDF-latest/components/bootloader_support/include -I../packages/ESP-IDF-latest/components/bootloader_support/bootloader_flash/include -I../packages/ESP-IDF-latest/components/app_update/include -I../packages/ESP-IDF-latest/components/spi_flash/include -march=rv32imc    -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=deprecated-declarations -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -nostartfiles -Og -fmacro-prefix-map=/home/balance/Desktop/rt-thread/bsp/ESP32_C3=. -fmacro-prefix-map=/home/balance/Desktop/rt-thread/bsp/ESP32_C3/packages/ESP-IDF-latest=/IDF -fstrict-volatile-bitfields -Wno-error=unused-but-set-variable -fno-jump-tables -fno-tree-switch-conversion -std=gnu17 -Wno-old-style-declaration -D_GNU_SOURCE -DIDF_VER=\"v5.0-dev-5148-g259c1776e9\" -DESP_PLATFORM -D_POSIX_READER_WRITER_LOCKS -Wno-format -MD -MT esp-idf/pthread/CMakeFiles/__idf_pthread.dir/pthread_rwlock.c.obj -MF esp-idf/pthread/CMakeFiles/__idf_pthread.dir/pthread_rwlock.c.obj.d -o esp-idf/pthread/CMakeFiles/__idf_pthread.dir/pthread_rwlock.c.obj   -c ../packages/ESP-IDF-latest/components/pthread/pthread_rwlock.c
-#  -march=rv32imc    -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=deprecated-declarations -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -nostartfiles -Og -fmacro-prefix-map=/home/balance/Desktop/rt-thread/bsp/ESP32_C3=. -fmacro-prefix-map=/home/balance/Desktop/rt-thread/bsp/ESP32_C3/packages/ESP-IDF-latest=/IDF -fstrict-volatile-bitfields -Wno-error=unused-but-set-variable -fno-jump-tables -fno-tree-switch-conversion -std=gnu17 -Wno-old-style-declaration -D_GNU_SOURCE -DIDF_VER=\"v5.0-dev-5148-g259c1776e9\" -DESP_PLATFORM -D_POSIX_READER_WRITER_LOCKS -Wno-format -MD -MT esp-idf/pthread/CMakeFiles/__idf_pthread.dir/pthread_rwlock.c.obj -MF esp-idf/pthread/CMakeFiles/__idf_pthread.dir/pthread_rwlock.c.obj.d -o esp-idf/pthread/CMakeFiles/__idf_pthread.dir/pthread_rwlock.c.obj   -c ../packages/ESP-IDF-latest/components/pthread/pthread_rwlock.c
+    CPPDEFINES = [ 'IDF_VER=\\"999\\\"', 'PROJECT_VER=\\"999\\"' ,'_GNU_SOURCE' , 'MULTI_HEAP_FREERTOS', 'ESP_PLATFORM=1', 'IDF_TARGET=esp32c3', '_POSIX_READER_WRITER_LOCKS' , 'PROJECT_NAME=\\"rtthread\\"' , 'MBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"', 'ESPRESSIF_USE', 'CONFIG_CRYPTO_MBEDTLS', 'CONFIG_ECC', 'CONFIG_IEEE80211W', 'CONFIG_NO_RADIUS', 'CONFIG_OWE_STA', 'CONFIG_SHA256', 'CONFIG_WPA3_SAE', 'CONFIG_WPS', 'EAP_MSCHAPv2', 'EAP_PEAP', 'EAP_PEER_METHOD', 'EAP_TLS ', 'EAP_TTLS', 'ESP32_WORKAROUND','ESP_SUPPLICANT', 'IEEE8021X_EAPOL', 'UNITY_INCLUDE_CONFIG_H', 'USE_WPA2_TASK', 'USE_WPS_TASK', '__ets__', 'ESP_PLATFORM']
 
 LIB_PATH = []
 LIB = []
-# LIB_PATH += [cwd + '/components/esp_phy/lib/esp32']
-# LIB += ['rtc']
+
+if GetDepend(['BSP_USING_WIFI']) or GetDepend(['BSP_USING_BLE']) :
+    src += esp32c3_wifi_src
+    src += esp32c3_wpa_supplicant_src
+    src += esp32c3_nvs_flash_src
+    src += esp32c3_esp_phy_src
+    src += esp32c3_esp_event_src
+    LIB_PATH.append(cwd + '/components/esp_phy/lib/esp32c3/')
+    LIB_PATH.append(cwd + '/components/esp_wifi/lib/esp32c3/')
+    LIB.append('btbb')
+    LIB.append('coexist')
+    LIB.append('espnow')
+    LIB.append('net80211')
+    LIB.append('pp')
+    LIB.append('smartconfig')
+    LIB.append('wapi')
+    LIB.append('core')
+    LIB.append('mesh')
+    LIB.append('phy')
+    path += [                
+        cwd + '/components/esp_wifi/include',
+        cwd + '/components/esp_event/include',
+        cwd + '/components/nvs_flash/include',
+        cwd + '/components/esp_phy/include',
+        cwd + '/components/esp_netif/include',
+        cwd + '/components/esp_phy/include',
+        cwd + '/components/esp_phy/esp32c3/include',
+        cwd + '/components/wpa_supplicant/include',
+        cwd + '/components/wpa_supplicant/port/include',
+        cwd + '/components/wpa_supplicant/esp_supplicant/include',
+        cwd + '/components/wpa_supplicant/esp_supplicant/src',
+        cwd + '/components/wpa_supplicant/src',
+        cwd + '/components/wpa_supplicant/src/utils',
+        cwd + '/components/wpa_supplicant/src/crypto',
+        cwd + '/components/nvs_flash/include',
+        cwd + '/components/nvs_flash/private_include',
+        cwd + '/components/esp_event/include',
+        cwd + '/components/esp_event/private_include',
+        cwd + '/components/esp_netif/include'
+    ]
+
+
+if GetDepend(['BSP_USING_BLE']) :
+    src += esp32c3_bt_src
+    src += esp32c3_lwip_src
+    src += esp32c3_netif_src
+    src += esp32c3_vfs_src
+    LIB_PATH.append(cwd + '/components/bt/controller/lib_esp32c3_family/esp32c3/')
+    LIB.append('btdm_app')
+    path += [
+        cwd + '/components/bt/include/esp32c3/include',
+        cwd + '/components/bt/common/osi/include',
+        cwd + '/components/bt/common/api/include/api',
+        cwd + '/components/bt/common/btc/profile/esp/blufi/include',
+        cwd + '/components/bt/common/btc/profile/esp/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/services/ans/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/services/bas/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/services/dis/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/services/gap/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/services/gatt/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/services/ias/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/services/ipss/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/services/lls/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/services/tps/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/util/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/store/ram/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/host/store/config/include',
+        cwd + '/components/bt/porting/include',
+        cwd + '/components/bt/host/nimble/nimble/porting/nimble/include',
+        cwd + '/components/bt/host/nimble/port/include',
+        cwd + '/components/bt/host/nimble/nimble/porting/npl/freertos/include',
+        cwd + '/components/bt/host/nimble/nimble/nimble/include',
+        cwd + '/components/bt/host/nimble/esp-hci/include',
+        cwd + '/components/bt/common/btc/include',
+        cwd + '/components/bt/common/btc/profile/esp/blufi/include',
+        cwd + '/components/bt/common/btc/profile/esp/include',
+        cwd + '/components/bt/common/include',
+        cwd + '/components/bt/porting/mem',
+
+        cwd + '/components/lwip/include',
+        cwd + '/components/lwip/include/apps',
+        cwd + '/components/lwip/include/apps/sntp',
+        cwd + '/components/lwip/lwip/src/include',
+        cwd + '/components/lwip/port/esp32/include',
+        cwd + '/components/lwip/port/esp32/include/arch',
+
+        cwd + '/components/esp_netif/include',
+        cwd + '/components/esp_netif/private_include',
+        
+        cwd + '/components/vfs/include',
+        cwd + '/components/vfs/private_include/'
+    ]
 
 group = DefineGroup('esp-idf', src, depend = ['PKG_USING_ESP_IDF'], CPPPATH = path, LIBS = LIB, LIBPATH = LIB_PATH, CPPDEFINES = CPPDEFINES)
 
