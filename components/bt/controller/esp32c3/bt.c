@@ -1521,9 +1521,9 @@ int IRAM_ATTR esp_bt_h4tl_eif_io_event_notify(int event)
 
 uint16_t esp_bt_get_tx_buf_num(void)
 {
-#ifndef CONFIG_IDF_RTOS_RTTHREAD
+#if !defined(CONFIG_IDF_RTOS_RTTHREAD)
     return l2c_ble_link_get_tx_buf_num();
-#endif
+#endif /* CONFIG_IDF_RTOS_RTTHREAD */
 }
 
 static void coex_wifi_sleep_set_hook(bool sleep)
