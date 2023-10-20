@@ -19,11 +19,11 @@
 * If you use this option RTC_WDT_STAGE_ACTION_RESET_SYSTEM then after reset you can see these messages.
 They can help to understand where the CPUs were when the WDT was triggered.
     W (30) boot: PRO CPU has been reset by WDT.
-    W (30) boot: WDT reset info: PRO CPU PC=0x400xxxxx
-    ... function where it happened
+	W (30) boot: WDT reset info: PRO CPU PC=0x400xxxxx
+	... function where it happened
 
-    W (31) boot: WDT reset info: APP CPU PC=0x400xxxxx
-    ... function where it happened
+	W (31) boot: WDT reset info: APP CPU PC=0x400xxxxx
+	... function where it happened
 
 * If you use this option RTC_WDT_STAGE_ACTION_RESET_RTC then you will see message (rst:0x10 (RTCWDT_RTC_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT))
 without description where were CPUs when it happened.

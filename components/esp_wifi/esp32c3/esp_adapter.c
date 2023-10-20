@@ -473,14 +473,18 @@ static esp_err_t nvs_open_wrapper(const char* name, unsigned int open_mode, nvs_
 
 static void esp_log_writev_wrapper(unsigned int level, const char *tag, const char *format, va_list args)
 {
-    // return esp_log_writev((esp_log_level_t)level,tag,format,args);
+#if !defined(CONFIG_IDF_RTOS_RTTHREAD)
+    return esp_log_writev((esp_log_level_t)level,tag,format,args);
+#endif /* CONFIG_IDF_RTOS_RTTHREAD */
 }
 
 static void esp_log_write_wrapper(unsigned int level,const char *tag,const char *format, ...)
 {
     va_list list;
     va_start(list, format);
-    // esp_log_writev((esp_log_level_t)level, tag, format, list);
+#if !defined(CONFIG_IDF_RTOS_RTTHREAD)
+    esp_log_writev((esp_log_level_t)level, tag, format, list);
+#endif /* CONFIG_IDF_RTOS_RTTHREAD */
     va_end(list);
 }
 

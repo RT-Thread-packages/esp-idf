@@ -40,7 +40,7 @@ static void gf_mulx(u8 *pad)
  * OMAC1 was standardized with the name CMAC by NIST in a Special Publication
  * (SP) 800-38B.
  */
-#ifndef CONFIG_IDF_RTOS_RTTHREAD
+#if !defined(CONFIG_IDF_RTOS_RTTHREAD)
 int omac1_aes_vector(const u8 *key, size_t key_len, size_t num_elem,
 		     const u8 *addr[], const size_t *len, u8 *mac)
 {
@@ -119,7 +119,7 @@ int omac1_aes_vector(const u8 *key, size_t key_len, size_t num_elem,
 #else
 extern int omac1_aes_vector(const u8 *key, size_t key_len, size_t num_elem,
 		     const u8 *addr[], const size_t *len, u8 *mac);
-#endif
+#endif /* CONFIG_IDF_RTOS_RTTHREAD */
 
 /**
  * omac1_aes_128_vector - One-Key CBC MAC (OMAC1) hash with AES-128
@@ -134,7 +134,7 @@ extern int omac1_aes_vector(const u8 *key, size_t key_len, size_t num_elem,
  * OMAC1 was standardized with the name CMAC by NIST in a Special Publication
  * (SP) 800-38B.
  */
- #ifndef CONFIG_IDF_RTOS_RTTHREAD
+#if !defined(CONFIG_IDF_RTOS_RTTHREAD)
 int omac1_aes_128_vector(const u8 *key, size_t num_elem,
 			 const u8 *addr[], const size_t *len, u8 *mac)
 {
@@ -143,7 +143,7 @@ int omac1_aes_128_vector(const u8 *key, size_t num_elem,
 #else
 extern int omac1_aes_128_vector(const u8 *key, size_t num_elem,
 			 const u8 *addr[], const size_t *len, u8 *mac);
-#endif
+#endif /* CONFIG_IDF_RTOS_RTTHREAD */
 
 /**
  * omac1_aes_128 - One-Key CBC MAC (OMAC1) hash with AES-128 (aka AES-CMAC)
@@ -157,14 +157,14 @@ extern int omac1_aes_128_vector(const u8 *key, size_t num_elem,
  * OMAC1 was standardized with the name CMAC by NIST in a Special Publication
  * (SP) 800-38B.
  */
- #ifndef CONFIG_IDF_RTOS_RTTHREAD
+#if !defined(CONFIG_IDF_RTOS_RTTHREAD)
 int omac1_aes_128(const u8 *key, const u8 *data, size_t data_len, u8 *mac)
 {
 	return omac1_aes_128_vector(key, 1, &data, &data_len, mac);
 }
 #else
 extern int omac1_aes_128(const u8 *key, const u8 *data, size_t data_len, u8 *mac);
-#endif
+#endif /* CONFIG_IDF_RTOS_RTTHREAD */
 
 /**
  * omac1_aes_256 - One-Key CBC MAC (OMAC1) hash with AES-256 (aka AES-CMAC)
