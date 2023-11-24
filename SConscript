@@ -860,7 +860,8 @@ if GetDepend(['SOC_ESP32_C3']):
     src += esp32c3_efuse_src
     src += esp32c3_esp_timer_src
     src += esp32c3_esp_gdbsub_src
-    src += esp32c3_adc_src
+    if GetDepend(['BSP_USING_ADC']):
+        src += esp32c3_adc_src
     path += esp32c3_path
     CPPDEFINES = [ 'IDF_VER=\\"999\\\"', 'PROJECT_VER=\\"999\\"' ,'_GNU_SOURCE' , 'MULTI_HEAP_FREERTOS', 'ESP_PLATFORM=1', 'IDF_TARGET=esp32c3', '_POSIX_READER_WRITER_LOCKS' , 'PROJECT_NAME=\\"rtthread\\"' , 'MBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"', 'ESPRESSIF_USE', 'CONFIG_CRYPTO_MBEDTLS', 'CONFIG_ECC', 'CONFIG_IEEE80211W', 'CONFIG_NO_RADIUS', 'CONFIG_OWE_STA', 'CONFIG_SHA256', 'CONFIG_WPA3_SAE', 'CONFIG_WPS', 'EAP_MSCHAPv2', 'EAP_PEAP', 'EAP_PEER_METHOD', 'EAP_TLS ', 'EAP_TTLS', 'ESP32_WORKAROUND','ESP_SUPPLICANT', 'IEEE8021X_EAPOL', 'UNITY_INCLUDE_CONFIG_H', 'USE_WPA2_TASK', 'USE_WPS_TASK', '__ets__', 'ESP_PLATFORM']
 
