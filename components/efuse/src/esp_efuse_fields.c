@@ -16,7 +16,9 @@
 #include "esp_log.h"
 #include "soc/efuse_periph.h"
 #include "bootloader_random.h"
+#if !CONFIG_IDF_TARGET_ESP32C6
 #include "soc/syscon_reg.h"
+#endif
 #include "sys/param.h"
 
 static __attribute__((unused)) const char *TAG = "efuse";

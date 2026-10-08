@@ -26,6 +26,8 @@ void efuse_hal_get_mac(uint8_t *mac);
  */
 uint32_t efuse_hal_chip_revision(void);
 
+uint32_t efuse_hal_blk_version(void);
+
 /**
  * @brief Returns major chip version
  */

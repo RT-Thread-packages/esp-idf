@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include "sdkconfig.h"
 #include "soc/soc_caps.h"
 #include "hal/wdt_types.h"
 #include "hal/mwdt_ll.h"
@@ -37,9 +38,20 @@ typedef struct {
     wdt_inst_t inst;                /**< Which WDT instance this HAL context is using (i.e. MWDT0, MWDT1, RWDT)*/
     union {
         timg_dev_t *mwdt_dev;       /**< Starting address of the MWDT */
+#if CONFIG_IDF_TARGET_ESP32C6
+        rwdt_dev_t *rwdt_dev;       /**< Starting address of the RWDT */
+#else
         rtc_cntl_dev_t *rwdt_dev;   /**< Starting address of the RWDT*/
+#endif
     };
 } wdt_hal_context_t;
+
+#if CONFIG_IDF_TARGET_ESP32C6
+#define RWDT_HAL_CONTEXT_DEFAULT() { \
+    .inst = WDT_RWDT,                \
+    .rwdt_dev = RWDT_DEV_GET()       \
+}
+#endif
 
 /* ---------------------------- Init and Config ----------------------------- */
 

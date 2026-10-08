@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2023 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -21,26 +21,45 @@ typedef enum {
     PERIPH_TIMG1_MODULE,
     PERIPH_UHCI0_MODULE,
     PERIPH_RMT_MODULE,
+    PERIPH_PCNT_MODULE,
     PERIPH_SPI_MODULE,  //SPI1
     PERIPH_SPI2_MODULE, //SPI2
     PERIPH_TWAI0_MODULE,
     PERIPH_TWAI1_MODULE,
     PERIPH_RNG_MODULE,
-    PERIPH_WIFI_MODULE,
-    PERIPH_BT_MODULE,
-    PERIPH_WIFI_BT_COMMON_MODULE,
-    PERIPH_BT_BASEBAND_MODULE,
-    PERIPH_BT_LC_MODULE,
     PERIPH_RSA_MODULE,
     PERIPH_AES_MODULE,
     PERIPH_SHA_MODULE,
+    PERIPH_ECC_MODULE,
     PERIPH_HMAC_MODULE,
     PERIPH_DS_MODULE,
+    PERIPH_SDIO_SLAVE_MODULE,
     PERIPH_GDMA_MODULE,
+    PERIPH_MCPWM0_MODULE,
+    PERIPH_ETM_MODULE,
+    PERIPH_PARLIO_MODULE,
     PERIPH_SYSTIMER_MODULE,
     PERIPH_SARADC_MODULE,
+    PERIPH_TEMPSENSOR_MODULE,
+    PERIPH_REGDMA_MODULE,
+    PERIPH_LP_I2C0_MODULE,
+/* Peripherals clock managed by the modem_clock driver must be listed last in the enumeration */
+    PERIPH_WIFI_MODULE,
+    PERIPH_BT_MODULE,
+    PERIPH_IEEE802154_MODULE,
+    PERIPH_COEX_MODULE,
+    PERIPH_PHY_MODULE,
+    PERIPH_ANA_I2C_MASTER_MODULE,
+    PERIPH_MODEM_ETM_MODULE,
+    PERIPH_MODEM_ADC_COMMON_FE_MODULE,
     PERIPH_MODULE_MAX
+/*  !!! Don't append soc modules here !!! */
 } periph_module_t;
+
+#define PERIPH_MODEM_MODULE_MIN PERIPH_WIFI_MODULE
+#define PERIPH_MODEM_MODULE_MAX PERIPH_MODEM_ADC_COMMON_FE_MODULE
+#define PERIPH_MODEM_MODULE_NUM (PERIPH_MODEM_MODULE_MAX - PERIPH_MODEM_MODULE_MIN + 1)
+#define IS_MODEM_MODULE(periph)  ((periph>=PERIPH_MODEM_MODULE_MIN) && (periph<=PERIPH_MODEM_MODULE_MAX))
 
 typedef enum {
     ETS_WIFI_MAC_INTR_SOURCE = 0,               /**< interrupt of WiFi MAC, level*/
@@ -104,7 +123,7 @@ typedef enum {
     ETS_SYSTIMER_TARGET1_EDGE_INTR_SOURCE,      /**< interrupt of system timer 1, EDGE*/
     ETS_SYSTIMER_TARGET2_EDGE_INTR_SOURCE,      /**< interrupt of system timer 2, EDGE*/
     ETS_APB_ADC_INTR_SOURCE,                    /**< interrupt of APB ADC, LEVEL*/
-    ETS_PWM_INTR_SOURCE,
+    ETS_MCPWM0_INTR_SOURCE,                     /**< interrupt of MCPWM0, LEVEL*/
     ETS_PCNT_INTR_SOURCE,
     ETS_PARL_IO_INTR_SOURCE,
     ETS_SLC0_INTR_SOURCE,

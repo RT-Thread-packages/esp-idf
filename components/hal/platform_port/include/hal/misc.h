@@ -56,4 +56,6 @@
     temp_reg.reg_field;                                     \
 })
 
+#define hal_memcpy(dst_mem, src_mem, len) (__extension__({memcpy(dst_mem, src_mem, len);}))
+
 /** @endcond */

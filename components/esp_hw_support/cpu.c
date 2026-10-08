@@ -9,7 +9,9 @@
 #include <assert.h>
 #include "soc/soc.h"
 #include "soc/soc_caps.h"
+#if !CONFIG_IDF_TARGET_ESP32C6
 #include "soc/rtc_cntl_reg.h"
+#endif
 #include "hal/soc_hal.h"
 #include "hal/mpu_hal.h"
 #include "esp_bit_defs.h"
@@ -18,10 +20,14 @@
 #include "esp_cpu.h"
 #include "esp_memory_utils.h"
 #include "esp_fault.h"
+#include "esp_rom_sys.h"
 #if __XTENSA__
 #include "xtensa/config/core-isa.h"
 #else
 #include "soc/system_reg.h"     // For SYSTEM_CPU_PER_CONF_REG
+#if CONFIG_IDF_TARGET_ESP32C6
+#include "soc/pcr_reg.h"
+#endif
 #include "soc/dport_access.h"   // For Dport access
 #include "riscv/semihosting.h"
 #include "riscv/csr.h"      // For PMP_ENTRY. [refactor-todo] create PMP abstraction in rv_utils.h
@@ -90,9 +96,16 @@ void esp_cpu_reset(int core_id)
     */
     int rtc_cntl_rst_m = (core_id == 0) ? RTC_CNTL_SW_PROCPU_RST_M : RTC_CNTL_SW_APPCPU_RST_M;
 #else // SOC_CPU_CORES_NUM > 1
+#if CONFIG_IDF_TARGET_ESP32C6
+    esp_rom_software_reset_cpu(core_id);
+    return;
+#else
     int rtc_cntl_rst_m = RTC_CNTL_SW_PROCPU_RST_M;
+#endif
 #endif // SOC_CPU_CORES_NUM > 1
+#if !CONFIG_IDF_TARGET_ESP32C6
     SET_PERI_REG_MASK(RTC_CNTL_OPTIONS0_REG, rtc_cntl_rst_m);
+#endif
 }
 
 void esp_cpu_wait_for_intr(void)
@@ -100,7 +113,11 @@ void esp_cpu_wait_for_intr(void)
 #if __XTENSA__
     xt_utils_wait_for_intr();
 #else
+#if CONFIG_IDF_TARGET_ESP32C6
+    if (esp_cpu_dbgr_is_attached() && DPORT_REG_GET_BIT(PCR_CPU_WAITI_CONF_REG, PCR_CPU_WAIT_MODE_FORCE_ON) == 0) {
+#else
     if (esp_cpu_dbgr_is_attached() && DPORT_REG_GET_BIT(SYSTEM_CPU_PER_CONF_REG, SYSTEM_CPU_WAIT_MODE_FORCE_ON) == 0) {
+#endif
         /* when SYSTEM_CPU_WAIT_MODE_FORCE_ON is disabled in WFI mode SBA access to memory does not work for debugger,
            so do not enter that mode when debugger is connected */
         return;

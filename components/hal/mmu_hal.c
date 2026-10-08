@@ -84,14 +84,22 @@ void mmu_hal_map_region(uint32_t mmu_id, mmu_target_t mem_type, uint32_t vaddr, 
     HAL_ASSERT(vaddr % page_size_in_bytes == 0);
     HAL_ASSERT(paddr % page_size_in_bytes == 0);
     HAL_ASSERT((paddr + len - 1) < mmu_hal_pages_to_bytes(mmu_id, MMU_MAX_PADDR_PAGE_NUM));
+#if CONFIG_IDF_TARGET_ESP32C6
+    HAL_ASSERT(mmu_ll_check_valid_ext_vaddr_region(mmu_id, vaddr, len, MMU_VADDR_DATA | MMU_VADDR_INSTRUCTION));
+#else
     HAL_ASSERT(mmu_ll_check_valid_ext_vaddr_region(mmu_id, vaddr, len));
+#endif
 
     uint32_t page_num = (len + page_size_in_bytes - 1) / page_size_in_bytes;
     uint32_t entry_id = 0;
     uint32_t mmu_val;     //This is the physical address in the format that MMU supported
 
     *out_len = mmu_hal_pages_to_bytes(mmu_id, page_num);
+#if CONFIG_IDF_TARGET_ESP32C6
+    mmu_val = mmu_ll_format_paddr(mmu_id, paddr, mem_type);
+#else
     mmu_val = mmu_ll_format_paddr(mmu_id, paddr);
+#endif
 
     while (page_num) {
         entry_id = mmu_ll_get_entry_id(mmu_id, vaddr);

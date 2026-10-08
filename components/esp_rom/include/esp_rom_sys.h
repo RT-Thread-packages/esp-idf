@@ -13,6 +13,9 @@
 extern "C" {
 #endif
 
+void esp_rom_software_reset_system(void);
+void esp_rom_software_reset_cpu(int cpu_no);
+
 /**
  * @brief Print formated string to console device
  * @note float and long long data are not supported!
@@ -73,6 +76,15 @@ void esp_rom_route_intr_matrix(int cpu_core, uint32_t periph_intr_id, uint32_t c
  * @return CPU ticks per us
  */
 uint32_t esp_rom_get_cpu_ticks_per_us(void);
+
+/**
+ * @brief Set the real CPU tick rate
+ *
+ * @note Call this function when CPU frequency is changed, otherwise the `esp_rom_delay_us` can be inaccurate.
+ *
+ * @param ticks_per_us CPU ticks per us
+ */
+void esp_rom_set_cpu_ticks_per_us(uint32_t ticks_per_us);
 
 #ifdef __cplusplus
 }

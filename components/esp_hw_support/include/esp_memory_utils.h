@@ -69,7 +69,13 @@ inline static bool esp_ptr_in_diram_dram(const void *p) {
  */
 __attribute__((always_inline))
 inline static bool esp_ptr_in_diram_iram(const void *p) {
+#if SOC_DIRAM_IRAM_LOW == SOC_DIRAM_DRAM_LOW
+    /* C6 DRAM and IRAM share one address range. A normal heap block is not an IRAM alias. */
+    (void)p;
+    return false;
+#else
     return ((intptr_t)p >= SOC_DIRAM_IRAM_LOW && (intptr_t)p < SOC_DIRAM_IRAM_HIGH);
+#endif
 }
 
 /**

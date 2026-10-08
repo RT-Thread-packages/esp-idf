@@ -136,6 +136,24 @@ extern "C" {
 
 #define _CSR_STRINGIFY(REG) #REG /* needed so the 'reg' argument can be a macro or a register name */
 
+/* C6 physical memory attributes. C3 does not use these. */
+#define CSR_PMACFG0  0xBC0
+#define CSR_PMAADDR0 0xBD0
+#define PMA_EN    (1U << 0)
+#define PMA_X     (1U << 2)
+#define PMA_W     (1U << 3)
+#define PMA_R     (1U << 4)
+#define PMA_L     (1U << 29)
+#define PMA_SHIFT 2
+#define PMA_TOR   0x40000000
+#define PMA_NA4   0x80000000
+#define PMA_NAPOT 0xC0000000
+#define PMA_ENTRY_SET_TOR(ENTRY, ADDR, CFG)                            \
+    do {                                                               \
+        RV_WRITE_CSR((CSR_PMAADDR0) + (ENTRY), (ADDR) >> (PMA_SHIFT)); \
+        RV_WRITE_CSR((CSR_PMACFG0) + (ENTRY), CFG);                    \
+    } while (0)
+
 #ifdef __cplusplus
 }
 #endif

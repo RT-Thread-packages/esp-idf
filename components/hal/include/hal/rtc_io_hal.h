@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 #if SOC_RTCIO_INPUT_OUTPUT_SUPPORTED
+#include "hal/rtc_io_types.h"
 /**
  * Select the rtcio function.
  *

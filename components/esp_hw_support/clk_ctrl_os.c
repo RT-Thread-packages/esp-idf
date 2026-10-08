@@ -26,7 +26,7 @@ bool periph_rtc_dig_clk8m_enable(void)
     portENTER_CRITICAL(&periph_spinlock);
     if (s_periph_ref_counts == 0) {
         rtc_dig_clk8m_enable();
-#if !CONFIG_IDF_TARGET_ESP32H2
+#if !CONFIG_IDF_TARGET_ESP32H2 && !CONFIG_IDF_TARGET_ESP32C6
         s_rtc_clk_freq = rtc_clk_freq_cal(rtc_clk_cal(RTC_CAL_8MD256, 100));
         if (s_rtc_clk_freq == 0) {
             portEXIT_CRITICAL(&periph_spinlock);
@@ -41,7 +41,7 @@ bool periph_rtc_dig_clk8m_enable(void)
 
 uint32_t periph_rtc_dig_clk8m_get_freq(void)
 {
-#if CONFIG_IDF_TARGET_ESP32H2
+#if CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32C6
     /* Workaround: H2 doesn't have 8MD256 clk, so calibration cannot be done, we just return its theoretic frequency */
     return SOC_CLK_RC_FAST_FREQ_APPROX;
 #else

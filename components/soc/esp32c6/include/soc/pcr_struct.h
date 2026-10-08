@@ -1,5 +1,5 @@
 /**
- * SPDX-FileCopyrightText: 2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2023 Espressif Systems (Shanghai) CO LTD
  *
  *  SPDX-License-Identifier: Apache-2.0
  */
@@ -607,7 +607,7 @@ typedef union {
          */
         uint32_t i2s_tx_clkm_div_num:8;
         /** i2s_tx_clkm_sel : R/W; bitpos: [21:20]; default: 0;
-         *  Select I2S Tx module source clock. 0: XTAL clock. 1: APLL. 2: CLK160. 3:
+         *  Select I2S Tx module source clock. 0: XTAL clock. 1: PLL240M. 2: PLL160M. 3:
          *  I2S_MCLK_in.
          */
         uint32_t i2s_tx_clkm_sel:2;
@@ -661,7 +661,7 @@ typedef union {
          */
         uint32_t i2s_rx_clkm_div_num:8;
         /** i2s_rx_clkm_sel : R/W; bitpos: [21:20]; default: 0;
-         *  Select I2S Rx module source clock. 0: no clock. 1: APLL. 2: CLK160. 3: I2S_MCLK_in.
+         *  Select I2S Rx module source clock. 0: XTAL clock. 1: PLL240M. 2: PLL160M. 3: I2S_MCLK_in.
          */
         uint32_t i2s_rx_clkm_sel:2;
         /** i2s_rx_clkm_en : R/W; bitpos: [22]; default: 1;
@@ -751,7 +751,7 @@ typedef union {
          */
         uint32_t saradc_clkm_div_num:8;
         /** saradc_clkm_sel : R/W; bitpos: [21:20]; default: 0;
-         *  set this field to select clock-source. 0(default): XTAL, 1: 240MHz, 2: FOSC, 3:
+         *  set this field to select clock-source. 0(default): XTAL, 1: 80MHz, 2: FOSC, 3:
          *  reserved.
          */
         uint32_t saradc_clkm_sel:2;
@@ -1699,8 +1699,8 @@ typedef union {
 typedef union {
     struct {
         /** clk_32k_sel : R/W; bitpos: [1:0]; default: 0;
-         *  This field indicates which one 32KHz clock will be used by MODEM_SYSTEM and
-         *  timergroup. 0: OSC32K(default), 1: XTAL32K, 2/3: 32KHz from pad GPIO0.
+         *  This field indicates which one 32KHz clock will be used by timergroup.
+         *  0: OSC32K(default), 1: XTAL32K, 2/3: 32KHz from pad GPIO0.
          */
         uint32_t clk_32k_sel:2;
         uint32_t reserved_2:30;

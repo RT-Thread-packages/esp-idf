@@ -19,6 +19,9 @@
 #else
 #   include "soc/spi_mem_struct.h"
 #   include "soc/spi_mem_reg.h"
+#   if CONFIG_IDF_TARGET_ESP32C6
+#       include "hal/spimem_flash_ll.h"
+#   endif
     /* SPI flash controller */
 #   define SPIFLASH SPIMEM1
 #endif
@@ -771,6 +774,8 @@ esp_err_t IRAM_ATTR bootloader_flash_reset_chip(void)
     if (SPI1.ext2.st != 0)
 #elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32S3
     if (SPIMEM1.fsm.st != 0)
+#elif CONFIG_IDF_TARGET_ESP32C6
+    if (!spimem_flash_ll_host_idle(&SPIMEM1))
 #else
     if (SPIMEM1.fsm.spi0_mst_st != 0)
 #endif

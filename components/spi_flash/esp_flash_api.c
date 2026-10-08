@@ -169,6 +169,7 @@ static IRAM_ATTR esp_err_t flash_end_flush_cache(esp_flash_t* chip, esp_err_t er
 /* Top-level API functions, calling into chip_drv functions via chip->drv */
 
 static esp_err_t detect_spi_flash_chip(esp_flash_t *chip);
+static esp_err_t read_id_core(esp_flash_t *chip, uint32_t *out_id, bool sanity_check);
 
 bool esp_flash_chip_driver_initialized(const esp_flash_t *chip)
 {
@@ -193,7 +194,7 @@ esp_err_t IRAM_ATTR esp_flash_init(esp_flash_t *chip)
     uint32_t flash_id;
     int retries = 10;
     do {
-        err = esp_flash_read_chip_id(chip, &flash_id);
+        err = read_id_core(chip, &flash_id, true);
     } while (err == ESP_ERR_FLASH_NOT_INITIALISED && retries-- > 0);
 
     if (err != ESP_OK) {
@@ -263,6 +264,13 @@ esp_err_t IRAM_ATTR esp_flash_init_main(esp_flash_t *chip)
     }
 
     octal_mode = (chip->read_mode >= SPI_FLASH_OPI_FLAG);
+    /* Bootloader already probed the main flash. A second RDID from the app
+     * suspends the cache and does not return on this C6 bring-up. */
+    chip->chip_id = g_rom_flashchip.device_id;
+    chip->size = g_rom_flashchip.chip_size;
+    if (chip->chip_id != 0 && chip->size != 0) {
+        return ESP_OK;
+    }
     //read chip id
     // This can indicate the MSPI support OPI, if the flash works on MSPI in OPI mode, we directly bypass read id.
     uint32_t flash_id = 0;
@@ -272,7 +280,7 @@ esp_err_t IRAM_ATTR esp_flash_init_main(esp_flash_t *chip)
     } else {
         int retries = 10;
         do {
-            err = esp_flash_read_chip_id(chip, &flash_id);
+            err = read_id_core(chip, &flash_id, true);
         } while (err == ESP_ERR_FLASH_NOT_INITIALISED && retries-- > 0);
     }
 

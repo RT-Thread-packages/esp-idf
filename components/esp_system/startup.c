@@ -12,6 +12,7 @@
 
 #include "esp_system.h"
 #include "esp_log.h"
+#include "esp_rom_sys.h"
 
 #include "sdkconfig.h"
 
@@ -66,7 +67,6 @@
 #include "esp_private/brownout.h"
 
 #include "esp_rom_caps.h"
-#include "esp_rom_sys.h"
 
 #if CONFIG_SPIRAM
 #include "esp_psram.h"
@@ -468,7 +468,11 @@ static void start_cpu0_default(void)
 
     // Now that the application is about to start, disable boot watchdog
 #ifndef CONFIG_BOOTLOADER_WDT_DISABLE_IN_USER_CODE
+#if CONFIG_IDF_TARGET_ESP32C6
+    wdt_hal_context_t rtc_wdt_ctx = RWDT_HAL_CONTEXT_DEFAULT();
+#else
     wdt_hal_context_t rtc_wdt_ctx = {.inst = WDT_RWDT, .rwdt_dev = &RTCCNTL};
+#endif
     wdt_hal_write_protect_disable(&rtc_wdt_ctx);
     wdt_hal_disable(&rtc_wdt_ctx);
     wdt_hal_write_protect_enable(&rtc_wdt_ctx);

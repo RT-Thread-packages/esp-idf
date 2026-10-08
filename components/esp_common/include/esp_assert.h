@@ -8,6 +8,8 @@
 
 #include "assert.h"
 
+#define ESP_STATIC_ASSERT static_assert
+
 /* Assert at compile time if possible, runtime otherwise */
 #ifndef __cplusplus
 /* __builtin_choose_expr() is only in C, makes this a lot cleaner */

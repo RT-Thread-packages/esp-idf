@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "sdkconfig.h"
+#if !CONFIG_IDF_TARGET_ESP32C6
 #include "soc/rtc_cntl_reg.h"
+#endif
 #include "esp_rom_sys.h"
 
 #pragma once
@@ -70,10 +72,17 @@ extern "C" {
 */
 #ifndef ESP_FAULT_ASSERT_DEBUG
 
+#if CONFIG_IDF_TARGET_ESP32C6
+#define _ESP_FAULT_RESET()  do {                                \
+        esp_rom_software_reset_system();                        \
+        _ESP_FAULT_ILLEGAL_INSTRUCTION;                         \
+    } while(0)
+#else
 #define _ESP_FAULT_RESET()  do {                                \
         REG_WRITE(RTC_CNTL_OPTIONS0_REG, RTC_CNTL_SW_SYS_RST);  \
         _ESP_FAULT_ILLEGAL_INSTRUCTION;                         \
     } while(0)
+#endif
 
 #else // ESP_FAULT_ASSERT_DEBUG
 

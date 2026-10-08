@@ -10,7 +10,11 @@
 
 #include "soc/soc_caps.h"
 #include "soc/assist_debug_reg.h"
+#if defined(SOC_ESP32_C6)
+#include "soc/interrupt_reg.h"
+#else
 #include "soc/interrupt_core0_reg.h"
+#endif
 #include "esp_attr.h"
 #include "riscv/csr.h"
 #include "riscv/interrupt.h"
@@ -105,6 +109,16 @@ FORCE_INLINE_ATTR uint32_t rv_utils_intr_get_enabled_mask(void)
 FORCE_INLINE_ATTR void rv_utils_intr_edge_ack(int intr_num)
 {
     REG_SET_BIT(INTERRUPT_CORE0_CPU_INT_CLEAR_REG, intr_num);
+}
+
+FORCE_INLINE_ATTR void rv_utils_intr_global_enable(void)
+{
+    RV_SET_CSR(mstatus, MSTATUS_MIE);
+}
+
+FORCE_INLINE_ATTR void rv_utils_intr_global_disable(void)
+{
+    RV_CLEAR_CSR(mstatus, MSTATUS_MIE);
 }
 
 /* -------------------------------------------------- Memory Ports -----------------------------------------------------

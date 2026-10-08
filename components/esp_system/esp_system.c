@@ -11,7 +11,10 @@
 #include "freertos/task.h"
 #include "esp_cpu.h"
 #include "soc/rtc.h"
+#if !CONFIG_IDF_TARGET_ESP32C6
 #include "soc/rtc_cntl_reg.h"
+#endif
+#include "esp_rom_sys.h"
 #include "esp_private/panic_internal.h"
 #include "esp_rom_uart.h"
 #if CONFIG_ESP_SYSTEM_MEMPROT_FEATURE
@@ -42,7 +45,11 @@ void IRAM_ATTR esp_restart_noos_dig(void)
     esp_cpu_unstall(PRO_CPU_NUM);
 #endif
     // reset the digital part
+#if CONFIG_IDF_TARGET_ESP32C6
+    esp_rom_software_reset_system();
+#else
     SET_PERI_REG_MASK(RTC_CNTL_OPTIONS0_REG, RTC_CNTL_SW_SYS_RST);
+#endif
     while (true) {
         ;
     }

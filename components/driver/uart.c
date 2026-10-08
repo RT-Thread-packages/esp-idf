@@ -19,7 +19,9 @@
 #include "hal/gpio_hal.h"
 #include "hal/clk_tree_ll.h"
 #include "soc/uart_periph.h"
+#if !defined(SOC_ESP32_C6)
 #include "soc/rtc_cntl_reg.h"
+#endif
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "driver/uart_select.h"
@@ -219,6 +221,11 @@ esp_err_t uart_get_sclk_freq(uart_sclk_t sclk, uint32_t* out_freq_hz)
         freq = 40 * MHZ;
         break;
 #endif
+#if SOC_UART_SUPPORT_PLL_F80M_CLK
+    case UART_SCLK_PLL_F80M:
+        freq = 80 * MHZ;
+        break;
+#endif
 #if SOC_UART_SUPPORT_REF_TICK
     case UART_SCLK_REF_TICK:
         freq = REF_CLK_FREQ;
@@ -226,7 +233,11 @@ esp_err_t uart_get_sclk_freq(uart_sclk_t sclk, uint32_t* out_freq_hz)
 #endif
 #if SOC_UART_SUPPORT_RTC_CLK
     case UART_SCLK_RTC:
+#if CONFIG_IDF_TARGET_ESP32C6
+        freq = SOC_CLK_RC_FAST_FREQ_APPROX;
+#else
         freq = RTC_CLK_FREQ;
+#endif
         break;
 #endif
 #if SOC_UART_SUPPORT_XTAL_CLK

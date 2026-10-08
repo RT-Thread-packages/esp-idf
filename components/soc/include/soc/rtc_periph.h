@@ -15,7 +15,7 @@
 #pragma once
 #include <stdint.h>
 #include "rtc_io_periph.h"
-#include "soc/rtc_cntl_reg.h"
+#include "rtc_cntl_periph.h"
 #include "soc/soc_caps.h"
 
 #ifdef __cplusplus

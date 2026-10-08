@@ -6,7 +6,7 @@
 
 #pragma once
 
-
+#include "sdkconfig.h"
 #include "soc/soc.h"
 //include soc related (generated) definitions
 #include "soc/soc_caps.h"
@@ -17,8 +17,10 @@
 #include "soc/rtc_io_struct.h"
 #endif
 
+#if !CONFIG_IDF_TARGET_ESP32C6
 #include "soc/rtc_cntl_reg.h"
 #include "soc/rtc_cntl_struct.h"
+#endif
 
 #if SOC_ADC_RTC_CTRL_SUPPORTED
 #include "soc/sens_struct.h"

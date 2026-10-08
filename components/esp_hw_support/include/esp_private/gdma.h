@@ -23,6 +23,8 @@ extern "C" {
  */
 typedef struct gdma_channel_t *gdma_channel_handle_t;
 
+#ifndef GDMA_TYPES_DECLARED
+#define GDMA_TYPES_DECLARED
 /**
  * @brief Enumeration of peripherals which have the DMA capability
  * @note Some peripheral might not be available on certain chip, please refer to `soc_caps.h` for detail.
@@ -50,6 +52,7 @@ typedef enum {
     GDMA_CHANNEL_DIRECTION_TX, /*!< GDMA channel direction: TX */
     GDMA_CHANNEL_DIRECTION_RX, /*!< GDMA channel direction: RX */
 } gdma_channel_direction_t;
+#endif
 
 /**
  * @brief Collection of configuration items that used for allocating GDMA channel

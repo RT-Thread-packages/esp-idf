@@ -177,6 +177,13 @@ esp_err_t rtc_gpio_isolate(gpio_num_t gpio_num)
     return ESP_OK;
 }
 
+esp_err_t rtc_gpio_force_hold_en_all(void);
+
+esp_err_t rtc_gpio_force_hold_all(void)
+{
+    return rtc_gpio_force_hold_en_all();
+}
+
 esp_err_t rtc_gpio_force_hold_en_all(void)
 {
     RTCIO_ENTER_CRITICAL();

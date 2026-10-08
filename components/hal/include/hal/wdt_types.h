@@ -65,6 +65,11 @@ typedef enum {
     WDT_RESET_SIG_LENGTH_3_2us = 7     /*!< 3.2 us */
 } wdt_reset_sig_length_t;
 
+#if CONFIG_IDF_TARGET_ESP32C6
+#include "soc/clk_tree_defs.h"
+typedef soc_periph_mwdt_clk_src_t mwdt_clock_source_t;
+#endif
+
 
 #ifdef __cplusplus
 }

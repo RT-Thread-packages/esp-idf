@@ -74,6 +74,13 @@ static inline bool test_and_print_register_bits(const uint32_t status,
  * Function called when a cache error occurs. It prints details such as the
  * explanation of why the panic occured.
  */
+#if CONFIG_IDF_TARGET_ESP32C6
+static inline void print_cache_err_details(const void *frame)
+{
+    (void) frame;
+    panic_print_str("Cache error\r\n");
+}
+#else
 static inline void print_cache_err_details(const void *frame)
 {
     /* Define the array that contains the status (bits) to test on the register
@@ -149,6 +156,7 @@ static inline void print_cache_err_details(const void *frame)
         }
     }
 }
+#endif
 
 
 /**

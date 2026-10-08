@@ -22,3 +22,10 @@ uint32_t efuse_hal_chip_revision(void)
 {
     return efuse_hal_get_major_chip_version() * 100 + efuse_hal_get_minor_chip_version();
 }
+
+#if CONFIG_IDF_TARGET_ESP32C6
+uint32_t efuse_hal_blk_version(void)
+{
+    return efuse_ll_get_blk_version_major() * 100 + efuse_ll_get_blk_version_minor();
+}
+#endif

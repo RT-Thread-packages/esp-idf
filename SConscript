@@ -961,6 +961,117 @@ if GetDepend(['BSP_USING_BLE']) :
         cwd + '/components/vfs/private_include/'
     ]
 
+if GetDepend(['SOC_ESP32_C6']):
+    import os
+
+    def to_c6(items):
+        out = []
+        for item in items:
+            if 'esp32c3' not in item:
+                out.append(item)
+                continue
+            alt = item.replace('esp32c3', 'esp32c6')
+            if os.path.exists(os.path.join(cwd, alt)):
+                out.append(alt)
+        return out
+
+    drop_hal = ('i2c_hal', 'ledc_hal', 'rmt_hal', 'i2s_hal', 'twai_hal', 'sdm_hal', 'spi_slave', 'temperature', 'adc_hal', 'adc_oneshot', 'spi_hal', 'xt_wdt')
+    for group_src in [
+            esp32c3_src,
+            esp32c3_riscv_src,
+            esp32c3_mbedtls_src,
+            esp32c3_esp_system_src,
+            esp32c3_hal_src,
+            esp32c3_soc_src,
+            esp32c3_esp_hw_support_src,
+            esp32c3_bootloader_support_src,
+            esp32c3_esp_rom_src,
+            esp32c3_heap_src,
+            esp32c3_spi_flash_src,
+            esp32c3_newlib_src,
+            esp32c3_log_src,
+            esp32c3_driver_src,
+            esp32c3_pthread_src,
+            esp32c3_efuse_src,
+            esp32c3_esp_timer_src]:
+        picked = to_c6(group_src)
+        if group_src is esp32c3_driver_src:
+            picked = [p for p in picked if p.endswith('gpio/gpio.c') or p.endswith('gpio/rtc_io.c') or p.endswith('uart.c') or p.endswith('spi_bus_lock.c')]
+        elif group_src is esp32c3_hal_src:
+            picked = [p for p in picked if not any(name in os.path.basename(p) for name in drop_hal)]
+        src += picked
+    drop_src = (
+        'gdma.c', 'async_memcpy_impl_gdma.c', 'esp_async_memcpy.c', 'rtc_module.c',
+        'sleep_mac_bb.c', 'sleep_gpio.c', 'sleep_modes.c', 'sleep_retention.c',
+        'pm_impl.c',
+    )
+    src = [p for p in src if 'adc' not in os.path.basename(p).lower() and 'i2s' not in os.path.basename(p).lower() and os.path.basename(p) not in drop_src]
+    src.append('components/esp_rom/patches/esp_rom_hp_regi2c_esp32c6.c')
+    src.append('components/hal/lp_timer_hal.c')
+    src.append('components/esp_hw_support/modem_clock.c')
+
+    have = set(src)
+    skip_name = (
+        'ieee802154', 'parlio', 'wifi', 'coexist', 'adc',
+        'io_mux', 'pmu_sleep', 'i2s', 'twai', 'timer_periph', 'temperature',
+        'sdm', 'rmt', 'pcnt', 'mcpwm', 'ledc', 'i2c', 'dedic', 'sdio',
+        'bootloader_sha',
+    )
+    for root in [
+            'components/hal/esp32c6',
+            'components/esp_hw_support/port/esp32c6',
+            'components/esp_system/port/soc/esp32c6',
+            'components/soc/esp32c6',
+            'components/bootloader_support/src/esp32c6',
+            'components/efuse/esp32c6',
+            'components/heap/port/esp32c6']:
+        full = os.path.join(cwd, root)
+        if not os.path.isdir(full):
+            continue
+        for name in os.listdir(full):
+            if not name.endswith(('.c', '.S', '.cpp')):
+                continue
+            if any(part in name for part in skip_name):
+                continue
+            rel = root + '/' + name
+            if rel not in have:
+                src.append(rel)
+                have.add(rel)
+
+    for item in esp32c3_path:
+        if 'esp32c3' not in item:
+            path.append(item)
+            continue
+        alt = item.replace('esp32c3', 'esp32c6')
+        if os.path.isdir(alt):
+            path.append(alt)
+    for extra in [
+            '/components/hal/esp32c6/include',
+            '/components/soc/esp32c6/include',
+            '/components/esp_hw_support/include/soc/esp32c6',
+            '/components/esp_rom/esp32c6/include',
+            '/components/esp_rom/include/esp32c6',
+            '/components/efuse/esp32c6/include',
+            '/components/esp_hw_support/port/esp32c6/private_include']:
+        inc = cwd + extra
+        if os.path.isdir(inc) and inc not in path:
+            path.append(inc)
+
+    src = [p for p in src if all(part not in p.replace('\\', '/') for part in ('gdma', '/aes/dma/', '/sha/dma/'))]
+    src = [p for p in src if not p.endswith('.cpp')]
+
+    if GetDepend(['BSP_ENABLE_GDBSTUB']):
+        src += [
+            'components/esp_gdbstub/esp32c6/gdbstub_esp32c6.c',
+            'components/esp_gdbstub/riscv/gdbstub_riscv.c',
+            'components/esp_gdbstub/src/gdbstub.c',
+            'components/esp_gdbstub/src/packet.c',
+        ]
+
+    CPPDEFINES = ['IDF_VER=\\"999\\\"', 'PROJECT_VER=\\"999\\"', '_GNU_SOURCE', 'MULTI_HEAP_FREERTOS', 'ESP_PLATFORM=1', 'IDF_TARGET=esp32c6', 'SOC_MMU_PAGE_SIZE=0x10000', '_POSIX_READER_WRITER_LOCKS', 'PROJECT_NAME=\\"rtthread\\"', 'MBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"', 'ESPRESSIF_USE', 'CONFIG_CRYPTO_MBEDTLS', 'UNITY_INCLUDE_CONFIG_H', '__ets__', 'ESP_PLATFORM']
+    LIB_PATH = []
+    LIB = []
+
 group = DefineGroup('esp-idf', src, depend = ['PKG_USING_ESP_IDF'], CPPPATH = path, LIBS = LIB, LIBPATH = LIB_PATH, CPPDEFINES = CPPDEFINES)
 
 Return('group')
