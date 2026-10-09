@@ -6,11 +6,19 @@
 #pragma once
 
 #include <stdbool.h>
+#include "esp_debug_helpers.h"
+#include "esp_log.h"
+#include "sdkconfig.h"
+
+#if CONFIG_IDF_RTOS_RTTHREAD
+// RT-Thread builds have no FreeRTOS, so neither freertos/*.h nor the FreeRTOS
+// SemaphoreHandle_t parameter type can be used here; only size_t is needed.
+#include <stddef.h>
+#else
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
-#include "esp_debug_helpers.h"
-#include "esp_log.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,10 +52,19 @@ typedef void (*shared_stack_function)(void);
  * @note  if either lock, stack or stack size is invalid, the expression will
  *          be called using the current stack.
  */
+#if CONFIG_IDF_RTOS_RTTHREAD
+// No FreeRTOS semaphore type under RT-Thread, so lock degrades to an unused void *.
+// The name and parameter layout match the RT-Thread definitions under port/arch.
+void esp_execute_shared_stack_function(void *lock,
+                                       void *stack,
+                                       size_t stack_size,
+                                       shared_stack_function function);
+#else
 void esp_execute_shared_stack_function(SemaphoreHandle_t lock,
                                        void *stack,
                                        size_t stack_size,
                                        shared_stack_function function);
+#endif
 
 #ifdef __cplusplus
 }

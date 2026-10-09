@@ -602,6 +602,35 @@ menu "FreeRTOS"
         bool
         default y
 
+    config IDF_RTOS_RTTHREAD
+        bool "Replace FreeRTOS with RT-Thread (experimental, ESP32-C3/C6)"
+        depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C6
+        default n
+        help
+            Replaces the FreeRTOS interrupt entry and startup hooks with RT-Thread.
+            Requires RTTHREAD_ROOT (upstream RT-Thread, unmodified), see
+            components/rtthread/README.md.
+
+    config IDF_RTTHREAD_INTERRUPT_STACK_SIZE
+        int "RT-Thread interrupt stack size (bytes)"
+        depends on IDF_RTOS_RTTHREAD
+        range 4096 131072
+        default 40960
+        help
+            Size of the dedicated DRAM interrupt stack used by the RT-Thread
+            branch of vectors.S (__stack_start__/__stack_end__). Default keeps
+            the previous hardcoded 40 KB.
+
+    config IDF_RTTHREAD_HEAP_SIZE
+        int "RT-Thread dedicated heap size (bytes)"
+        depends on IDF_RTOS_RTTHREAD
+        range 4096 524288
+        default 40960
+        help
+            Size of the dedicated DRAM heap passed to rt_system_heap_init
+            (__heap_start__/__heap_end__). Coexists with the IDF heap. Default
+            keeps the previous hardcoded 40 KB.
+
     config FREERTOS_NO_AFFINITY
         # This invisible config value sets the value of tskNO_AFFINITY in task.h.
         # Intended to be used as a constant from other Kconfig files.

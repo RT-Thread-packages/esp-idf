@@ -28,8 +28,10 @@
 #endif
 
 #if CONFIG_ESP_SYSTEM_HW_STACK_GUARD
+#if !CONFIG_IDF_RTOS_RTTHREAD
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#endif
 #include "esp_cpu.h"
 #include "esp_private/hw_stack_guard.h"
 #endif
@@ -62,14 +64,20 @@ static inline void print_assist_debug_details(const void *frame)
         core_id = 0;
     }
     uint32_t sp_min, sp_max;
+#if !CONFIG_IDF_RTOS_RTTHREAD
     const char *task_name = pcTaskGetName(xTaskGetCurrentTaskHandleForCore(core_id));
+#endif
     esp_hw_stack_guard_get_bounds(core_id, &sp_min, &sp_max);
 
     panic_print_str("\r\n");
 
+#if !CONFIG_IDF_RTOS_RTTHREAD
     panic_print_str("Detected in task \"");
     panic_print_str(task_name);
     panic_print_str("\" at 0x");
+#else
+    panic_print_str("Detected at 0x");
+#endif
     panic_print_hex((int) esp_hw_stack_guard_get_pc(core_id));
     panic_print_str("\r\n");
     panic_print_str("Stack pointer: 0x");

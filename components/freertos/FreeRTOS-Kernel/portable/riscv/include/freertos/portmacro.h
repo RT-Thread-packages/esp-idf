@@ -75,6 +75,12 @@
 #include "esp_system.h"             /* required by esp_get_...() functions in portable.h. [refactor-todo] Update portable.h */
 #include "esp_newlib.h"
 #include <limits.h>
+#if CONFIG_IDF_RTOS_RTTHREAD
+#include <rtthread.h>
+#include <rthw.h> /* rt_hw_interrupt_is_disabled() is declared only in rthw.h */
+#include "hal/cache_hal.h"
+#include "hal/cache_ll.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -674,6 +680,16 @@ static inline void __attribute__((always_inline)) vPortExitCriticalSafe(portMUX_
 
 FORCE_INLINE_ATTR bool xPortCanYield(void)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    /* RT-Thread scheduler locks and global IRQ masking do not raise the IDF
+     * interrupt threshold. Also reject startup, interrupt context and cache-off
+     * regions: the RT-Thread scheduler lives in flash. */
+    if (rt_thread_self() == RT_NULL || rt_interrupt_get_nest() != 0 ||
+            rt_critical_level() != 0 || rt_hw_interrupt_is_disabled() ||
+            !cache_hal_is_cache_enabled(CACHE_LL_LEVEL_EXT_MEM, CACHE_TYPE_ALL)) {
+        return false;
+    }
+#endif
 
 #if SOC_INT_CLIC_SUPPORTED
     /* When CLIC is supported:

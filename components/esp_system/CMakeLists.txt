@@ -87,9 +87,17 @@ else()
         list(APPEND srcs "debug_assist.c")
     endif()
 
+    set(rtthread_requires "")
+    # Kconfig values are not populated during early dependency discovery, so match
+    # on the target too, to keep MINIMAL_BUILD working on C3/C6 clean builds.
+    if(CONFIG_IDF_RTOS_RTTHREAD OR
+       (CMAKE_BUILD_EARLY_EXPANSION AND (target STREQUAL "esp32c3" OR target STREQUAL "esp32c6")))
+        list(APPEND rtthread_requires rtthread)
+    endif()
+
     idf_component_register(SRCS "${srcs}"
                         INCLUDE_DIRS include
-                        PRIV_REQUIRES spi_flash esp_timer esp_mm
+                        PRIV_REQUIRES ${rtthread_requires} spi_flash esp_timer esp_mm
                                       esp_hal_mspi esp_hal_wdt esp_hal_uart esp_hal_clock esp_hal_dma
                                     # [refactor-todo] requirements due to init code,
                                     # should be removable once using component init functions

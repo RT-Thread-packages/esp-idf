@@ -655,6 +655,9 @@ esp_err_t esp_timer_init(void)
  * to automatically include esp_timer_init_os if other components call esp_timer APIs.
  * If no other code calls esp_timer APIs, then esp_timer_init_os will be skipped.
 */
+// Don't auto-initialize esp_timer under RT-Thread: RT-Thread takes over the timers, so this
+// avoids initializing them twice alongside the RT-Thread timer/scheduler during secondary init.
+#if !CONFIG_IDF_RTOS_RTTHREAD
 ESP_SYSTEM_INIT_FN(esp_timer_init_os, SECONDARY, ESP_TIMER_INIT_MASK, 100)
 {
     esp_err_t err = ESP_OK;
@@ -665,6 +668,7 @@ ESP_SYSTEM_INIT_FN(esp_timer_init_os, SECONDARY, ESP_TIMER_INIT_MASK, 100)
     }
     return err;
 }
+#endif // !CONFIG_IDF_RTOS_RTTHREAD
 
 esp_err_t esp_timer_deinit(void)
 {

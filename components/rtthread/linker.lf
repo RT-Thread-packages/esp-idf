@@ -1,0 +1,28 @@
+[mapping:rtthread]
+archive: librtthread.a
+entries:
+    if IDF_RTOS_RTTHREAD = y:
+        # Every IRAM ISR passes through these helpers while cache is off.
+        irq (noflash)
+        context_gcc (noflash)
+        # IDF critical sections and xPortCanYield are used with cache disabled.
+        scheduler_up:rt_enter_critical (noflash)
+        scheduler_up:rt_exit_critical (noflash)
+        scheduler_up:rt_critical_level (noflash)
+        # Out-of-line copy of the rtatomic.h helper used by rt_enter_critical.
+        scheduler_up:rt_soft_atomic_add (noflash)
+        thread:rt_thread_self (noflash)
+        cpu_up:rt_cpu_self (noflash)
+        if IDF_TARGET_ESP32C3 = y:
+            interrupt:rt_hw_interrupt_is_disabled (noflash)
+        else:
+            cpuport:rt_hw_interrupt_is_disabled (noflash)
+
+[mapping:rtthread_cache_guard_abort]
+archive: libesp_system.a
+entries:
+    if IDF_RTOS_RTTHREAD = y:
+        # The cache-off guard must reach the panic trap even when the general
+        # ESP_SYSTEM_IN_IRAM placement option is disabled.
+        esp_system_chip:esp_system_abort (noflash)
+        panic:panic_abort (noflash)

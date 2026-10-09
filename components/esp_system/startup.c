@@ -20,6 +20,19 @@
 #include "soc/soc_caps.h"
 #include "esp_cpu.h"
 
+#if CONFIG_IDF_RTOS_RTTHREAD
+#include "rtthread.h"
+#include "rthw.h"
+
+#if !CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE
+#ifndef RT_USING_SMP
+#error "RT-Thread requires RT_USING_SMP when IDF starts multiple cores."
+#elif RT_CPUS_NR != SOC_CPU_CORES_NUM
+#error "RT-Thread and IDF must use the same number of cores."
+#endif
+#endif
+#endif
+
 #include "esp_private/startup_internal.h"
 
 // Ensure that system configuration matches the underlying number of cores.
@@ -157,17 +170,37 @@ static void ESP_SYSTEM_IRAM_ATTR start_cpu_other_cores_default(void)
 {
     do_system_init_fn(ESP_SYSTEM_INIT_STAGE_SECONDARY);
 
+#if !CONFIG_IDF_RTOS_RTTHREAD
     while (!s_system_full_inited) {
         esp_rom_delay_us(100);
     }
 
     esp_startup_start_app_other_cores();
+#else
+    // The primary core publishes this flag only after kernel initialization.
+    while (!__atomic_load_n(&s_system_full_inited, __ATOMIC_ACQUIRE)) {
+        esp_rom_delay_us(100);
+    }
+#ifdef RT_USING_SMP
+    rt_secondary_cpu_entry();
+#endif
+    ESP_EARLY_LOGE(TAG, "RT-Thread secondary CPU entry returned");
+    abort();
+#endif
 }
 #endif
 
 static void do_core_init(void)
 {
     do_system_init_fn(ESP_SYSTEM_INIT_STAGE_CORE);
+
+    // Initialize the RT-Thread heap once after IDF's core heap initialization,
+    // before constructors, secondary initialization and scheduler startup.
+#if CONFIG_IDF_RTOS_RTTHREAD && defined(RT_USING_HEAP)
+    extern int __heap_start__;
+    extern int __heap_end__;
+    rt_system_heap_init((void *)&__heap_start__, (void *)&__heap_end__);
+#endif // CONFIG_IDF_RTOS_RTTHREAD && defined(RT_USING_HEAP)
 }
 
 static void do_secondary_init(void)
@@ -221,11 +254,45 @@ static void start_cpu0_default(void)
     // until all cores finish (when !CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE).
     do_secondary_init();
 
+#if !CONFIG_IDF_RTOS_RTTHREAD
 #if SOC_CPU_CORES_NUM > 1 && !CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE
     s_system_full_inited = true;
 #endif
 
     esp_startup_start_app();
+#else
+#if defined(__GNUC__) && defined(RT_USING_USER_MAIN) && CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE
+    // Public RT-Thread entry: board init, main thread and scheduler startup.
+    // Board init reuses the heap initialized once by do_core_init() on C3/C6.
+    entry();
+#else
+    // Follow src/components.c using public interfaces. IDF has already brought
+    // up the other cores, so do not invoke rt_hw_secondary_cpu_up() again.
+    // This path needs board/tick setup and application thread creation from
+    // the port; rt_application_init() is not declared in the public headers.
+    rt_hw_local_irq_disable();
+#ifdef RT_USING_SMP
+    rt_hw_spin_lock_init(&_cpus_lock);
+    rt_hw_spin_lock(&_cpus_lock);
+#endif
+    rt_system_timer_init();
+    rt_system_scheduler_init();
+#ifdef RT_USING_SIGNALS
+    rt_system_signal_init();
+#endif
+    rt_system_timer_thread_init();
+    rt_thread_idle_init();
+    rt_thread_defunct_init();
+#if !CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE
+    // Release secondary cores only once scheduler data and idle threads exist.
+    // The RT-Thread secondary entry must take _cpus_lock before scheduling.
+    __atomic_store_n(&s_system_full_inited, true, __ATOMIC_RELEASE);
+#endif
+    rt_system_scheduler_start();
+#endif
+    ESP_EARLY_LOGE(TAG, "RT-Thread scheduler startup returned");
+    abort();
+#endif
 
     ESP_INFINITE_LOOP();
 }

@@ -35,6 +35,9 @@
  *----------------------------------------------------------------------*/
 
 #include "sdkconfig.h"
+#if CONFIG_IDF_RTOS_RTTHREAD
+#include <rtthread.h>
+#endif
 #include <string.h>
 #include "soc/soc_caps.h"
 #include "soc/periph_defs.h"
@@ -452,7 +455,9 @@ StackType_t *pxPortInitialiseStack(StackType_t *pxTopOfStack, TaskFunction_t pxC
 
 BaseType_t xPortInIsrContext(void)
 {
-#if (configNUM_CORES > 1)
+#if CONFIG_IDF_RTOS_RTTHREAD
+    return rt_interrupt_get_nest() != 0;
+#elif (configNUM_CORES > 1)
     unsigned int irqStatus;
     BaseType_t ret;
 
@@ -480,8 +485,13 @@ void vPortAssertIfInISR(void)
 
 BaseType_t xPortInterruptedFromISRContext(void)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    /* The panic entry preserves the interrupted RT-Thread nesting count. */
+    return rt_interrupt_get_nest() != 0;
+#else
     /* Return the interrupt nesting counter for this core */
     return port_uxInterruptNesting[xPortGetCoreID()];
+#endif
 }
 
 UBaseType_t xPortSetInterruptMaskFromISR(void)
@@ -521,6 +531,20 @@ void vPortClearInterruptMaskFromISR(UBaseType_t prev_int_level)
 }
 
 // ------------------ Critical Sections --------------------
+
+#if CONFIG_IDF_RTOS_RTTHREAD
+/* Bring-up contract: restore cache before yielding or leaving the outermost
+ * IDF critical section. rt_exit_critical() can dispatch a pending schedule.
+ * C6's predicate tracks HAL cache operations; direct ROM cache calls bypass it.
+ * Keep both the check and its failure message accessible with cache disabled.
+ */
+static void IRAM_ATTR prvAssertCacheEnabled(void)
+{
+    if (!cache_hal_is_cache_enabled(CACHE_LL_LEVEL_EXT_MEM, CACHE_TYPE_ALL)) {
+        esp_system_abort(DRAM_STR("RT-Thread scheduler entry while flash cache is disabled"));
+    }
+}
+#endif
 
 #if (configNUM_CORES > 1)
 BaseType_t __attribute__((optimize("-O3"))) xPortEnterCriticalTimeout(portMUX_TYPE *mux, BaseType_t timeout)
@@ -610,6 +634,11 @@ void vPortEnterCritical(void)
 
     if (port_uxCriticalNesting[0] == 1) {
         port_uxOldInterruptState[0] = state;
+#if CONFIG_IDF_RTOS_RTTHREAD
+        /* RT-Thread can switch synchronously, even with the IRQ threshold raised.
+         * Defer such requests until the outermost IDF critical section exits. */
+        rt_enter_critical();
+#endif
     }
 }
 
@@ -627,7 +656,16 @@ void vPortExitCritical(void)
         port_uxCriticalNesting[0]--;
 
         if (port_uxCriticalNesting[0] == 0) {
+#if CONFIG_IDF_RTOS_RTTHREAD
+            /* The kernel's pending-switch flag is private. Conservatively
+             * require cache on before any outermost exit can dispatch it. */
+            prvAssertCacheEnabled();
+#endif
             portCLEAR_INTERRUPT_MASK_FROM_ISR(port_uxOldInterruptState[0]);
+#if CONFIG_IDF_RTOS_RTTHREAD
+            /* Restore the threshold before allowing a pending context switch. */
+            rt_exit_critical();
+#endif
         }
     }
 }
@@ -636,6 +674,15 @@ void vPortExitCritical(void)
 
 void vPortYield(void)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    if (rt_interrupt_get_nest() != 0) {
+        vPortYieldFromISR();
+    } else if (rt_thread_self() != RT_NULL) {
+        prvAssertCacheEnabled();
+        /* taskYIELD relinquishes the current time slice to equal-priority peers. */
+        rt_thread_yield();
+    }
+#else
     BaseType_t coreID = xPortGetCoreID();
 
     if (port_uxInterruptNesting[coreID]) {
@@ -654,14 +701,25 @@ void vPortYield(void)
         */
         while (port_xSchedulerRunning[coreID] && port_uxCriticalNesting[coreID] == 0 && crosscore_int_ll_get_state(coreID) != 0) {}
     }
+#endif
 }
 
 void vPortYieldFromISR( void )
 {
     traceISR_EXIT_TO_SCHEDULER();
+#if CONFIG_IDF_RTOS_RTTHREAD
+    /* rt_thread_self() is NULL until rt_system_scheduler_start(). Unlike a task
+     * yield, an ISR reschedule must not rotate the interrupted thread's time
+     * slice. rt_schedule() records the switch for the outermost trap exit. */
+    if (rt_thread_self() != RT_NULL) {
+        prvAssertCacheEnabled();
+        rt_schedule();
+    }
+#else
     BaseType_t coreID = xPortGetCoreID();
     port_xSchedulerRunning[coreID] = 1;
     xPortSwitchFlag[coreID] = 1;
+#endif
 }
 
 void vPortYieldOtherCore(BaseType_t coreid)

@@ -9,6 +9,13 @@
 #include <stdlib.h>
 #include "FreeRTOS.h"
 #include "task.h"
+#if CONFIG_IDF_RTOS_RTTHREAD
+#include <rtthread.h>
+#include <rthw.h>
+
+_Static_assert(CONFIG_FREERTOS_HZ == RT_TICK_PER_SECOND,
+               "IDF SYSTIMER and RT-Thread tick rates must match");
+#endif
 #if ( !CONFIG_FREERTOS_SMP && ( configNUM_CORES > 1 ) )
 /* Required for xTaskIncrementTickOtherCores() */
 #include "esp_private/freertos_idf_additions_priv.h"
@@ -69,7 +76,14 @@ void vSystimerSetup(void)
     static systimer_hal_context_t systimer_hal;
     /* set system timer interrupt vector */
 
-    ESP_ERROR_CHECK(esp_intr_alloc(ETS_SYSTIMER_TARGET0_INTR_SOURCE + cpuid, ESP_INTR_FLAG_IRAM | level, SysTickIsrHandler, &systimer_hal, NULL));
+    unsigned flags = ESP_INTR_FLAG_IRAM | level;
+#if CONFIG_IDF_RTOS_RTTHREAD
+    /* The real RT-Thread tick/scheduler/timer code lives in flash. Mask the
+     * interrupt while cache is disabled; the ISR catches up elapsed ticks.
+     */
+    flags = level;
+#endif
+    ESP_ERROR_CHECK(esp_intr_alloc(ETS_SYSTIMER_TARGET0_INTR_SOURCE + cpuid, flags, SysTickIsrHandler, &systimer_hal, NULL));
 
     if (cpuid == 0) {
         PERIPH_RCC_ACQUIRE_ATOMIC(PERIPH_SYSTIMER_MODULE, ref_count) {
@@ -199,6 +213,17 @@ BaseType_t xPortSysTickHandler(void)
     extern void esp_vApplicationTickHook(void);
     esp_vApplicationTickHook();
 
+#if CONFIG_IDF_RTOS_RTTHREAD
+    /* vectors_rtthread.S brackets C3/C6 dispatch with rt_interrupt_enter/leave.
+     * Protect the kernel tick from nesting; requested thread switches run at
+     * the outermost trap exit.
+     */
+    rt_base_t level = rt_hw_interrupt_disable();
+    rt_tick_increase();
+    rt_hw_interrupt_enable(level);
+    traceISR_EXIT();
+    return pdFALSE;
+#else
     // Call FreeRTOS Increment tick function
     BaseType_t xSwitchRequired;
 #if CONFIG_FREERTOS_SMP
@@ -244,4 +269,5 @@ BaseType_t xPortSysTickHandler(void)
         traceISR_EXIT();
     }
     return xSwitchRequired;
+#endif
 }

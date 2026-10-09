@@ -4,11 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stddef.h>
+#include "sdkconfig.h"
+
+#if CONFIG_IDF_RTOS_RTTHREAD
+// RT-Thread builds have no FreeRTOS task context or shared-stack mechanism, so neither
+// freertos/*.h nor the headers depending on them are included here. Declare the same ABI:
+// lock degrades to an unused void *, so the function type and call sites are unchanged.
+typedef void (*shared_stack_function)(void);
+#else
 #include <esp_expression_with_stack.h>
 #include <setjmp.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
+#endif
+
+// No FreeRTOS task context or shared stack under RT-Thread: the helpers and globals below
+// are not built, esp_execute_shared_stack_function calls the function directly.
+#if !CONFIG_IDF_RTOS_RTTHREAD
 
 StackType_t *xtensa_shared_stack;
 shared_stack_function xtensa_shared_stack_callback;
@@ -42,8 +56,28 @@ static void esp_switch_stack_setup(StackType_t *stack, size_t stack_size)
     xtensa_shared_stack = top_of_stack;
 }
 
-void esp_execute_shared_stack_function(SemaphoreHandle_t lock, void *stack, size_t stack_size, shared_stack_function function)
+#endif // !CONFIG_IDF_RTOS_RTTHREAD
+
+#if CONFIG_IDF_RTOS_RTTHREAD
+void esp_execute_shared_stack_function(void *lock,
+                                       void *stack,
+                                       size_t stack_size,
+                                       shared_stack_function function)
+#else
+void esp_execute_shared_stack_function(SemaphoreHandle_t lock,
+                                       void *stack,
+                                       size_t stack_size,
+                                       shared_stack_function function)
+#endif
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    // No FreeRTOS semaphore or task context under RT-Thread: run on the current task's own
+    // stack, no switch and no faked TCB stack bounds. The parameters are kept for ABI stability.
+    (void)lock;
+    (void)stack;
+    (void)stack_size;
+    function();
+#else
     assert(lock);
     assert(stack);
     assert(stack_size > 0 && stack_size >= CONFIG_ESP_MINIMAL_SHARED_STACK_SIZE);
@@ -72,4 +106,5 @@ void esp_execute_shared_stack_function(SemaphoreHandle_t lock, void *stack, size
     portEXIT_CRITICAL(&xtensa_shared_stack_spinlock);
 
     xSemaphoreGive(lock);
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }

@@ -7,9 +7,11 @@
 #include "esp_private/panic_reason.h"
 #include "esp_private/panic_internal.h"
 #include "sdkconfig.h"
+#if !CONFIG_IDF_RTOS_RTTHREAD
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/freertos_debug.h"
+#endif
 #include "esp_err.h"
 #include "esp_private/esp_system_attr.h"
 #include "esp_private/esp_cpu_internal.h"
@@ -39,6 +41,10 @@ extern void panic_print_registers(const void *frame, int core);
 esp_err_t ESP_SYSTEM_IRAM_ATTR esp_backtrace_print(int depth)
 {
     (void)depth;
+#if CONFIG_IDF_RTOS_RTTHREAD
+    // FreeRTOS task snapshots are unavailable under RT-Thread.
+    return ESP_ERR_NOT_SUPPORTED;
+#else
 
     const int current_core = xPortGetCoreID();
 
@@ -67,4 +73,5 @@ esp_err_t ESP_SYSTEM_IRAM_ATTR esp_backtrace_print(int depth)
 #endif // CONFIG_ESP_SYSTEM_USE_EH_FRAME
 
     return ESP_OK;
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }

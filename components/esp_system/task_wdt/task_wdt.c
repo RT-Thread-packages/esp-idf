@@ -47,7 +47,9 @@
 extern void xt_unhandled_exception(void *frame);
 
 /* Forward declaration of the idle hook callback */
+#if !CONFIG_IDF_RTOS_RTTHREAD
 static bool idle_hook_cb(void);
+#endif
 
 /* Global flag set to make the `panic` mechanism think a real `abort()` was
  * called. This is used in the ISR handler, in case we have to panic when
@@ -272,6 +274,9 @@ err:
  */
 static void unsubscribe_idle(uint32_t core_mask)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    (void)core_mask;
+#else
     int core_num = 0;
     while (core_mask != 0) {
         if (core_mask & 0x1) {
@@ -290,6 +295,7 @@ static void unsubscribe_idle(uint32_t core_mask)
         core_mask >>= 1;
         core_num++;
     }
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }
 
 /**
@@ -299,6 +305,9 @@ static void unsubscribe_idle(uint32_t core_mask)
  */
 static void subscribe_idle(uint32_t core_mask)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    (void)core_mask;
+#else
     int core_num = 0;
     while (core_mask != 0) {
         if (core_mask & 0x1) {
@@ -316,6 +325,7 @@ static void subscribe_idle(uint32_t core_mask)
         core_mask >>= 1;
         core_num++;
     }
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }
 
 /**
@@ -339,6 +349,10 @@ static void subscribe_idle(uint32_t core_mask)
 
 static UBaseType_t get_task_affinity(const TaskHandle_t xTask)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    (void)xTask;
+    return BIT(0); // RT-Thread is supported only on single-core C3/C6.
+#else
     if (xTask == NULL) {
         /* User entry, we cannot predict on which core it is scheduled to run,
          * so let's mark all cores as failing */
@@ -362,6 +376,7 @@ static UBaseType_t get_task_affinity(const TaskHandle_t xTask)
     }
     return BIT(1) | BIT(0);
 #endif
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }
 
 /**
@@ -373,6 +388,11 @@ static UBaseType_t get_task_affinity(const TaskHandle_t xTask)
  */
 void task_wdt_timeout_abort(bool current_core)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    (void)current_core;
+    esp_reset_reason_set_hint(ESP_RST_TASK_WDT);
+    esp_system_abort("Task watchdog timeout");
+#else
     TaskSnapshot_t snapshot = { 0 };
     BaseType_t __attribute__((unused)) ret = pdTRUE;
 
@@ -401,6 +421,7 @@ void task_wdt_timeout_abort(bool current_core)
     }
 
     xt_unhandled_exception(frame);
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }
 
 static void task_wdt_timeout_handling(int cores_fail, bool panic)
@@ -454,6 +475,7 @@ static void task_wdt_timeout_handling(int cores_fail, bool panic)
  *
  * @return Whether the idle tasks should continue idling
  */
+#if !CONFIG_IDF_RTOS_RTTHREAD
 static TASK_WDT_FN_ATTR bool idle_hook_cb(void)
 {
 #if CONFIG_FREERTOS_SMP
@@ -463,6 +485,7 @@ static TASK_WDT_FN_ATTR bool idle_hook_cb(void)
 #endif // CONFIG_FREERTOS_SMP
     return true;
 }
+#endif // !CONFIG_IDF_RTOS_RTTHREAD
 
 /**
  * @brief TWDT timeout ISR function
@@ -488,10 +511,12 @@ static void task_wdt_isr(void *arg)
         return;
     }
 
+#if !CONFIG_IDF_RTOS_RTTHREAD
     ESP_EARLY_LOGE(TAG, "%s", ESP_LOG_ATTR_DRAM_STR("Tasks currently running:"));
     for (int x = 0; x < CONFIG_FREERTOS_NUMBER_OF_CORES; x++) {
         ESP_EARLY_LOGE(TAG, "CPU %d: %s", x, pcTaskGetName(xTaskGetCurrentTaskHandleForCore(x)));
     }
+#endif // !CONFIG_IDF_RTOS_RTTHREAD
     portEXIT_CRITICAL_ISR(&spinlock);
 
     /* Run user ISR handler.
@@ -668,6 +693,10 @@ err:
 
 esp_err_t esp_task_wdt_add(TaskHandle_t task_handle)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    (void)task_handle;
+    return ESP_ERR_NOT_SUPPORTED;
+#else
     ESP_RETURN_ON_FALSE(p_twdt_obj != NULL, ESP_ERR_INVALID_STATE, TAG, "TWDT was never initialized");
     esp_err_t ret;
     if (task_handle == NULL) {   // Get handle of current task if none is provided
@@ -678,6 +707,7 @@ esp_err_t esp_task_wdt_add(TaskHandle_t task_handle)
     ret = add_entry(true, (void *)task_handle, &entry);
     (void) entry; // Returned entry pointer not used
     return ret;
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }
 
 esp_err_t esp_task_wdt_add_user(const char *user_name, esp_task_wdt_user_handle_t *user_handle_ret)
@@ -695,6 +725,9 @@ esp_err_t esp_task_wdt_add_user(const char *user_name, esp_task_wdt_user_handle_
 
 esp_err_t TASK_WDT_FN_ATTR esp_task_wdt_reset(void)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    return ESP_ERR_NOT_SUPPORTED;
+#else
     ESP_RETURN_ON_FALSE(p_twdt_obj != NULL, ESP_ERR_INVALID_STATE, TAG, "TWDT was never initialized");
     esp_err_t ret;
     TaskHandle_t handle = xTaskGetCurrentTaskHandle();
@@ -715,6 +748,7 @@ err:
     portEXIT_CRITICAL(&spinlock);
 
     return ret;
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }
 
 esp_err_t TASK_WDT_FN_ATTR esp_task_wdt_reset_user(esp_task_wdt_user_handle_t user_handle)
@@ -743,6 +777,10 @@ err:
 
 esp_err_t esp_task_wdt_delete(TaskHandle_t task_handle)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    (void)task_handle;
+    return ESP_ERR_NOT_SUPPORTED;
+#else
     ESP_RETURN_ON_FALSE(p_twdt_obj != NULL, ESP_ERR_INVALID_STATE, TAG, "TWDT was never initialized");
     esp_err_t ret;
     if (task_handle == NULL) {
@@ -751,6 +789,7 @@ esp_err_t esp_task_wdt_delete(TaskHandle_t task_handle)
 
     ret = delete_entry(true, (void *)task_handle);
     return ret;
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }
 
 esp_err_t esp_task_wdt_delete_user(esp_task_wdt_user_handle_t user_handle)
@@ -762,6 +801,10 @@ esp_err_t esp_task_wdt_delete_user(esp_task_wdt_user_handle_t user_handle)
 
 esp_err_t esp_task_wdt_status(TaskHandle_t task_handle)
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    (void)task_handle;
+    return ESP_ERR_NOT_SUPPORTED;
+#else
     ESP_RETURN_ON_FALSE(p_twdt_obj != NULL, ESP_ERR_INVALID_STATE, TAG, "TWDT was never initialized");
     esp_err_t ret;
     if (task_handle == NULL) {
@@ -778,6 +821,7 @@ esp_err_t esp_task_wdt_status(TaskHandle_t task_handle)
     portEXIT_CRITICAL(&spinlock);
 
     return ret;
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }
 
 esp_err_t esp_task_wdt_print_triggered_tasks(task_wdt_msg_handler msg_handler, void *opaque, int *cpus_fail)
@@ -800,7 +844,11 @@ esp_err_t esp_task_wdt_print_triggered_tasks(task_wdt_msg_handler msg_handler, v
     SLIST_FOREACH(entry, &p_twdt_obj->entries_slist, slist_entry) {
         if (!entry->has_reset) {
             const char *cpu;
+#if CONFIG_IDF_RTOS_RTTHREAD
+            const char *name = entry->user_name;
+#else
             const char *name = entry->task_handle ? pcTaskGetName(entry->task_handle) : entry->user_name;
+#endif // CONFIG_IDF_RTOS_RTTHREAD
             const UBaseType_t affinity = get_task_affinity(entry->task_handle);
             if (cpus_fail) {
                 *cpus_fail |= affinity;

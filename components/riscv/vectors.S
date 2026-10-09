@@ -426,6 +426,7 @@ _return_from_exception:
     .global _interrupt_handler
     .global _tee_interrupt_handler
     .type _interrupt_handler, @function
+#ifndef CONFIG_IDF_RTOS_RTTHREAD
 _interrupt_handler:
 _tee_interrupt_handler:
     /* Start by saving the general purpose registers and the PC value before
@@ -562,3 +563,4 @@ _skip_thresh_reset:
     /* exit, this will also re-enable the interrupts */
     xret
     .size  _interrupt_handler, .-_interrupt_handler
+#endif

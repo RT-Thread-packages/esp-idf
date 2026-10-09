@@ -26,6 +26,10 @@ else()
         "rv_utils.c"
         "vectors.S")
 
+    if(CONFIG_IDF_RTOS_RTTHREAD)
+        list(APPEND srcs "vectors_rtthread.S")
+    endif()
+
     if(CONFIG_SOC_INT_CLIC_SUPPORTED)
         list(APPEND srcs "interrupt_clic.c" "vectors_clic.S")
     elseif(CONFIG_SOC_INT_PLIC_SUPPORTED)

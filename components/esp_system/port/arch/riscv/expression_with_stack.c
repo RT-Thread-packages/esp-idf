@@ -4,15 +4,30 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stddef.h>
+#include "sdkconfig.h"
+
+#if CONFIG_IDF_RTOS_RTTHREAD
+// RT-Thread builds have no FreeRTOS, so this TU cannot include
+// esp_expression_with_stack.h, which unconditionally pulls in freertos/*.h and declares
+// the function with SemaphoreHandle_t. Declare the same ABI here instead: lock degrades
+// to an unused void *, the function type stays the same, so the call sites still link.
+typedef void (*shared_stack_function)(void);
+#else
 #include <esp_expression_with_stack.h>
 #include <riscv/rvruntime-frames.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
-#include "sdkconfig.h"
+#endif
+
 #if CONFIG_ESP_SYSTEM_HW_STACK_GUARD
 #include "esp_private/hw_stack_guard.h"
 #endif
+
+// No FreeRTOS task context or shared stack under RT-Thread: the stack switching helpers
+// below are not built, esp_execute_shared_stack_function calls the function directly.
+#if !CONFIG_IDF_RTOS_RTTHREAD
 
 static StackType_t *esp_shared_stack_setup_context(StaticTask_t *tcb, void **sp_min, void **sp_max, StackType_t *stack, size_t stack_size)
 {
@@ -54,9 +69,28 @@ static void esp_shared_stack_restore_context(StaticTask_t *tcb, void *sp_min, vo
     esp_hw_stack_guard_monitor_start();
 #endif
 }
+#endif // !CONFIG_IDF_RTOS_RTTHREAD
 
-void esp_execute_shared_stack_function(SemaphoreHandle_t lock, void *stack, size_t stack_size, shared_stack_function function)
+#if CONFIG_IDF_RTOS_RTTHREAD
+void esp_execute_shared_stack_function(void *lock,
+                                       void *stack,
+                                       size_t stack_size,
+                                       shared_stack_function function)
+#else
+void esp_execute_shared_stack_function(SemaphoreHandle_t lock,
+                                       void *stack,
+                                       size_t stack_size,
+                                       shared_stack_function function)
+#endif
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    // No FreeRTOS semaphore or task context under RT-Thread: run on the current task's own
+    // stack, no switch and no faked TCB stack bounds. The parameters are kept for ABI stability.
+    (void)lock;
+    (void)stack;
+    (void)stack_size;
+    function();
+#else
     assert(lock);
     assert(stack);
     assert(stack_size > 0 && stack_size >= CONFIG_ESP_MINIMAL_SHARED_STACK_SIZE);
@@ -92,4 +126,5 @@ void esp_execute_shared_stack_function(SemaphoreHandle_t lock, void *stack, size
     portEXIT_CRITICAL(&shared_stack_spinlock);
 
     xSemaphoreGive(lock);
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }
