@@ -112,6 +112,7 @@ esp32c3_hal_src = [
     'components/esp_hal_security/sha_hal.c',
     'components/esp_hal_systimer/systimer_hal.c',
     'components/esp_hal_ana_conv/adc_oneshot_hal.c',
+    'components/esp_hal_ana_conv/temperature_sensor_hal.c',
     'components/esp_hal_rmt/rmt_hal.c',
     'components/esp_hal_gpio/sdm_hal.c',
     'components/esp_hal_ana_conv/adc_hal_common.c',
@@ -193,6 +194,8 @@ esp32c3_esp_hw_support_src = [
     'components/esp_hw_support/port/esp32c3/cpu_region_protect.c',
     'components/esp_hw_support/port/esp32c3/esp_cpu_intr.c',
     'components/esp_hw_support/port/esp32c3/sar_periph_ctrl.c',
+    'components/esp_hw_support/sar_tsens_ctrl.c',
+    'components/esp_hw_support/spi_share_hw_ctrl.c',
     'components/esp_hw_support/esp_gpio_reserve.c',
     'components/esp_hw_support/sar_periph_ctrl_common.c',
     'components/esp_hw_support/clk_utils.c',
@@ -343,6 +346,9 @@ esp32c3_newlib_src = [
 # FreeRTOS-Wrapper kernel does not have; see the file header for details.
 esp32c3_rtwrapper_compat_src = [
     'components/rtthread/scons/event_list.c',
+    # vPortYield for the v6.1 bt controller's OSI function table; declared in
+    # the scons <freertos/portmacro.h> shim
+    'components/rtthread/scons/port_compat.c',
 ]
 
 esp32c3_log_src = [
@@ -455,20 +461,20 @@ esp32c3_esp_timer_src = [
 esp32c3_wifi_src = [
     'components/esp_coex/src/coexist.c',
     'components/esp_wifi/src/mesh_event.c',
+    'components/esp_wifi/src/lib_printf.c',
     'components/esp_wifi/src/smartconfig.c',
-    'components/esp_wifi/src/smartconfig_ack.c',
+    # dropped (v6.1 only builds it with the ESP lwIP socket API available,
+    # CONFIG_ESP_NETIF_USES_TCPIP_WITH_BSD_API, which the scons Wi-Fi build
+    # does not provide): components/esp_wifi/src/smartconfig_ack.c
     'components/esp_wifi/src/wifi_init.c',
     'components/esp_wifi/src/wifi_netif.c',
     'components/esp_wifi/src/wifi_default_ap.c',
     'components/esp_wifi/esp32c3/esp_adapter.c',
-    # dropped (no v6.1 equivalent): components/esp_wifi/lib/esp32c3/libcoexist.a
-    # dropped (no v6.1 equivalent): components/esp_wifi/lib/esp32c3/libcore.a
-    # dropped (no v6.1 equivalent): components/esp_wifi/lib/esp32c3/libespnow.a
-    # dropped (no v6.1 equivalent): components/esp_wifi/lib/esp32c3/libmesh.a
-    # dropped (no v6.1 equivalent): components/esp_wifi/lib/esp32c3/libnet80211.a
-    # dropped (no v6.1 equivalent): components/esp_wifi/lib/esp32c3/libpp.a
-    # dropped (no v6.1 equivalent): components/esp_wifi/lib/esp32c3/libsmartconfig.a
-    # dropped (no v6.1 equivalent): components/esp_wifi/lib/esp32c3/libwapi.a
+    'components/esp_coex/esp32c3/esp_coex_adapter.c',
+    'components/esp_wifi/regulatory/esp_wifi_regulatory.c',
+    # the prebuilt wifi libraries (libcore.a, libnet80211.a, libpp.a, ...) are
+    # linked through LIB / LIB_PATH below; v6.1 moved libcoexist.a from
+    # components/esp_wifi/lib to components/esp_coex/lib
 ]
 
 esp32c3_wpa_supplicant_src = [
@@ -548,6 +554,9 @@ esp32c3_wpa_supplicant_src = [
     'components/wpa_supplicant/src/crypto/aes-wrap.c',
     'components/wpa_supplicant/src/crypto/aes-unwrap.c',
     'components/wpa_supplicant/src/crypto/aes-ccm.c',
+    'components/wpa_supplicant/src/common/dragonfly.c',
+    'components/wpa_supplicant/src/ap/pmksa_cache_auth.c',
+    'components/wpa_supplicant/src/ap/ieee802_11.c',
 ]
 
 esp32c3_netif_src = [
@@ -564,92 +573,98 @@ esp32c3_netif_src = [
 
 esp32c3_lwip_src = [
     'components/lwip/apps/sntp/sntp.c',
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/api/api_lib.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/api/api_msg.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/api/err.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/api/if_api.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/api/netbuf.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/api/netdb.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/api/netifapi.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/api/sockets.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/api/tcpip.c
-    'components/lwip/apps/sntp/sntp.c',
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/apps/netbiosns/netbiosns.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/def.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/dns.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/inet_chksum.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/init.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ip.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/mem.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/memp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/netif.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/pbuf.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/raw.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/stats.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/sys.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/tcp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/tcp_in.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/tcp_out.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/timeouts.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/udp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv4/autoip.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv4/dhcp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv4/etharp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv4/icmp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv4/igmp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv4/ip4.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv4/ip4_napt.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv4/ip4_addr.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv4/ip4_frag.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv6/dhcp6.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv6/ethip6.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv6/icmp6.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv6/inet6.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv6/ip6_addr.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv6/ip6.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv6/ip6_frag.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv6/mld6.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/core/ipv6/nd6.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ethernet.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/bridgeif.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/bridgeif_fdb.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/slipif.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/auth.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/ccp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/chap-md5.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/chap-new.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/chap_ms.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/demand.c
+    'components/lwip/lwip/src/api/api_lib.c',
+    'components/lwip/lwip/src/api/api_msg.c',
+    'components/lwip/lwip/src/api/err.c',
+    'components/lwip/lwip/src/api/if_api.c',
+    'components/lwip/lwip/src/api/netbuf.c',
+    'components/lwip/lwip/src/api/netdb.c',
+    'components/lwip/lwip/src/api/netifapi.c',
+    'components/lwip/lwip/src/api/sockets.c',
+    'components/lwip/lwip/src/api/tcpip.c',
+    'components/lwip/lwip/src/apps/sntp/sntp.c',
+    'components/lwip/lwip/src/apps/netbiosns/netbiosns.c',
+    'components/lwip/lwip/src/core/def.c',
+    'components/lwip/lwip/src/core/dns.c',
+    'components/lwip/lwip/src/core/inet_chksum.c',
+    'components/lwip/lwip/src/core/init.c',
+    'components/lwip/lwip/src/core/ip.c',
+    'components/lwip/lwip/src/core/mem.c',
+    'components/lwip/lwip/src/core/memp.c',
+    'components/lwip/lwip/src/core/netif.c',
+    'components/lwip/lwip/src/core/pbuf.c',
+    'components/lwip/lwip/src/core/raw.c',
+    'components/lwip/lwip/src/core/stats.c',
+    'components/lwip/lwip/src/core/sys.c',
+    'components/lwip/lwip/src/core/tcp.c',
+    'components/lwip/lwip/src/core/tcp_in.c',
+    'components/lwip/lwip/src/core/tcp_out.c',
+    'components/lwip/lwip/src/core/timeouts.c',
+    'components/lwip/lwip/src/core/udp.c',
+    'components/lwip/lwip/src/core/ipv4/autoip.c',
+    'components/lwip/lwip/src/core/ipv4/dhcp.c',
+    'components/lwip/lwip/src/core/ipv4/etharp.c',
+    'components/lwip/lwip/src/core/ipv4/icmp.c',
+    'components/lwip/lwip/src/core/ipv4/igmp.c',
+    'components/lwip/lwip/src/core/ipv4/ip4.c',
+    'components/lwip/lwip/src/core/ipv4/ip4_napt.c',
+    'components/lwip/lwip/src/core/ipv4/ip4_addr.c',
+    'components/lwip/lwip/src/core/ipv4/ip4_frag.c',
+    'components/lwip/lwip/src/core/ipv6/dhcp6.c',
+    'components/lwip/lwip/src/core/ipv6/ethip6.c',
+    'components/lwip/lwip/src/core/ipv6/icmp6.c',
+    'components/lwip/lwip/src/core/ipv6/inet6.c',
+    'components/lwip/lwip/src/core/ipv6/ip6_addr.c',
+    'components/lwip/lwip/src/core/ipv6/ip6.c',
+    'components/lwip/lwip/src/core/ipv6/ip6_frag.c',
+    'components/lwip/lwip/src/core/ipv6/mld6.c',
+    'components/lwip/lwip/src/core/ipv6/nd6.c',
+    'components/lwip/lwip/src/netif/ethernet.c',
+    'components/lwip/lwip/src/netif/bridgeif.c',
+    'components/lwip/lwip/src/netif/bridgeif_fdb.c',
+    'components/lwip/lwip/src/netif/slipif.c',
+    'components/lwip/lwip/src/netif/ppp/auth.c',
+    'components/lwip/lwip/src/netif/ppp/ccp.c',
+    'components/lwip/lwip/src/netif/ppp/chap-md5.c',
+    'components/lwip/lwip/src/netif/ppp/chap-new.c',
+    'components/lwip/lwip/src/netif/ppp/chap_ms.c',
+    'components/lwip/lwip/src/netif/ppp/demand.c',
+    'components/lwip/lwip/src/netif/ppp/eap.c',
+    'components/lwip/lwip/src/netif/ppp/ecp.c',
+    'components/lwip/lwip/src/netif/ppp/eui64.c',
+    'components/lwip/lwip/src/netif/ppp/fsm.c',
+    'components/lwip/lwip/src/netif/ppp/ipcp.c',
+    'components/lwip/lwip/src/netif/ppp/ipv6cp.c',
+    'components/lwip/lwip/src/netif/ppp/lcp.c',
+    'components/lwip/lwip/src/netif/ppp/mppe.c',
+    'components/lwip/lwip/src/netif/ppp/magic.c',
+    'components/lwip/lwip/src/netif/ppp/multilink.c',
+    'components/lwip/lwip/src/netif/ppp/ppp.c',
+    'components/lwip/lwip/src/netif/ppp/pppapi.c',
+    'components/lwip/lwip/src/netif/ppp/pppcrypt.c',
+    'components/lwip/lwip/src/netif/ppp/pppoe.c',
+    'components/lwip/lwip/src/netif/ppp/pppol2tp.c',
+    'components/lwip/lwip/src/netif/ppp/pppos.c',
+    'components/lwip/lwip/src/netif/ppp/upap.c',
+    'components/lwip/lwip/src/netif/ppp/utils.c',
+    'components/lwip/lwip/src/netif/ppp/vj.c',
     'components/wpa_supplicant/src/eap_peer/eap.c',
     'components/mbedtls/mbedtls/tf-psa-crypto/drivers/builtin/src/ecp.c',
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/eui64.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/fsm.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/ipcp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/ipv6cp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/lcp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/mppe.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/magic.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/multilink.c
-    'components/esp_netif/lwip/netif/ppp.c',
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/pppapi.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/pppcrypt.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/pppoe.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/pppol2tp.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/pppos.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/upap.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/utils.c
-    # dropped (no v6.1 equivalent): components/lwip/lwip/src/netif/ppp/vj.c
+    # dropped (v6.1 only builds it with CONFIG_PPP_SUPPORT / CONFIG_LWIP_PPP_SUPPORT,
+    # which the scons BSPs do not enable; lwipopts.h then leaves PPP_SUPPORT=0 and
+    # the ppp_pcb type this shim uses does not exist): components/esp_netif/lwip/netif/ppp.c
     'components/lwip/port/hooks/tcp_isn_default.c',
     'components/lwip/port/hooks/lwip_default_hooks.c',
     'components/lwip/port/debug/lwip_debug.c',
     'components/lwip/port/freertos/sys_arch.c',
     'components/lwip/port/sockets_ext.c',
-    # dropped (no v6.1 equivalent): components/lwip/port/esp32/vfs_lwip.c
-    # dropped (no v6.1 equivalent): components/lwip/apps/ping/esp_ping.c
-    # dropped (no v6.1 equivalent): components/lwip/apps/ping/ping.c
     'components/lwip/apps/ping/ping_sock.c',
     'components/lwip/apps/dhcpserver/dhcpserver.c',
+    # dropped (v6.1 reworked the VFS/socket bridge): components/lwip/port/esp32/vfs_lwip.c
+    # dropped (v6.1 equivalent): components/lwip/apps/ping/esp_ping.c
+    # dropped (v6.1 equivalent): components/lwip/apps/ping/ping.c
 ]
+
 
 esp32c3_vfs_src = [
     'components/vfs/vfs_eventfd.c',
@@ -673,6 +688,8 @@ esp32c3_nvs_flash_src = [
     'components/nvs_flash/src/nvs_partition_lookup.cpp',
     'components/nvs_flash/src/nvs_partition_manager.cpp',
     'components/nvs_flash/src/nvs_types.cpp',
+    'components/nvs_flash/src/nvs_platform.cpp',
+    'components/nvs_flash/src/nvs_encrypted_partition.cpp',
 ]
 
 esp32c3_esp_event_src = [
@@ -705,82 +722,96 @@ esp32c3_bt_src = [
     'components/bt/common/osi/osi.c',
     'components/bt/common/osi/semaphore.c',
     'components/bt/porting/mem/bt_osi_mem.c',
-    'components/bt/esp_ble_iso/host/utils/addr.c',
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/services/gatt/src/ble_svc_gatt.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/services/tps/src/ble_svc_tps.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/services/ias/src/ble_svc_ias.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/services/ipss/src/ble_svc_ipss.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/services/ans/src/ble_svc_ans.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/services/gap/src/ble_svc_gap.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/services/bas/src/ble_svc_bas.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/services/dis/src/ble_svc_dis.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/services/lls/src/ble_svc_lls.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_conn.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_store_util.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_sm.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_shutdown.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap_sig_cmd.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci_cmd.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_att_svr.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_id.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_gatts_lcl.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_ibeacon.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_atomic.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_sm_alg.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_stop.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci_evt.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_mqueue.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_periodic_sync.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_att.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_gattc.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_store.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_sm_lgcy.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_cfg.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_monitor.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_att_clt.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap_coc.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_mbuf.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_att_cmd.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_log.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_eddystone.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_startup.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap_sig.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_gap.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_sm_cmd.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_uuid.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_pvcy.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_flow.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_sm_sc.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_misc.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_gatts.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_adv.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci_util.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/src/ble_hs_resolv.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/store/ram/src/ble_store_ram.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/store/config/src/ble_store_config.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/nimble/host/store/config/src/ble_store_nvs.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/porting/nimble/src/nimble_port.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/porting/npl/freertos/src/nimble_port_freertos.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/porting/nimble/src/endian.c
+    # v6.1 moved the mem/npl porting layer out of the nimble submodule into
+    # components/bt/porting; the ESP32-C3 keeps the submodule's nimble_port /
+    # mem / os_mbuf as well because it is not a "nimble controller" SoC (see
+    # components/bt/host/nimble/CMakeLists.txt)
     'components/bt/porting/mem/os_mempool.c',
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/porting/nimble/src/mem.c
-    # dropped (no v6.1 equivalent): components/bt/host/nimble/nimble/porting/nimble/src/os_mbuf.c
-    'components/bt/porting/mem/os_msys_init.c',
-    'components/bt/porting/npl/freertos/src/npl_os_freertos.c',
+    'components/bt/host/nimble/nimble/porting/nimble/src/os_msys_init.c',
+    'components/bt/host/nimble/nimble/porting/npl/freertos/src/npl_os_freertos.c',
+    # nimble host (components/bt/host/nimble/nimble submodule)
+    'components/bt/host/nimble/nimble/nimble/transport/src/transport.c',
+    'components/bt/host/nimble/nimble/nimble/transport/esp_ipc_legacy/src/hci_esp_ipc_legacy.c',
+    'components/bt/host/nimble/port/src/nvs_port.c',
+    'components/bt/host/nimble/port/src/esp_nimble_mem.c',
+    'components/bt/host/nimble/nimble/nimble/host/util/src/addr.c',
+    'components/bt/host/nimble/nimble/nimble/host/services/gatt/src/ble_svc_gatt.c',
+    'components/bt/host/nimble/nimble/nimble/host/services/tps/src/ble_svc_tps.c',
+    'components/bt/host/nimble/nimble/nimble/host/services/ias/src/ble_svc_ias.c',
+    'components/bt/host/nimble/nimble/nimble/host/services/ipss/src/ble_svc_ipss.c',
+    'components/bt/host/nimble/nimble/nimble/host/services/ans/src/ble_svc_ans.c',
+    'components/bt/host/nimble/nimble/nimble/host/services/gap/src/ble_svc_gap.c',
+    'components/bt/host/nimble/nimble/nimble/host/services/bas/src/ble_svc_bas.c',
+    'components/bt/host/nimble/nimble/nimble/host/services/dis/src/ble_svc_dis.c',
+    'components/bt/host/nimble/nimble/nimble/host/services/lls/src/ble_svc_lls.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_conn.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_store_util.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_sm.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_shutdown.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap_sig_cmd.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci_cmd.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_id.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_att_svr.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_gatts_lcl.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_ibeacon.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_atomic.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_sm_alg.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_stop.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci_evt.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_mqueue.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_periodic_sync.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_att.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_gattc.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_store.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_sm_lgcy.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_cfg.c',
+    # dropped (only built with BLE monitor support): components/bt/host/nimble/nimble/nimble/host/src/ble_monitor.c
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_att_clt.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap_coc.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_mbuf.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_att_cmd.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_log.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_eddystone.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_startup.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap_sig.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_gap.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_sm_cmd.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_uuid.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_pvcy.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_flow.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_l2cap.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_sm_sc.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_misc.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_gatts.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_adv.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_hci_util.c',
+    'components/bt/host/nimble/nimble/nimble/host/src/ble_hs_resolv.c',
+    'components/bt/host/nimble/nimble/nimble/host/store/ram/src/ble_store_ram.c',
+    'components/bt/host/nimble/nimble/nimble/host/store/config/src/ble_store_config.c',
+    'components/bt/host/nimble/nimble/nimble/host/store/config/src/ble_store_nvs.c',
+    'components/bt/host/nimble/nimble/porting/nimble/src/nimble_port.c',
+    'components/bt/host/nimble/nimble/porting/nimble/src/endian.c',
+    'components/bt/host/nimble/nimble/porting/nimble/src/mem.c',
+    'components/bt/host/nimble/nimble/porting/nimble/src/os_mbuf.c',
+    'components/bt/host/nimble/nimble/porting/npl/freertos/src/nimble_port_freertos.c',
+    # dropped (v6.1 moved them to components/bt/porting, which is built instead):
+    #   components/bt/host/nimble/nimble/porting/nimble/src/os_msys_init.c
+    #   components/bt/host/nimble/nimble/porting/npl/freertos/src/npl_os_freertos.c
     'components/bt/host/nimble/esp-hci/src/esp_nimble_hci.c',
     'components/bt/common/btc/profile/esp/blufi/nimble_host/esp_blufi.c',
-    # dropped (no v6.1 equivalent): components/bt/controller/lib_esp32c3_family/esp32c3/libbtdm_app.a
 ]
+
 
 esp32c3_esp_phy_src = [
     'components/esp_phy/src/lib_printf.c',
     'components/esp_phy/src/phy_override.c',
     'components/esp_phy/src/phy_init.c',
-    # dropped (no v6.1 equivalent): components/esp_phy/lib/esp32c3/libphy.a
-    # dropped (no v6.1 equivalent): components/esp_phy/lib/esp32c3/libbtbb.a
+    'components/esp_phy/src/phy_common.c',
+    'components/esp_phy/src/btbb_init.c',
+    'components/esp_phy/esp32c3/phy_init_data.c',
+    # libphy.a / libbtbb.a are linked through LIB / LIB_PATH below
 ]
 
 # ESP-IDF v6.1 only builds the gdb stub when CONFIG_ESP_SYSTEM_GDBSTUB /
@@ -1037,6 +1068,102 @@ if GetDepend(['SOC_ESP32_C3']):
         src += esp32c3_adc_src
     CPPDEFINES = [ 'IDF_VER=\\"999\\"', 'PROJECT_VER=\\"999\\"', '_GNU_SOURCE', 'MULTI_HEAP_FREERTOS', 'ESP_PLATFORM=1', 'IDF_TARGET=esp32c3', '_POSIX_READER_WRITER_LOCKS', 'PROJECT_NAME=\\"rtthread\\"', 'MBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"', 'TF_PSA_CRYPTO_USER_CONFIG_FILE=\\"mbedtls/esp_config.h\\"', 'ESPRESSIF_USE', 'CONFIG_CRYPTO_MBEDTLS', 'UNITY_INCLUDE_CONFIG_H', '__ets__', 'ESP_PLATFORM' ]
 
+LIB_PATH = []
+LIB = []
+esp32c3_bt_path = []
+esp32c3_wifi_path = []
+
+# Wi-Fi and BLE share the radio stack: esp_wifi shim sources, the supplicant,
+# nvs_flash, esp_event and esp_phy (plus the prebuilt esp_wifi / esp_phy / esp_coex
+# libraries).  The ESP lwIP port (esp32c3_lwip_src / esp32c3_netif_src) is only
+# built for BLE: a plain Wi-Fi configuration enables RT-Thread's own lwIP
+# (RT_USING_LWIP) and compiling the ESP lwIP port as well would define every
+# symbol of the stack twice.
+if GetDepend(['BSP_USING_WIFI']) or GetDepend(['BSP_USING_BLE']):
+    src += esp32c3_wifi_src
+    src += esp32c3_wpa_supplicant_src
+    src += esp32c3_nvs_flash_src
+    src += esp32c3_esp_phy_src
+    src += esp32c3_esp_event_src
+    LIB_PATH += [os.path.join(cwd, 'components/esp_phy/lib/esp32c3'),
+                 os.path.join(cwd, 'components/esp_wifi/lib/esp32c3'),
+                 os.path.join(cwd, 'components/esp_coex/lib/esp32c3')]
+    # v6.1 moved libcoexist.a from components/esp_wifi/lib to components/esp_coex/lib
+    LIB += ['btbb', 'coexist', 'espnow', 'net80211', 'pp', 'smartconfig',
+            'wapi', 'core', 'mesh', 'phy']
+    # the wpa_supplicant port: the feature macros its v6.1 CMakeLists.txt sets
+    # unconditionally (plus WPA3 / OWE, which the scons sdkconfig.h does not
+    # derive from Kconfig)
+    CPPDEFINES += ['ESP_SUPPLICANT', 'IEEE8021X_EAPOL', 'EAP_PEER_METHOD',
+                   'EAP_MSCHAPv2', 'EAP_TTLS', 'EAP_TLS', 'EAP_PEAP',
+                   'USE_WPA2_TASK', 'USE_WPS_TASK', 'CONFIG_WPS', 'CONFIG_ECC',
+                   'CONFIG_IEEE80211W', 'CONFIG_SHA256', 'CONFIG_NO_RADIUS',
+                   'CONFIG_OWE_STA', 'CONFIG_WPA3_SAE', 'ESP32_WORKAROUND']
+    # header-only dependency of the esp_wifi public headers (esp_mesh.h's
+    # esp_ip4_addr_t); no esp_netif source is compiled in the plain Wi-Fi
+    # build, so the auto-collected include dirs would not have it
+    esp32c3_wifi_path += ['components/esp_netif/include']
+
+if GetDepend(['BSP_USING_BLE']):
+    src += esp32c3_bt_src
+    src += esp32c3_lwip_src
+    src += esp32c3_netif_src
+    src += esp32c3_vfs_src
+    # v6.1's esp_sntp.h keeps a set of deprecated translating inlines
+    # (sntp_init() -> esp_sntp_init(), ...) that are only meant for code
+    # *outside* the lwIP/esp_netif components; inside them the real lwIP
+    # declarations are used instead.  ESP-IDF's CMake sets these two defines
+    # PRIVATE on the lwip/esp_netif component targets, the flat scons build
+    # has to define them itself or the two sets of prototypes collide.
+    CPPDEFINES += ['ESP_LWIP_COMPONENT_BUILD', 'ESP_NETIF_COMPONENT_BUILD']
+    LIB_PATH.append(os.path.join(cwd, 'components/bt/controller/lib_esp32c3_family/esp32c3'))
+    LIB.append('btdm_app')
+    # the include roots of the nimble host live three levels below components/bt,
+    # deeper than the one-level scan in _all_component_include_dirs() goes
+    esp32c3_bt_path += [
+        'components/bt/include/esp32c3/include',
+        'components/bt/common/osi/include',
+        'components/bt/common/hci_log/include',
+        'components/bt/common/api/include/api',
+        'components/bt/common/btc/include',
+        'components/bt/common/btc/profile/esp/blufi/include',
+        'components/bt/common/btc/profile/esp/include',
+        'components/bt/common/include',
+        'components/bt/porting/include',
+        'components/bt/porting/mem',
+        'components/bt/host/nimble/nimble/porting/npl/freertos/include',
+        'components/bt/host/nimble/port/include',
+        'components/bt/host/nimble/nimble/nimble/host/include',
+        'components/bt/host/nimble/nimble/nimble/host/services/ans/include',
+        'components/bt/host/nimble/nimble/nimble/host/services/bas/include',
+        'components/bt/host/nimble/nimble/nimble/host/services/dis/include',
+        'components/bt/host/nimble/nimble/nimble/host/services/gap/include',
+        'components/bt/host/nimble/nimble/nimble/host/services/gatt/include',
+        'components/bt/host/nimble/nimble/nimble/host/services/ias/include',
+        'components/bt/host/nimble/nimble/nimble/host/services/ipss/include',
+        'components/bt/host/nimble/nimble/nimble/host/services/lls/include',
+        'components/bt/host/nimble/nimble/nimble/host/services/tps/include',
+        'components/bt/host/nimble/nimble/nimble/host/util/include',
+        'components/bt/host/nimble/nimble/nimble/host/store/ram/include',
+        'components/bt/host/nimble/nimble/nimble/host/store/config/include',
+        'components/bt/host/nimble/nimble/nimble/include',
+        'components/bt/host/nimble/nimble/nimble/include/nimble',
+        'components/bt/host/nimble/nimble/nimble/transport/include',
+        'components/bt/host/nimble/nimble/porting/nimble/include',
+        'components/bt/host/nimble/nimble/porting/nimble/include/mem',
+        'components/bt/host/nimble/nimble/porting/npl/freertos/include',
+        'components/bt/host/nimble/esp-hci/include',
+        'components/lwip/port/include',
+        'components/lwip/include',
+        'components/lwip/include/apps',
+        'components/lwip/lwip/src/include',
+        'components/lwip/port/esp32xx/include',
+        'components/lwip/port/esp32xx/include/arch',
+        'components/esp_netif/include',
+        'components/esp_netif/private_include',
+        'components/vfs/include',
+    ]
+
 # The RT-Thread scons build shims have to be searched before everything else,
 # including the FreeRTOS-Wrapper include dir: they forward
 # <freertos/FreeRTOS.h> to the wrapper kernel with #include_next and then append
@@ -1053,6 +1180,13 @@ esp32c3_path = []
 # would otherwise drag in the whole lwip / wifi / bt stack).
 esp32c3_path += _all_component_include_dirs(
     _required_components(_source_components(src)))
+# A plain Wi-Fi build keeps using RT-Thread's own lwIP (RT_USING_LWIP); the
+# auto-collected ESP lwIP include dirs would shadow its headers for every
+# other component, so they are dropped unless the ESP lwIP port itself is
+# part of the build (BLE).
+if GetDepend(['BSP_USING_WIFI']) and not GetDepend(['BSP_USING_BLE']):
+    esp32c3_path = [p for p in esp32c3_path
+                    if not p.startswith('components/lwip/')]
 esp32c3_path += [
     # the FreeRTOS headers that the wrapper does not ship come from the
     # ESP-IDF kernel copy, searched after the wrapper's own include dir
@@ -1106,13 +1240,16 @@ esp32c3_path += [
 esp32c3_path = [p for p in esp32c3_path if os.path.isdir(os.path.join(cwd, p))
                and not _is_host_only(p)]
 esp32c3_path = list(dict.fromkeys(esp32c3_path))
+esp32c3_path += [p for p in esp32c3_bt_path
+                 if os.path.isdir(os.path.join(cwd, p))
+                 and p not in esp32c3_path]
+esp32c3_path += [p for p in esp32c3_wifi_path
+                 if os.path.isdir(os.path.join(cwd, p))
+                 and p not in esp32c3_path]
 if GetDepend(['SOC_ESP32_C3']):
     if GetDepend(['BSP_USING_ADC']):
         esp32c3_path += esp32c3_adc_path
     path += esp32c3_path
-
-LIB_PATH = []
-LIB = []
 
 # ESP-IDF's CMake build collects the per-component linker fragments into the
 # final link line; the scons BSPs carry their own sections.ld, so the pieces
@@ -1130,6 +1267,19 @@ LINKFLAGS = ' '.join([
     '-Wl,-T,' + os.path.join(cwd, 'components/riscv/ld/rom.api.ld'),
 ])
 Env['LINKFLAGS'] = LINKFLAGS
+
+if LIB:
+    lib_link_flags = []
+    for lp in LIB_PATH:
+        lib_link_flags.append('-L' + lp)
+    lib_link_flags.append('-Wl,--whole-archive')
+    for l in LIB:
+        lib_link_flags.append('-l' + l)
+    lib_link_flags.append('-Wl,--no-whole-archive')
+    LINKFLAGS = LINKFLAGS + ' ' + ' '.join(lib_link_flags)
+    Env['LINKFLAGS'] = LINKFLAGS
+    LIB = []
+    LIB_PATH = []
 
 group = DefineGroup('esp-idf', src, depend = ['PKG_USING_ESP_IDF'], CPPPATH = path, LIBS = LIB, LIBPATH = LIB_PATH, CPPDEFINES = CPPDEFINES)
 

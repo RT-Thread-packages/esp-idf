@@ -61,6 +61,13 @@
 * the ESP-IDF lwIP (without using it for data), so it keeps the netif layer.
 */
 #include "esp_wifi_default.h"
+#else
+/*
+* esp_mesh.h (reachable via esp_err_to_name.c's __has_include probe whenever
+* the esp_wifi headers are on the include path) uses esp_ip4_addr_t, which the
+* netif-free WiFi build no longer gets through esp_wifi_default.h.
+*/
+#include "esp_netif_types.h"
 #endif
 
 #ifdef __cplusplus
