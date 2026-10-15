@@ -836,7 +836,10 @@ esp32c3_esp_gdbsub_src = [
 # INCLUDE_DIRS / PRIV_INCLUDE_DIRS entries of each CMakeLists.txt, then keep the
 # few paths that CMake expresses through variables only.
 # ---------------------------------------------------------------------------
-IDF_CHIP = 'esp32c3'
+# The chip whose per-target include roots the scan below resolves ${target} /
+# ${IDF_TARGET} to.  ESP32-C6 reuses the C3 source lists (see the SOC_ESP32_C6
+# branch further down), so only the chip name changes.
+IDF_CHIP = 'esp32c6' if GetDepend(['SOC_ESP32_C6']) else 'esp32c3'
 
 _CMAKE_KW = re.compile(r'(?:^|[\s(])(INCLUDE_DIRS|PRIV_INCLUDE_DIRS)(.*?)\)', re.S)
 _CMAKE_STR = re.compile(r'"([^"]*)"|([^\s"()]+)')
@@ -1068,6 +1071,65 @@ if GetDepend(['SOC_ESP32_C3']):
         src += esp32c3_adc_src
     CPPDEFINES = [ 'IDF_VER=\\"999\\"', 'PROJECT_VER=\\"999\\"', '_GNU_SOURCE', 'MULTI_HEAP_FREERTOS', 'ESP_PLATFORM=1', 'IDF_TARGET=esp32c3', '_POSIX_READER_WRITER_LOCKS', 'PROJECT_NAME=\\"rtthread\\"', 'MBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"', 'TF_PSA_CRYPTO_USER_CONFIG_FILE=\\"mbedtls/esp_config.h\\"', 'ESPRESSIF_USE', 'CONFIG_CRYPTO_MBEDTLS', 'UNITY_INCLUDE_CONFIG_H', '__ets__', 'ESP_PLATFORM' ]
 
+# ---------------------------------------------------------------------------
+# ESP32-C6: v6.1 keeps the C3 and C6 components in the same layout, so the C3
+# source lists above are reused with every `esp32c3` path swapped for its
+# `esp32c6` counterpart.  Entries whose C6 counterpart does not exist in the
+# tree are dropped (the C6 SoC has no such port / peripheral file).  IDF_CHIP
+# is already esp32c6, so the include-dir scan and the fixed path list below
+# resolve the per-target directories for the C6.
+#
+# Wi-Fi / BLE are out of scope here: the C6 BSPs build the plain default
+# configuration (the radio source lists below are still the C3 ones).
+# ---------------------------------------------------------------------------
+if GetDepend(['SOC_ESP32_C6']):
+    def _to_c6(items):
+        out = []
+        for item in items:
+            if 'esp32c3' not in item:
+                out.append(item)
+                continue
+            alt = item.replace('esp32c3', 'esp32c6')
+            if os.path.exists(os.path.join(cwd, alt)):
+                out.append(alt)
+        return out
+
+    src += _to_c6(esp32c3_src)
+    src += _to_c6(esp32c3_riscv_src)
+    src += _to_c6(esp32c3_esp_system_src)
+    src += _to_c6(esp32c3_hal_src)
+    src += _to_c6(esp32c3_soc_src)
+    src += _to_c6(esp32c3_esp_hw_support_src)
+    src += _to_c6(esp32c3_bootloader_support_src)
+    src += _to_c6(esp32c3_esp_rom_src)
+    src += _to_c6(esp32c3_heap_src)
+    src += _to_c6(esp32c3_spi_flash_src)
+    src += _to_c6(esp32c3_newlib_src)
+    src += _to_c6(esp32c3_log_src)
+    src += _to_c6(esp32c3_rtwrapper_compat_src)
+    src += _to_c6(esp32c3_driver_src)
+    src += _to_c6(esp32c3_pthread_src)
+    src += _to_c6(esp32c3_freertos_additions_src)
+    src += _to_c6(esp32c3_efuse_src)
+    src += _to_c6(esp32c3_esp_timer_src)
+    if GetDepend(['BSP_ENABLE_GDBSTUB']):
+        src += _to_c6(esp32c3_esp_gdbsub_src)
+    if GetDepend(['BSP_USING_ADC']):
+        src += _to_c6(esp32c3_adc_src)
+    # C3-only peripherals whose source file does not carry `esp32c3` in its
+    # path, so _to_c6() keeps them although the C6 has no such block (the C6
+    # has no XT WDT).
+    _c6_drop = ('xt_wdt_hal.c', 'esp_memprot_conv.c')
+    src = [p for p in src if os.path.basename(p) not in _c6_drop]
+    CPPDEFINES = [ 'IDF_VER=\\"999\\"', 'PROJECT_VER=\\"999\\"', '_GNU_SOURCE',
+                   'MULTI_HEAP_FREERTOS', 'ESP_PLATFORM=1', 'IDF_TARGET=esp32c6',
+                   'SOC_MMU_PAGE_SIZE=0x10000', '_POSIX_READER_WRITER_LOCKS',
+                   'PROJECT_NAME=\\"rtthread\\"',
+                   'MBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"',
+                   'TF_PSA_CRYPTO_USER_CONFIG_FILE=\\"mbedtls/esp_config.h\\"',
+                   'ESPRESSIF_USE', 'CONFIG_CRYPTO_MBEDTLS', 'UNITY_INCLUDE_CONFIG_H',
+                   '__ets__', 'ESP_PLATFORM' ]
+
 LIB_PATH = []
 LIB = []
 esp32c3_bt_path = []
@@ -1199,7 +1261,7 @@ esp32c3_path += [
     'components/esp_libc/platform_include',
     'components/heap/tlsf',
     # the per-chip SoC memprot headers live below esp_hw_support/include/soc/<target>
-    'components/esp_hw_support/include/soc/esp32c3',
+    'components/esp_hw_support/include/soc/' + IDF_CHIP,
     'components/esp_system/port/include/private',
     'components/esp_system/port/include/riscv',
     'components/esp_system/port/arch/riscv/include',
@@ -1246,9 +1308,12 @@ esp32c3_path += [p for p in esp32c3_bt_path
 esp32c3_path += [p for p in esp32c3_wifi_path
                  if os.path.isdir(os.path.join(cwd, p))
                  and p not in esp32c3_path]
-if GetDepend(['SOC_ESP32_C3']):
+if GetDepend(['SOC_ESP32_C3']) or GetDepend(['SOC_ESP32_C6']):
     if GetDepend(['BSP_USING_ADC']):
-        esp32c3_path += esp32c3_adc_path
+        if GetDepend(['SOC_ESP32_C6']):
+            esp32c3_path += _to_c6(esp32c3_adc_path)
+        else:
+            esp32c3_path += esp32c3_adc_path
     path += esp32c3_path
 
 # ESP-IDF's CMake build collects the per-component linker fragments into the
@@ -1257,15 +1322,21 @@ if GetDepend(['SOC_ESP32_C3']):
 # a whitespace separated string (rtconfig.LFLAGS is one, and SCons only splits
 # a string value), hence building the new value by hand instead of going
 # through DefineGroup(LINKFLAGS=...).
-LINKFLAGS = ' '.join([
-    str(Env.get('LINKFLAGS', '')),
-    # components/esp_hal_regi2c: the ROM regi2c implementation of this SoC
-    '-Wl,-T,' + os.path.join(cwd, 'components/esp_hal_regi2c/esp32c3/rom.regi2c.ld'),
-    # components/esp_libc: esp_rom_newlib_init_common_mutexes() lives in ROM
-    '-Wl,-T,' + os.path.join(cwd, 'components/esp_rom/esp32c3/ld/esp32c3.rom.libc.ld'),
-    # components/riscv: esprv_int_* aliases of the ROM interrupt API
-    '-Wl,-T,' + os.path.join(cwd, 'components/riscv/ld/rom.api.ld'),
-])
+_linker_scripts = []
+# components/esp_hal_regi2c: the ROM regi2c implementation of this SoC.  The
+# linker fragment only exists for the targets that keep the ROM implementation
+# (the C6 uses the software regi2c_impl.c instead and ships no rom.regi2c.ld).
+_regi2c_ld = os.path.join(cwd, 'components/esp_hal_regi2c', IDF_CHIP, 'rom.regi2c.ld')
+if os.path.isfile(_regi2c_ld):
+    _linker_scripts.append('-Wl,-T,' + _regi2c_ld)
+# components/esp_libc: esp_rom_newlib_init_common_mutexes() lives in ROM
+_rom_libc_ld = os.path.join(cwd, 'components/esp_rom', IDF_CHIP, 'ld',
+                            IDF_CHIP + '.rom.libc.ld')
+if os.path.isfile(_rom_libc_ld):
+    _linker_scripts.append('-Wl,-T,' + _rom_libc_ld)
+# components/riscv: esprv_int_* aliases of the ROM interrupt API
+_linker_scripts.append('-Wl,-T,' + os.path.join(cwd, 'components/riscv/ld/rom.api.ld'))
+LINKFLAGS = ' '.join([str(Env.get('LINKFLAGS', ''))] + _linker_scripts)
 Env['LINKFLAGS'] = LINKFLAGS
 
 if LIB:
