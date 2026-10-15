@@ -6,9 +6,9 @@
  * See README for more details.
  */
 
-#include "includes.h"
+#include "utils/includes.h"
 
-#include "common.h"
+#include "utils/common.h"
 #include "eloop.h"
 #include "crypto/crypto.h"
 #include "crypto/sha256.h"

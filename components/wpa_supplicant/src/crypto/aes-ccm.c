@@ -8,9 +8,9 @@
  */
 
 #ifdef CONFIG_IEEE80211W
-#include "includes.h"
+#include "utils/includes.h"
 
-#include "common.h"
+#include "utils/common.h"
 #include "aes.h"
 #include "aes_wrap.h"
 

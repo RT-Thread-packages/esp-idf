@@ -54,7 +54,14 @@
 #include "esp_wifi_types.h"
 #include "esp_event.h"
 #include "esp_wifi_crypto_types.h"
+#if !defined(CONFIG_IDF_RTOS_RTTHREAD) || defined(BSP_USING_BLE)
+/*
+* WiFi and BLE use different lwIP stacks here: WiFi uses the lwIP provided by
+* RT-Thread and does not need the ESP-IDF netif layer, while BLE only depends on
+* the ESP-IDF lwIP (without using it for data), so it keeps the netif layer.
+*/
 #include "esp_wifi_default.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {

@@ -14,11 +14,11 @@
 extern "C" {
 #endif
 
-typedef err_t (*init_fn_t)(struct netif*);
+typedef err_t (*init_fn_t_esp_idf)(struct netif*);
 typedef esp_err_t (*input_fn_t)(void *netif, void *buffer, size_t len, void *eb);
 
 struct esp_netif_netstack_lwip_vanilla_config {
-    init_fn_t init_fn;
+    init_fn_t_esp_idf init_fn;
     input_fn_t input_fn;
 };
 

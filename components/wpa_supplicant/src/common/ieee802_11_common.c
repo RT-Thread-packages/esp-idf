@@ -6,12 +6,12 @@
  * See README for more details.
  */
 
-#include "includes.h"
+#include "utils/includes.h"
 
-#include "common.h"
-#include "defs.h"
-#include "ieee802_11_defs.h"
-#include "ieee802_11_common.h"
+#include "utils/common.h"
+#include "common/defs.h"
+#include "common/ieee802_11_defs.h"
+#include "common/ieee802_11_common.h"
 #include "common/wpa_supplicant_i.h"
 
 /**

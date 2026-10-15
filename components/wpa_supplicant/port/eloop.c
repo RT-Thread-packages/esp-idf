@@ -11,11 +11,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "includes.h"
+#include "utils/includes.h"
 
-#include "common.h"
-#include "list.h"
-#include "eloop.h"
+#include "utils/common.h"
+#include "utils/list.h"
+#include "utils/eloop.h"
 #include "esp_wifi_driver.h"
 #include "rom/ets_sys.h"
 #include <stdatomic.h>
