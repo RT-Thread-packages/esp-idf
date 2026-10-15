@@ -1083,6 +1083,42 @@ if GetDepend(['SOC_ESP32_C3']):
 # configuration (the radio source lists below are still the C3 ones).
 # ---------------------------------------------------------------------------
 if GetDepend(['SOC_ESP32_C6']):
+    # The ESP32-C6 has PMU / PAU / light-sleep hardware (SOC_PMU_SUPPORTED,
+    # SOC_PAU_SUPPORTED) that the ESP32-C3 lacks, so the C3 lists above have
+    # no entry for the corresponding port files.  They are added only for the
+    # C6 to keep the C3 build byte-for-byte unchanged.
+    _c6_extra_src = [
+        # The ESP32-C6 has PMU / PAU / light-sleep hardware
+        # (SOC_PMU_SUPPORTED, SOC_PAU_SUPPORTED) that the ESP32-C3 lacks, so
+        # the C3 lists above have no entry for the corresponding port files.
+        # They are added only for the C6 to keep the C3 build unchanged.
+        'components/esp_hw_support/port/esp32c6/pmu_param.c',
+        'components/esp_hw_support/port/esp32c6/pmu_init.c',
+        'components/esp_hw_support/port/esp32c6/pmu_sleep.c',
+        'components/esp_hw_support/port/esp32c6/ocode_init.c',
+        'components/esp_hw_support/port/esp32c6/io_mux.c',
+        'components/esp_hw_support/port/esp32c6/peripheral_domain_pd.c',
+        'components/esp_hw_support/port/esp32c6/system_periph_retention.c',
+        'components/esp_hw_support/pmu_share_hw.c',
+        'components/esp_hw_support/sleep_retention.c',
+        'components/esp_hw_support/sleep_system_peripheral.c',
+        'components/esp_hw_support/sleep_mspi.c',
+        'components/esp_hw_support/sleep_usb.c',
+        'components/esp_hw_support/port/pau_regdma.c',
+        'components/esp_hw_support/port/regdma_link.c',
+        'components/esp_hw_support/lowpower/port/esp32c6/sleep_clock.c',
+        'components/esp_hw_support/lowpower/port/esp32c6/sleep_modem_state.c',
+        'components/esp_hw_support/modem/modem_clock.c',
+        'components/esp_hw_support/modem/port/esp32c6/modem_clock_impl.c',
+        'components/hal/esp32c6/modem_clock_hal.c',
+        'components/esp_hal_pmu/esp32c6/pmu_hal.c',
+        'components/esp_hal_pmu/esp32c6/pau_hal.c',
+        'components/esp_hal_gpio/esp32c6/rtc_io_periph.c',
+        'components/esp_hal_regi2c/esp32c6/regi2c_impl.c',
+        'components/esp_hal_security/apm_hal.c',
+    ]
+    src += [p for p in _c6_extra_src if os.path.exists(os.path.join(cwd, p))]
+
     def _to_c6(items):
         out = []
         for item in items:
@@ -1119,7 +1155,20 @@ if GetDepend(['SOC_ESP32_C6']):
     # C3-only peripherals whose source file does not carry `esp32c3` in its
     # path, so _to_c6() keeps them although the C6 has no such block (the C6
     # has no XT WDT).
-    _c6_drop = ('xt_wdt_hal.c', 'esp_memprot_conv.c')
+    #
+    # The ESP mbedtls PSA driver sources are picked up by the mbedtls globs
+    # above, but upstream's components/mbedtls/CMakeLists.txt only compiles
+    # them when the matching Kconfig switch is on.  The C6 sdkconfig shim keeps
+    # CONFIG_MBEDTLS_HARDWARE_AES / _HARDWARE_SHA unset (software crypto), so
+    # these files must be dropped: their signatures use the
+    # esp_aes_operation_t / esp_cmac_operation_t /
+    # esp_hmac_transparent_operation_t types, which the port headers only
+    # declare when ESP_AES_DRIVER_ENABLED / ESP_CMAC_DRIVER_ENABLED /
+    # ESP_HMAC_TRANSPARENT_DRIVER_ENABLED are defined.
+    _c6_drop = ('xt_wdt_hal.c', 'esp_memprot_conv.c',
+                'psa_crypto_driver_esp_aes.c',
+                'psa_crypto_driver_esp_cmac.c',
+                'psa_crypto_driver_esp_hmac_transparent.c')
     src = [p for p in src if os.path.basename(p) not in _c6_drop]
     CPPDEFINES = [ 'IDF_VER=\\"999\\"', 'PROJECT_VER=\\"999\\"', '_GNU_SOURCE',
                    'MULTI_HEAP_FREERTOS', 'ESP_PLATFORM=1', 'IDF_TARGET=esp32c6',

@@ -35,3 +35,16 @@ __attribute__((weak)) int wps_registrar_process_msg(void *wps, int op_code, cons
     (void)msg;
     return 0;
 }
+
+/*
+ * Weak fallback for the PHY I2C burst-length helper.  The ESP32-C6 light
+ * sleep port (esp_hw_support/lowpower/port/esp32c6/sleep_modem_state.c)
+ * calls it, but the RT-Thread scons build does not link the esp_phy blob and
+ * never enters an ESP-IDF sleep mode.  The real definition comes from
+ * esp_phy/src/phy_common.c in an IDF build and overrides this weak one.
+ */
+__attribute__((weak)) unsigned int phy_ana_i2c_master_burst_rf_onoff(int on)
+{
+    (void)on;
+    return 0;
+}
