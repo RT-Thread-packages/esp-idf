@@ -1083,10 +1083,6 @@ if GetDepend(['SOC_ESP32_C3']):
 # configuration (the radio source lists below are still the C3 ones).
 # ---------------------------------------------------------------------------
 if GetDepend(['SOC_ESP32_C6']):
-    # The ESP32-C6 has PMU / PAU / light-sleep hardware (SOC_PMU_SUPPORTED,
-    # SOC_PAU_SUPPORTED) that the ESP32-C3 lacks, so the C3 lists above have
-    # no entry for the corresponding port files.  They are added only for the
-    # C6 to keep the C3 build byte-for-byte unchanged.
     _c6_extra_src = [
         # The ESP32-C6 has PMU / PAU / light-sleep hardware
         # (SOC_PMU_SUPPORTED, SOC_PAU_SUPPORTED) that the ESP32-C3 lacks, so
