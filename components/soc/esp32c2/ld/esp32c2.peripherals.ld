@@ -1,7 +1,7 @@
 /*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 PROVIDE ( UART0 = 0x60000000 );
 PROVIDE ( UART1 = 0x60010000 );
@@ -16,7 +16,7 @@ PROVIDE ( LEDC = 0x60019000 );
 PROVIDE ( TIMERG0 = 0x6001F000 );
 PROVIDE ( SYSTIMER = 0x60023000 );
 PROVIDE ( GPSPI2  = 0x60024000 );
-PROVIDE ( GPSPI3  = 0x60025000 );
 PROVIDE ( SYSCON = 0x60026000 );
 PROVIDE ( APB_SARADC = 0x60040000 );
 PROVIDE ( GDMA    = 0x6003F000 );
+PROVIDE ( SYSTEM = 0x600c0000 );

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2010-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2010-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -21,22 +21,10 @@
 #include "freertos/semphr.h"
 #include "sdkconfig.h"
 #include "esp_timer.h"
+#include "esp_timer_impl.h"
+
 // for ETSTimer type
-#if CONFIG_IDF_TARGET_ESP32
-#include "esp32/rom/ets_sys.h"
-#elif CONFIG_IDF_TARGET_ESP32S2
-#include "esp32s2/rom/ets_sys.h"
-#elif CONFIG_IDF_TARGET_ESP32S3
-#include "esp32s3/rom/ets_sys.h"
-#elif CONFIG_IDF_TARGET_ESP32C3
-#include "esp32c3/rom/ets_sys.h"
-#elif CONFIG_IDF_TARGET_ESP32C2
-#include "esp32c2/rom/ets_sys.h"
-#elif CONFIG_IDF_TARGET_ESP32H2
-#include "esp32h2/rom/ets_sys.h"
-#elif CONFIG_IDF_TARGET_ESP32C6
-#include "esp32c6/rom/ets_sys.h"
-#endif
+#include "rom/ets_sys.h"
 
 /* We abuse 'timer_arg' field of ETSTimer structure to hold a pointer to esp_timer */
 #define ESP_TIMER(p_ets_timer) ((esp_timer_handle_t) (p_ets_timer)->timer_arg)
@@ -47,7 +35,7 @@
 #define TIMER_INITIALIZED_FIELD(p_ets_timer) ((p_ets_timer)->timer_expire)
 #define TIMER_INITIALIZED_VAL 0x12121212
 
-static IRAM_ATTR bool timer_initialized(ETSTimer *ptimer)
+static ESP_TIMER_IRAM_ATTR bool timer_initialized(ETSTimer *ptimer)
 {
     return TIMER_INITIALIZED_FIELD(ptimer) == TIMER_INITIALIZED_VAL;
 }
@@ -61,37 +49,36 @@ void ets_timer_setfn(ETSTimer *ptimer, ETSTimerFunc *pfunction, void *parg)
 
     if (ESP_TIMER(ptimer) == NULL) {
         const esp_timer_create_args_t create_args = {
-                .callback = pfunction,
-                .arg = parg,
-                .name = "ETSTimer",
-                .dispatch_method = ESP_TIMER_TASK
+            .callback = pfunction,
+            .arg = parg,
+            .name = "ETSTimer",
+            .dispatch_method = ESP_TIMER_TASK
         };
 
-        ESP_ERROR_CHECK( esp_timer_create(&create_args, (esp_timer_handle_t*)&(ptimer->timer_arg)) );
+        ESP_ERROR_CHECK(esp_timer_create(&create_args, (esp_timer_handle_t*) & (ptimer->timer_arg)));
     }
 }
 
-
-void IRAM_ATTR ets_timer_arm_us(ETSTimer *ptimer, uint32_t time_us, bool repeat_flag)
+void ESP_TIMER_IRAM_ATTR ets_timer_arm_us(ETSTimer *ptimer, uint32_t time_us, bool repeat_flag)
 {
     assert(timer_initialized(ptimer));
     esp_timer_stop(ESP_TIMER(ptimer));  // no error check
     if (!repeat_flag) {
-        ESP_ERROR_CHECK( esp_timer_start_once(ESP_TIMER(ptimer), time_us) );
+        ESP_ERROR_CHECK(esp_timer_start_once(ESP_TIMER(ptimer), time_us));
     } else {
-        ESP_ERROR_CHECK( esp_timer_start_periodic(ESP_TIMER(ptimer), time_us) );
+        ESP_ERROR_CHECK(esp_timer_start_periodic(ESP_TIMER(ptimer), time_us));
     }
 }
 
-void IRAM_ATTR ets_timer_arm(ETSTimer *ptimer, uint32_t time_ms, bool repeat_flag)
+void ESP_TIMER_IRAM_ATTR ets_timer_arm(ETSTimer *ptimer, uint32_t time_ms, bool repeat_flag)
 {
     uint64_t time_us = 1000LL * (uint64_t) time_ms;
     assert(timer_initialized(ptimer));
     esp_timer_stop(ESP_TIMER(ptimer));  // no error check
     if (!repeat_flag) {
-        ESP_ERROR_CHECK( esp_timer_start_once(ESP_TIMER(ptimer), time_us) );
+        ESP_ERROR_CHECK(esp_timer_start_once(ESP_TIMER(ptimer), time_us));
     } else {
-        ESP_ERROR_CHECK( esp_timer_start_periodic(ESP_TIMER(ptimer), time_us) );
+        ESP_ERROR_CHECK(esp_timer_start_periodic(ESP_TIMER(ptimer), time_us));
     }
 }
 
@@ -104,13 +91,12 @@ void ets_timer_done(ETSTimer *ptimer)
     }
 }
 
-void IRAM_ATTR ets_timer_disarm(ETSTimer *ptimer)
+void ESP_TIMER_IRAM_ATTR ets_timer_disarm(ETSTimer *ptimer)
 {
     if (timer_initialized(ptimer)) {
         esp_timer_stop(ESP_TIMER(ptimer));
     }
 }
-
 
 void ets_timer_init(void)
 {
@@ -124,6 +110,6 @@ void ets_timer_deinit(void)
 
 void os_timer_setfn(ETSTimer *ptimer, ETSTimerFunc *pfunction, void *parg) __attribute__((alias("ets_timer_setfn")));
 void os_timer_disarm(ETSTimer *ptimer) __attribute__((alias("ets_timer_disarm")));
-void os_timer_arm_us(ETSTimer *ptimer,uint32_t u_seconds,bool repeat_flag) __attribute__((alias("ets_timer_arm_us")));
-void os_timer_arm(ETSTimer *ptimer,uint32_t milliseconds,bool repeat_flag) __attribute__((alias("ets_timer_arm")));
+void os_timer_arm_us(ETSTimer *ptimer, uint32_t u_seconds, bool repeat_flag) __attribute__((alias("ets_timer_arm_us")));
+void os_timer_arm(ETSTimer *ptimer, uint32_t milliseconds, bool repeat_flag) __attribute__((alias("ets_timer_arm")));
 void os_timer_done(ETSTimer *ptimer) __attribute__((alias("ets_timer_done")));

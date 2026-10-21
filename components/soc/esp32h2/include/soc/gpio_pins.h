@@ -1,25 +1,18 @@
 /*
- * SPDX-FileCopyrightText: 2020-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-
 #pragma once
-
-#include "sdkconfig.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if CONFIG_IDF_TARGET_ESP32H2_BETA_VERSION_1
 #define GPIO_MATRIX_CONST_ONE_INPUT   (0x38)
 #define GPIO_MATRIX_CONST_ZERO_INPUT  (0x3C)
-#elif CONFIG_IDF_TARGET_ESP32H2_BETA_VERSION_2
-#define GPIO_MATRIX_CONST_ONE_INPUT   (0x1E)
-#define GPIO_MATRIX_CONST_ZERO_INPUT  (0x1F)
-#endif
+#define GPIO_MATRIX_INVALID           (0x3A)
 
 #ifdef __cplusplus
 }

@@ -1,10 +1,15 @@
 #
 # Warn if the toolchain version doesn't match
 #
+idf_build_get_property(target IDF_TARGET)
+
 if(NOT (${target} STREQUAL "linux" OR CMAKE_C_COMPILER_ID MATCHES "Clang"))
-    get_expected_ctng_version(expected_toolchain expected_gcc)
-    gcc_version_check("${expected_gcc}")
-    crosstool_version_check("${expected_toolchain}")
+    execute_process(
+        COMMAND ${CMAKE_C_COMPILER} -dumpmachine
+        OUTPUT_VARIABLE toolchain_name
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    check_expected_tool_version(${toolchain_name} ${CMAKE_C_COMPILER})
 endif()
 
 if(NOT ${target} STREQUAL "linux" AND CMAKE_C_COMPILER_ID MATCHES "Clang")

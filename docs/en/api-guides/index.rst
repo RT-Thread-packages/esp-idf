@@ -7,40 +7,49 @@ API Guides
 
    app_trace
    startup
-   :SOC_BT_SUPPORTED: blufi
+   :SOC_BT_SUPPORTED: bt-architecture/index
+   :SOC_BT_CLASSIC_SUPPORTED: classic-bt/index
+   :SOC_BLE_SUPPORTED: ble/index
+   :SOC_BLE_MESH_SUPPORTED: esp-ble-mesh/ble-mesh-index
+   :SOC_BLE_AUDIO_SUPPORTED: esp-ble-audio/ble-audio-index
    bootloader
    build-system
+   build-system-v2
+   :SOC_SUPPORT_COEXISTENCE: coexist
+   c
+   cplusplus
+   code-quality/index
    core_dump
-   :SOC_RTC_MEM_SUPPORTED: deep-sleep-stub
-   :SOC_USB_OTG_SUPPORTED: dfu
+   current-consumption-measurement-modules
+   :ESP_ROM_SUPPORT_DEEP_SLEEP_WAKEUP_STUB: deep-sleep-stub
+   :SOC_USB_DFU_SUPPORTED: dfu
    error-handling
-   :SOC_BT_SUPPORTED: esp-ble-mesh/ble-mesh-index
-   freertos-smp
    :SOC_WIFI_MESH_SUPPORT: esp-wifi-mesh
-   event-handling
+   :SOC_SPIRAM_SUPPORTED: external-ram
    fatal-errors
-   ../security/flash-encryption
+   file-system-considerations
    :esp32s3: flash_psram_config
    hardware-abstraction
    :CONFIG_IDF_TARGET_ARCH_XTENSA: hlinterrupts
    jtag-debugging/index
+   kconfig/index
    linker-script-generation
+   low-power-mode/index
    lwip
    memory-types
    openthread
    partition-tables
    performance/index
-   RF_calibration
-   :esp32: ../security/secure-boot-v1
-   ../security/secure-boot-v2
-   :SOC_SPIRAM_SUPPORTED: external-ram
+   reproducible-builds
+   :(SOC_WIFI_SUPPORTED or SOC_BT_SUPPORTED or SOC_IEEE802154_SUPPORTED): RF_calibration
+   stdio
    thread-local-storage
    tools/index
    unit-tests
-   linux-host-testing
-   :SOC_USB_OTG_SUPPORTED: usb-otg-console
+   host-apps
+   :SOC_USB_OTG_CONSOLE_SUPPORTED: usb-otg-console
    :SOC_USB_SERIAL_JTAG_SUPPORTED: usb-serial-jtag-console
-   :SOC_WIFI_SUPPORTED: wifi
+   :SOC_WIFI_SUPPORTED: wifi-driver/index
    :SOC_WIFI_SUPPORTED: wifi-security
-   :SOC_SUPPORT_COEXISTENCE: coexist
-   reproducible-builds
+   wifi-expansion
+   :SOC_WIFI_SUPPORTED or SOC_BT_SUPPORTED or SOC_IEEE802154_SUPPORTED: phy

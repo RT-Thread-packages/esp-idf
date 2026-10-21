@@ -22,6 +22,14 @@ body:
       placeholder: ex. v3.2-dev-1148-g96cd3b75c
     validations:
       required: true
+  - type: input
+    id: chip_revision
+    attributes:
+      label: Espressif SoC revision.
+      description: On which Espressif SoC revision does your application run on? Run `esptool chip-id` (or `esptool.py chip_id` for ESP-IDF v5.5 and older) to find it.
+      placeholder: ex. ESP32-C3 (QFN32) (revision v0.3)
+    validations:
+      required: true
   - type: dropdown
     id: operating_system
     attributes:
@@ -63,7 +71,7 @@ body:
     attributes:
       label: Development Kit.
       description: On which Development Kit does this issue occur on?
-      placeholder: ex. ESP32-Wrover-Kit v2 | Custom Board
+      placeholder: ex. ESP32-Wrover-Kit v2 | Custom Board | QEMU
     validations:
       required: true
   - type: dropdown
@@ -113,6 +121,26 @@ body:
       description: Debug log goes here, should contain the backtrace, as well as the reset source if it is a crash.
       placeholder: Your log goes here.
       render: plain
+    validations:
+      required: false
+  - type: textarea
+    id: diag
+    attributes:
+      label: Diagnostic report archive.
+      description: |
+        Diagnostic report for ESP-IDF created using [idf.py diag](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/tools/idf-diag.html) or [esp-idf-diag](https://github.com/espressif/esp-idf-diag). The `idf.py diag` command is available beginning with ESP-IDF version 5.5. For older versions, you may want to consider using the `esp-idf-diag` command.
+
+        In your project directory, execute the following command:
+
+        Using `idf.py diag`
+           1. idf.py diag
+
+        Using `esp-idf-diag`
+           1. pip install esp-idf-diag
+           2. esp-idf-diag create
+
+        Once the report is generated, the tool will guide you with the next steps.
+      placeholder: Please attach the diagnostic report zip file here.
     validations:
       required: false
   - type: textarea

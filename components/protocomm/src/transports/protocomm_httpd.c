@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,6 +8,7 @@
 #include <freertos/task.h>
 #include <esp_log.h>
 #include <esp_err.h>
+#include <inttypes.h>
 #include "esp_random.h"
 
 #include <esp_http_server.h>
@@ -34,7 +35,7 @@ static void protocomm_httpd_session_close(void *ctx)
      * request is for the same session.
      */
     if (sock_session_id != PROTOCOMM_NO_SESSION_ID) {
-        ESP_LOGW(TAG, "Resetting socket session id as socket %d was closed", sock_session_id);
+        ESP_LOGW(TAG, "Resetting socket session id as socket %" PRId32 "was closed", sock_session_id);
         sock_session_id = PROTOCOMM_NO_SESSION_ID;
     }
 }
@@ -48,7 +49,11 @@ static esp_err_t common_post_handler(httpd_req_t *req)
     ssize_t outlen;
 
     int cur_sock_session_id = httpd_req_to_sockfd(req);
-    int cur_cookie_session_id = 0;
+    if (cur_sock_session_id < 0) {
+        ESP_LOGE(TAG, "Post failed, incorrect file descriptor %d", cur_sock_session_id);
+        return ESP_FAIL;
+    }
+    uint32_t cur_cookie_session_id = 0;
     char cookie_buf[20] = {0};
     bool same_session = false;
 
@@ -56,12 +61,12 @@ static esp_err_t common_post_handler(httpd_req_t *req)
     if (httpd_req_get_hdr_value_str(req, "Cookie", cookie_buf, sizeof(cookie_buf)) == ESP_OK) {
         ESP_LOGD(TAG, "Received cookie %s", cookie_buf);
         char session_cookie[20] = {0};
-        snprintf(session_cookie, sizeof(session_cookie), "session=%u", cookie_session_id);
+        snprintf(session_cookie, sizeof(session_cookie), "session=%" PRIu32, cookie_session_id);
         /* If a cookie is found, check it against the session id. If it matches,
          * it means that this is a continuation of the same session.
          */
         if (strcmp(session_cookie, cookie_buf) == 0) {
-            ESP_LOGD(TAG, "Continuing Session %u", cookie_session_id);
+            ESP_LOGD(TAG, "Continuing Session %" PRIu32, cookie_session_id);
             /* If we reach here, it means that the client supports cookies and so the
              * socket session id would no more be required for checking.
              */
@@ -70,7 +75,7 @@ static esp_err_t common_post_handler(httpd_req_t *req)
         }
     } else if (cur_sock_session_id == sock_session_id) {
         /* If the socket number matches, we assume it to be the same session */
-        ESP_LOGD(TAG, "Continuing Socket Session %u", sock_session_id);
+        ESP_LOGD(TAG, "Continuing Socket Session %" PRIu32, sock_session_id);
         same_session = true;
     }
     if (!same_session) {
@@ -78,11 +83,11 @@ static esp_err_t common_post_handler(httpd_req_t *req)
          * first close any existing sessions as applicable.
          */
         if (cookie_session_id != PROTOCOMM_NO_SESSION_ID) {
-            ESP_LOGW(TAG, "Closing session with ID: %u", cookie_session_id);
+            ESP_LOGW(TAG, "Closing session with ID: %" PRIu32, cookie_session_id);
             if (pc_httpd->sec && pc_httpd->sec->close_transport_session) {
                 ret = pc_httpd->sec->close_transport_session(pc_httpd->sec_inst, cookie_session_id);
                 if (ret != ESP_OK) {
-                    ESP_LOGW(TAG, "Error closing session with ID: %u", cookie_session_id);
+                    ESP_LOGW(TAG, "Error closing session with ID: %" PRIu32, cookie_session_id);
                 }
             }
             cookie_session_id = PROTOCOMM_NO_SESSION_ID;
@@ -90,11 +95,11 @@ static esp_err_t common_post_handler(httpd_req_t *req)
         }
         /* Initialize new security session. A random number will be assigned to the session */
         cur_cookie_session_id = esp_random();
-        ESP_LOGD(TAG, "Creating new session: %u", cur_cookie_session_id);
+        ESP_LOGD(TAG, "Creating new session: %" PRIu32, cur_cookie_session_id);
         if (pc_httpd->sec && pc_httpd->sec->new_transport_session) {
             ret = pc_httpd->sec->new_transport_session(pc_httpd->sec_inst, cur_cookie_session_id);
             if (ret != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to launch new session with ID: %u", cur_cookie_session_id);
+                ESP_LOGE(TAG, "Failed to launch new session with ID: %" PRIu32, cur_cookie_session_id);
                 ret = ESP_FAIL;
                 goto out;
             }
@@ -104,7 +109,7 @@ static esp_err_t common_post_handler(httpd_req_t *req)
         }
         cookie_session_id = cur_cookie_session_id;
         sock_session_id = cur_sock_session_id;
-        ESP_LOGD(TAG, "New socket session ID: %d", sock_session_id);
+        ESP_LOGD(TAG, "New socket session ID: %" PRId32, sock_session_id);
     }
 
     if (req->content_len <= 0) {
@@ -147,7 +152,7 @@ static esp_err_t common_post_handler(httpd_req_t *req)
     }
     /* If this is a new session, send the session id in a cookie */
     if (!same_session) {
-        snprintf(cookie_buf, sizeof(cookie_buf), "session=%u", cookie_session_id);
+        snprintf(cookie_buf, sizeof(cookie_buf), "session=%" PRIu32, cookie_session_id);
         ESP_LOGD(TAG, "Setting cookie %s", cookie_buf);
         httpd_resp_set_hdr(req, "Set-Cookie", cookie_buf);
     }

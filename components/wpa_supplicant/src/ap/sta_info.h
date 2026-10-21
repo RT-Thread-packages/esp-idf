@@ -9,6 +9,10 @@
 #ifndef STA_INFO_H
 #define STA_INFO_H
 
+#ifdef CONFIG_SAE
+#include <stdatomic.h>
+#endif
+
 /* STA flags */
 #define WLAN_STA_AUTH BIT(0)
 #define WLAN_STA_ASSOC BIT(1)
@@ -50,6 +54,7 @@ struct sta_info {
 
 	char *identity; /* User-Name from RADIUS */
 
+	u16 auth_alg;
 #ifdef CONFIG_INTERWORKING
 #define GAS_DIALOG_MAX 8 /* Max concurrent dialog number */
 	struct gas_dialog_info *gas_dialog;
@@ -57,10 +62,24 @@ struct sta_info {
 #endif /* CONFIG_INTERWORKING */
 	struct wpabuf *wps_ie; /* WPS IE from (Re)Association Request */
 
+#ifdef ESP_SUPPLICANT
 #ifdef CONFIG_SAE
-	enum { SAE_INIT, SAE_COMMIT, SAE_CONFIRM } sae_state;
-	u16 sae_send_confirm;
+	void *lock;
+	struct sae_data *sae;
+	atomic_bool sae_commit_processing;	/* halt queuing commit while we are
+				 * processing commit for that station  */
+	atomic_bool remove_pending;	/* Flag to indicate to free station when
+				 * whose mutex is taken by task */
+	struct wpabuf *sae_data;
 #endif /* CONFIG_SAE */
+#endif /* ESP_SUPPLICANT */
+#ifdef CONFIG_OWE_SOFTAP
+        u16 owe_group;
+        u8 *owe_pmk;
+	size_t owe_pmk_len;
+        struct crypto_ecdh *owe_ecdh;
+#endif /* CONFIG_OWE_SOFTAP */
+
 };
 
 
@@ -87,6 +106,8 @@ int ap_for_each_sta(struct hostapd_data *hapd,
 			      void *ctx),
 		    void *ctx);
 struct sta_info * ap_get_sta(struct hostapd_data *hapd, const u8 *sta);
+/* Caller must hold HOSTAPD_STA_LIST_LOCK(hapd) for the duration of the lookup. */
+struct sta_info * ap_get_sta_internal(struct hostapd_data *hapd, const u8 *sta);
 void ap_sta_hash_add(struct hostapd_data *hapd, struct sta_info *sta);
 void ap_free_sta(struct hostapd_data *hapd, struct sta_info *sta);
 void hostapd_free_stas(struct hostapd_data *hapd);

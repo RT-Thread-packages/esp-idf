@@ -7,6 +7,7 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 #include <stdio.h>
+#include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "soc/efuse_reg.h"
@@ -17,6 +18,8 @@
 #include "esp_flash_encrypt.h"
 #include "esp_efuse_table.h"
 #include "nvs_flash.h"
+
+#include "flash_encrypt_fatfs.h"
 
 static void example_print_chip_info(void);
 static void example_print_flash_encryption_status(void);
@@ -33,6 +36,23 @@ static const char* TAG = "example";
 #define TARGET_CRYPT_CNT_EFUSE ESP_EFUSE_SPI_BOOT_CRYPT_CNT
 #define TARGET_CRYPT_CNT_WIDTH  3
 #endif
+
+// return true, if partitions necessary to demonstrate fatfs encryption are present in the flash
+static bool can_perform_fatfs_example(void)
+{
+    const esp_partition_t *fatfs_ne = esp_partition_find_first(
+                                          ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, CUSTOM_FAT_PART_NAME_NE);
+
+    const esp_partition_t *fatfs_e = esp_partition_find_first(
+                                         ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, CUSTOM_FAT_PART_NAME_E);
+
+    if ((fatfs_ne != NULL) && (fatfs_e != NULL)) {
+        ESP_LOGI(TAG, "Partitions %s and %s for FATFS example are present", CUSTOM_FAT_PART_NAME_NE, CUSTOM_FAT_PART_NAME_E);
+        return true;
+    }
+
+    return false;
+}
 
 static esp_err_t example_custom_nvs_part_init(const char *name)
 {
@@ -70,6 +90,11 @@ void app_main(void)
     example_print_chip_info();
     example_print_flash_encryption_status();
     example_read_write_flash();
+
+    if (can_perform_fatfs_example()) {
+        example_read_write_fatfs();
+    }
+
     /* Initialize the default NVS partition */
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -94,45 +119,44 @@ static void example_print_chip_info(void)
     uint32_t flash_size;
     esp_chip_info(&chip_info);
     printf("This is %s chip with %d CPU core(s), WiFi%s%s, ",
-            CONFIG_IDF_TARGET,
-            chip_info.cores,
-            (chip_info.features & CHIP_FEATURE_BT) ? "/BT" : "",
-            (chip_info.features & CHIP_FEATURE_BLE) ? "/BLE" : "");
+           CONFIG_IDF_TARGET,
+           chip_info.cores,
+           (chip_info.features & CHIP_FEATURE_BT) ? "/BT" : "",
+           (chip_info.features & CHIP_FEATURE_BLE) ? "/BLE" : "");
 
-    printf("silicon revision %d, ", chip_info.revision);
-    if(esp_flash_get_size(NULL, &flash_size) != ESP_OK) {
+    unsigned major_rev = chip_info.revision / 100;
+    unsigned minor_rev = chip_info.revision % 100;
+    printf("silicon revision v%d.%d, ", major_rev, minor_rev);
+    if (esp_flash_get_size(NULL, &flash_size) != ESP_OK) {
         printf("Get flash size failed");
         return;
     }
-
-    printf("%dMB %s flash\n", flash_size / (1024 * 1024),
-            (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
+    printf("%" PRIu32 "MB %s flash\n", flash_size / (1024 * 1024),
+           (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 }
-
 
 static void example_print_flash_encryption_status(void)
 {
     uint32_t flash_crypt_cnt = 0;
     esp_efuse_read_field_blob(TARGET_CRYPT_CNT_EFUSE, &flash_crypt_cnt, TARGET_CRYPT_CNT_WIDTH);
-    printf("FLASH_CRYPT_CNT eFuse value is %d\n", flash_crypt_cnt);
+    printf("FLASH_CRYPT_CNT eFuse value is %" PRIu32 "\n", flash_crypt_cnt);
 
     esp_flash_enc_mode_t mode = esp_get_flash_encryption_mode();
     if (mode == ESP_FLASH_ENC_MODE_DISABLED) {
         printf("Flash encryption feature is disabled\n");
     } else {
         printf("Flash encryption feature is enabled in %s mode\n",
-            mode == ESP_FLASH_ENC_MODE_DEVELOPMENT ? "DEVELOPMENT" : "RELEASE");
+               mode == ESP_FLASH_ENC_MODE_DEVELOPMENT ? "DEVELOPMENT" : "RELEASE");
     }
 }
-
 
 static void example_read_write_flash(void)
 {
     const esp_partition_t* partition = esp_partition_find_first(
-        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "storage");
+                                           ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "storage");
     assert(partition);
 
-    printf("Erasing partition \"%s\" (0x%x bytes)\n", partition->label, partition->size);
+    printf("Erasing partition \"%s\" (0x%" PRIx32 " bytes)\n", partition->label, partition->size);
 
     ESP_ERROR_CHECK(esp_partition_erase_range(partition, 0, partition->size));
 

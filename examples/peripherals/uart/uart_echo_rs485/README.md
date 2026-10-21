@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-H2 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-P4 | ESP32-S2 | ESP32-S3 | ESP32-S31 |
+| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | -------- | -------- | --------- |
 
 # UART RS485 Echo Example
 
@@ -13,7 +13,7 @@ The approach demonstrated in this example can be used in user application to tra
 
 ### Hardware Required
 PC + USB Serial adapter connected to USB port + RS485 line drivers + Espressif development board.
-The MAX485 line driver is used for example below but other similar chips can be used as well.
+The MAX483 line driver is used for example below but other similar chips can be used as well.
 
 #### RS485 example connection circuit schematic:
 ```
@@ -22,28 +22,27 @@ The MAX485 line driver is used for example below but other similar chips can be 
                     +-------x-------+               +-------x-------+
          RXD <------| RO            |               |             RO|-----> RXD
                     |              B|---------------|B              |
-         TXD ------>| DI  MAX485    |    \  /       |    MAX485   DI|<----- TXD
+         TXD ------>| DI  MAX483    |    \  /       |    MAX483   DI|<----- TXD
 ESP32 BOARD         |               |   RS-485 side |               |  SERIAL ADAPTER SIDE
-         RTS --+--->| DE            |    /  \       |             DE|---+
+    DTR(RTS) --+--->| DE            |    /  \       |             DE|---+
                |    |              A|---------------|A              |   |
-               +----| /RE           |               |            /RE|---+-- RTS
+               +----| /RE           |               |            /RE|---+-- DTR(RTS)
                     +-------x-------+               +-------x-------+
                             |                               |
                            ---                             ---
 ```
 
-#### Connect an external RS485 serial interface to an ESP32 board
-Connect a USB-to-RS485 adapter to a computer, then connect the adapter's A/B output lines with the corresponding A/B output lines of the RS485 line driver connected to the ESP32 chip (see figure above).
+#### Connect an external RS485 serial interface to an ESP development board
+Connect a USB-to-RS485 adapter to a computer, then connect the adapter's A/B output lines with the corresponding A/B output lines of the RS485 line driver connected to the ESP chip (see figure above).
 ```
-  ------------------------------------------------------------------------------------------------------------------------------
-  |  UART Interface       | #define            | Default ESP32 Pin     | Default pins for          | External RS485 Driver Pin |
-  |                       |                    |                       | ESP32-S2(S3, C3, C2, H2)  |                           |
-  | ----------------------|--------------------|-----------------------|---------------------------|---------------------------|
-  | Transmit Data (TxD)   | CONFIG_MB_UART_TXD | GPIO23                | GPIO9                     | DI                        |
-  | Receive Data (RxD)    | CONFIG_MB_UART_RXD | GPIO22                | GPIO8                     | RO                        |
-  | Request To Send (RTS) | CONFIG_MB_UART_RTS | GPIO18                | GPIO10                    | ~RE/DE                    |
-  | Ground                | n/a                | GND                   | GND                       | GND                       |
-  ------------------------------------------------------------------------------------------------------------------------------
+  ----------------------------------------------------------------------------
+  |  UART Interface       | #define              | External RS485 Driver Pin |
+  | ----------------------|----------------------|---------------------------|
+  | Transmit Data (TxD)   | CONFIG_ECHO_UART_TXD | DI                        |
+  | Receive Data (RxD)    | CONFIG_ECHO_UART_RXD | RO                        |
+  | DTR / RTS             | CONFIG_RS485_DE      | ~RE/DE                    |
+  | Ground                | n/a                  | GND                       |
+  ----------------------------------------------------------------------------
 ```
 Note: Each target chip has different GPIO pins available for UART connection. Please refer to UART documentation for selected target for more information.
 

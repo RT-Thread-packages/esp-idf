@@ -1,18 +1,18 @@
 /*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "sdkconfig.h"
 #include <sys/param.h>
-#include "soc/soc_caps.h"
 #include "hal/efuse_ll.h"
 #include "hal/assert.h"
 #include "hal/efuse_hal.h"
+#include "hal/config.h"
 #include "soc/syscon_reg.h"
+#include "esp_attr.h"
 
-uint32_t efuse_hal_get_major_chip_version(void)
+IRAM_ATTR uint32_t efuse_hal_get_major_chip_version(void)
 {
     uint8_t eco_bit0 = efuse_ll_get_chip_ver_rev1();
     uint8_t eco_bit1 = efuse_ll_get_chip_ver_rev2();
@@ -29,11 +29,11 @@ uint32_t efuse_hal_get_major_chip_version(void)
     case 3:
         chip_ver = 2;
         break;
-#if CONFIG_IDF_ENV_FPGA
+#if HAL_CONFIG(ENV_FPGA)
     case 4: /* Empty efuses, but SYSCON_DATE_REG bit is set */
         chip_ver = 3;
         break;
-#endif // CONFIG_IDF_ENV_FPGA
+#endif // HAL_CONFIG_ENV_FPGA
     case 7:
         chip_ver = 3;
         break;
@@ -44,7 +44,7 @@ uint32_t efuse_hal_get_major_chip_version(void)
     return chip_ver;
 }
 
-uint32_t efuse_hal_get_minor_chip_version(void)
+IRAM_ATTR uint32_t efuse_hal_get_minor_chip_version(void)
 {
     return efuse_ll_get_chip_wafer_version_minor();
 }

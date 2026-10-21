@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2019-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2019-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -10,6 +10,12 @@
 extern "C" {
 #endif
 
+#include <sdkconfig.h>
+#ifdef CONFIG_ESP_HTTPS_SERVER_ENABLE
+#include <esp_https_server.h>
+#else
+#include <esp_http_server.h>
+#endif
 #include <protocomm.h>
 
 /**
@@ -189,7 +195,7 @@ const esp_local_ctrl_transport_t *esp_local_ctrl_get_transport_httpd(void);
  * @brief   Configuration for transport mode BLE
  *
  * This is a forward declaration for `protocomm_ble_config_t`.
- * To use this, application must set CONFIG_BT_BLUEDROID_ENABLED
+ * To use this, application must set CONFIG_BT_ENABLED
  * and include `protocomm_ble.h`.
  */
 typedef struct protocomm_ble_config esp_local_ctrl_transport_config_ble_t;
@@ -197,12 +203,17 @@ typedef struct protocomm_ble_config esp_local_ctrl_transport_config_ble_t;
 /**
  * @brief   Configuration for transport mode HTTPD
  *
- * This is a forward declaration for `httpd_ssl_config_t`.
- * To use this, application must set CONFIG_ESP_HTTPS_SERVER_ENABLE
+ * This is a forward declaration for `httpd_ssl_config_t` (for HTTPS)
+ * or `httpd_config_t` (for HTTP)
+ */
+#ifdef CONFIG_ESP_HTTPS_SERVER_ENABLE
+/* To use this, application must set CONFIG_ESP_HTTPS_SERVER_ENABLE
  * and include `esp_https_server.h`
  */
 typedef struct httpd_ssl_config esp_local_ctrl_transport_config_httpd_t;
-
+#else
+typedef struct httpd_config esp_local_ctrl_transport_config_httpd_t;
+#endif
 /**
  * @brief   Transport mode (BLE / HTTPD) configuration
  */
@@ -249,22 +260,14 @@ typedef struct esp_local_ctrl_proto_sec_cfg {
      */
     void *custom_handle;
 
-    /* Anonymous union */
-    union {
-        /**
-         * Proof of possession to be used for local control. Could be NULL.
-         */
-        const void *pop __attribute__((deprecated("use sec_params field instead")));
-
-        /**
-         * Pointer to security params (NULL if not needed).
-         * This is not needed for protocomm security 0
-         * This pointer should hold the struct of type
-         * esp_local_ctrl_security1_params_t for protocomm security 1
-         * and esp_local_ctrl_security2_params_t for protocomm security 2 respectively. Could be NULL.
-         */
-        const void *sec_params;
-    };
+    /**
+     * Pointer to security params (NULL if not needed).
+     * This is not needed for protocomm security 0
+     * This pointer should hold the struct of type
+     * esp_local_ctrl_security1_params_t for protocomm security 1
+     * and esp_local_ctrl_security2_params_t for protocomm security 2 respectively. Could be NULL.
+     */
+    const void *sec_params;
 } esp_local_ctrl_proto_sec_cfg_t;
 
 /**

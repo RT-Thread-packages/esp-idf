@@ -1,22 +1,28 @@
-// Copyright 2015-2019 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * SPDX-FileCopyrightText: 2015-2024 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
+#include <stddef.h>
+#include "sdkconfig.h"
+
+#if CONFIG_IDF_RTOS_RTTHREAD
+// RT-Thread builds have no FreeRTOS task context or shared-stack mechanism, so neither
+// freertos/*.h nor the headers depending on them are included here. Declare the same ABI:
+// lock degrades to an unused void *, so the function type and call sites are unchanged.
+typedef void (*shared_stack_function)(void);
+#else
 #include <esp_expression_with_stack.h>
 #include <setjmp.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
+#endif
+
+// No FreeRTOS task context or shared stack under RT-Thread: the helpers and globals below
+// are not built, esp_execute_shared_stack_function calls the function directly.
+#if !CONFIG_IDF_RTOS_RTTHREAD
 
 StackType_t *xtensa_shared_stack;
 shared_stack_function xtensa_shared_stack_callback;
@@ -41,7 +47,7 @@ static void esp_switch_stack_setup(StackType_t *stack, size_t stack_size)
     StackType_t *top_of_stack = stack + stack_size;
 
     //Align stack to a 16byte boundary, as required by CPU specific:
-    top_of_stack =  (StackType_t *)(((UBaseType_t)(top_of_stack - 16) & ~0xf));
+    top_of_stack = (StackType_t *)(((UBaseType_t)(top_of_stack - 16) & ~0xf));
 
 #if CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK
     vPortSetStackWatchpoint(stack);
@@ -50,9 +56,28 @@ static void esp_switch_stack_setup(StackType_t *stack, size_t stack_size)
     xtensa_shared_stack = top_of_stack;
 }
 
+#endif // !CONFIG_IDF_RTOS_RTTHREAD
 
-void esp_execute_shared_stack_function(SemaphoreHandle_t lock, void *stack, size_t stack_size, shared_stack_function function)
+#if CONFIG_IDF_RTOS_RTTHREAD
+void esp_execute_shared_stack_function(void *lock,
+                                       void *stack,
+                                       size_t stack_size,
+                                       shared_stack_function function)
+#else
+void esp_execute_shared_stack_function(SemaphoreHandle_t lock,
+                                       void *stack,
+                                       size_t stack_size,
+                                       shared_stack_function function)
+#endif
 {
+#if CONFIG_IDF_RTOS_RTTHREAD
+    // No FreeRTOS semaphore or task context under RT-Thread: run on the current task's own
+    // stack, no switch and no faked TCB stack bounds. The parameters are kept for ABI stability.
+    (void)lock;
+    (void)stack;
+    (void)stack_size;
+    function();
+#else
     assert(lock);
     assert(stack);
     assert(stack_size > 0 && stack_size >= CONFIG_ESP_MINIMAL_SHARED_STACK_SIZE);
@@ -66,7 +91,7 @@ void esp_execute_shared_stack_function(SemaphoreHandle_t lock, void *stack, size
     portEXIT_CRITICAL(&xtensa_shared_stack_spinlock);
 
     setjmp(xtensa_shared_stack_env);
-    if(!xtensa_shared_stack_function_done) {
+    if (!xtensa_shared_stack_function_done) {
         esp_shared_stack_invoke_function();
     }
 
@@ -75,8 +100,11 @@ void esp_execute_shared_stack_function(SemaphoreHandle_t lock, void *stack, size
 
     //Restore current task stack:
     current->pxDummy6 = (StackType_t *)current_task_stack;
+#if CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK
     vPortSetStackWatchpoint(current->pxDummy6);
+#endif
     portEXIT_CRITICAL(&xtensa_shared_stack_spinlock);
 
     xSemaphoreGive(lock);
+#endif // CONFIG_IDF_RTOS_RTTHREAD
 }

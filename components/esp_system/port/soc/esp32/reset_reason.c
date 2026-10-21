@@ -1,21 +1,12 @@
-// Copyright 2018 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * SPDX-FileCopyrightText: 2018-2023 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include "esp_system.h"
 #include "esp_rom_sys.h"
 #include "esp_private/system_internal.h"
-#include "soc/rtc_periph.h"
 #include "esp32/rom/rtc.h"
 
 static void esp_reset_reason_clear_hint(void);
@@ -95,7 +86,7 @@ esp_reset_reason_t esp_reset_reason(void)
 #define RST_REASON_SHIFT 16
 
 /* in IRAM, can be called from panic handler */
-void IRAM_ATTR esp_reset_reason_set_hint(esp_reset_reason_t hint)
+void esp_reset_reason_set_hint(esp_reset_reason_t hint)
 {
     assert((hint & (~RST_REASON_MASK)) == 0);
     uint32_t val = hint | (hint << RST_REASON_SHIFT) | RST_REASON_BIT;
@@ -103,7 +94,7 @@ void IRAM_ATTR esp_reset_reason_set_hint(esp_reset_reason_t hint)
 }
 
 /* in IRAM, can be called from panic handler */
-esp_reset_reason_t IRAM_ATTR esp_reset_reason_get_hint(void)
+esp_reset_reason_t esp_reset_reason_get_hint(void)
 {
     uint32_t reset_reason_hint = REG_READ(RTC_RESET_CAUSE_REG);
     uint32_t high = (reset_reason_hint >> RST_REASON_SHIFT) & RST_REASON_MASK;

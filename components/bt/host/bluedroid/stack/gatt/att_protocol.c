@@ -33,7 +33,7 @@
 #define GATT_HDR_FIND_TYPE_VALUE_LEN    21
 #define GATT_OP_CODE_SIZE   1
 /**********************************************************************
-**   ATT protocl message building utility                              *
+**   ATT protocol message building utility                              *
 ***********************************************************************/
 /*******************************************************************************
 **
@@ -134,8 +134,10 @@ BT_HDR *attp_build_browse_cmd(UINT8 op_code, UINT16 s_hdl, UINT16 e_hdl, tBT_UUI
 {
     BT_HDR      *p_buf = NULL;
     UINT8       *p;
+    /* length of ATT_READ_BY_TYPE_REQ PDU: opcode(1) + start_handle (2) + end_handle (2) + uuid (2 or 16) */
+    const UINT8 payload_size = 1 + 2 + 2 + ((uuid.len == LEN_UUID_16) ? LEN_UUID_16 : LEN_UUID_128);
 
-    if ((p_buf = (BT_HDR *)osi_malloc(sizeof(BT_HDR) + 8 + L2CAP_MIN_OFFSET)) != NULL) {
+    if ((p_buf = (BT_HDR *)osi_malloc(sizeof(BT_HDR) + payload_size + L2CAP_MIN_OFFSET)) != NULL) {
         p = (UINT8 *)(p_buf + 1) + L2CAP_MIN_OFFSET;
         /* Describe the built message location and size */
         p_buf->offset = L2CAP_MIN_OFFSET;
@@ -163,6 +165,11 @@ BT_HDR *attp_build_read_by_type_value_cmd (UINT16 payload_size, tGATT_FIND_TYPE_
     BT_HDR      *p_buf = NULL;
     UINT8       *p;
     UINT16      len = p_value_type->value_len;
+
+    if (payload_size < GATT_DEF_BLE_MTU_SIZE) {
+        // never build packet smaller than default MTU size
+        return NULL;
+    }
 
     if ((p_buf = (BT_HDR *)osi_malloc((UINT16)(sizeof(BT_HDR) + payload_size + L2CAP_MIN_OFFSET))) != NULL) {
         p = (UINT8 *)(p_buf + 1) + L2CAP_MIN_OFFSET;
@@ -195,10 +202,11 @@ BT_HDR *attp_build_read_by_type_value_cmd (UINT16 payload_size, tGATT_FIND_TYPE_
 ** Returns          None.
 **
 *******************************************************************************/
-BT_HDR *attp_build_read_multi_cmd(UINT16 payload_size, UINT16 num_handle, UINT16 *p_handle)
+BT_HDR *attp_build_read_multi_cmd(UINT8 op_code, UINT16 payload_size, UINT16 num_handle, UINT16 *p_handle)
 {
     BT_HDR      *p_buf = NULL;
-    UINT8       *p, i = 0;
+    UINT8       *p;
+    UINT16      i = 0;
 
     if ((p_buf = (BT_HDR *)osi_malloc((UINT16)(sizeof(BT_HDR) + num_handle * 2 + 1 + L2CAP_MIN_OFFSET))) != NULL) {
         p = (UINT8 *)(p_buf + 1) + L2CAP_MIN_OFFSET;
@@ -206,7 +214,7 @@ BT_HDR *attp_build_read_multi_cmd(UINT16 payload_size, UINT16 num_handle, UINT16
         p_buf->offset = L2CAP_MIN_OFFSET;
         p_buf->len = 1;
 
-        UINT8_TO_STREAM (p, GATT_REQ_READ_MULTI);
+        UINT8_TO_STREAM (p, op_code);
 
         for (i = 0; i < num_handle && p_buf->len + 2 <= payload_size; i ++) {
             UINT16_TO_STREAM (p, *(p_handle + i));
@@ -283,57 +291,89 @@ BT_HDR *attp_build_opcode_cmd(UINT8 op_code)
 ** Returns          None.
 **
 *******************************************************************************/
-BT_HDR *attp_build_value_cmd (UINT16 payload_size, UINT8 op_code, UINT16 handle,
-                              UINT16 offset, UINT16 len, UINT8 *p_data)
+BT_HDR *attp_build_value_cmd(UINT16 payload_size, UINT8 op_code,
+                             UINT16 handle, UINT16 offset,
+                             UINT16 len, UINT8 *p_data)
 {
-    BT_HDR      *p_buf = NULL;
-    UINT8       *p, *pp, pair_len, *p_pair_len;
+    BT_HDR *p_buf = NULL;
+    UINT8 *p = NULL, *pp = NULL, *p_pair_len = NULL;
+    size_t pair_len = 0;
+    size_t size_now = 1;  /* track current buffer size including op_code */
 
-    if ((p_buf = (BT_HDR *)osi_malloc((UINT16)(sizeof(BT_HDR) + payload_size + L2CAP_MIN_OFFSET))) != NULL) {
-        p = pp = (UINT8 *)(p_buf + 1) + L2CAP_MIN_OFFSET;
+#define CHECK_SIZE()                                \
+    do {                                           \
+        if (size_now > payload_size) {            \
+            GATT_TRACE_ERROR("payload size too small"); \
+            osi_free(p_buf);                       \
+            return NULL;                           \
+        }                                          \
+    } while (0)
 
-        UINT8_TO_STREAM (p, op_code);
-        p_buf->offset = L2CAP_MIN_OFFSET;
-        p_buf->len = 1;
+    /* allocate buffer with extra space for L2CAP offset */
+    p_buf = (BT_HDR *)osi_malloc(sizeof(BT_HDR) + payload_size + L2CAP_MIN_OFFSET);
+    if (!p_buf) return NULL;
 
-        if (op_code == GATT_RSP_READ_BY_TYPE) {
-            p_pair_len = p;
-            pair_len = len + 2;
-            UINT8_TO_STREAM (p, pair_len);
-            p_buf->len += 1;
+    p = pp = (UINT8 *)(p_buf + 1) + L2CAP_MIN_OFFSET;
+
+    CHECK_SIZE();
+    UINT8_TO_STREAM(p, op_code);
+    p_buf->offset = L2CAP_MIN_OFFSET;
+
+    /* handle Read By Type response: reserve space for pair_len */
+    if (op_code == GATT_RSP_READ_BY_TYPE) {
+        p_pair_len = p++;
+        pair_len = len + 2; /* handle(2 bytes) + value length */
+        size_now += 1;
+        CHECK_SIZE();
+        /* pair_len will be backfilled after value is written */
+    }
+
+    /* write handle if needed */
+    if (op_code != GATT_RSP_READ_BLOB && op_code != GATT_RSP_READ &&
+        op_code != GATT_HANDLE_MULTI_VALUE_NOTIF) {
+        size_now += 2;
+        CHECK_SIZE();
+        UINT16_TO_STREAM(p, handle);
+    }
+
+    /* write offset for prepare write requests */
+    if (op_code == GATT_REQ_PREPARE_WRITE || op_code == GATT_RSP_PREPARE_WRITE) {
+        size_now += 2;
+        CHECK_SIZE();
+        UINT16_TO_STREAM(p, offset);
+    }
+
+    /* write value data, ensure it does not exceed payload_size */
+    if (len > 0 && p_data != NULL) {
+        if (payload_size - size_now < len) {
+            len = payload_size - size_now;
+            if (op_code == GATT_RSP_READ_BY_TYPE) {
+                pair_len = len + 2;
+            }
+            GATT_TRACE_WARNING("attribute value too long, truncated to %d", len);
         }
-        if (op_code != GATT_RSP_READ_BLOB && op_code != GATT_RSP_READ) {
-            UINT16_TO_STREAM (p, handle);
-            p_buf->len += 2;
-        }
 
-        if (op_code == GATT_REQ_PREPARE_WRITE || op_code == GATT_RSP_PREPARE_WRITE ) {
-            UINT16_TO_STREAM (p, offset);
-            p_buf->len += 2;
-        }
+        size_now += len;
+        CHECK_SIZE();
 
-        if(payload_size < GATT_DEF_BLE_MTU_SIZE || payload_size > GATT_MAX_MTU_SIZE) {
-            GATT_TRACE_ERROR("invalid payload_size %d", payload_size);
+        ARRAY_TO_STREAM(p, p_data, len);
+    }
+
+    /* backfill pair_len for Read By Type response */
+    if (op_code == GATT_RSP_READ_BY_TYPE) {
+        if (pair_len > UINT8_MAX) {
+            GATT_TRACE_ERROR("pair_len > UINT8_MAX");
             osi_free(p_buf);
             return NULL;
         }
-
-        if (len > 0 && p_data != NULL) {
-            /* ensure data not exceed MTU size */
-            if (payload_size - p_buf->len < len) {
-                len = payload_size - p_buf->len;
-                /* update handle value pair length */
-                if (op_code == GATT_RSP_READ_BY_TYPE) {
-                    *p_pair_len = (len + 2);
-                }
-
-                GATT_TRACE_WARNING("attribute value too long, to be truncated to %d", len);
-            }
-
-            ARRAY_TO_STREAM (p, p_data, len);
-            p_buf->len += len;
-        }
+        *p_pair_len = (UINT8)pair_len;
     }
+
+    /* update buffer length */
+    p_buf->len = (UINT16)size_now;
+
+#undef CHECK_SIZE
+
     return p_buf;
 }
 
@@ -350,6 +390,18 @@ tGATT_STATUS attp_send_msg_to_l2cap(tGATT_TCB *p_tcb, BT_HDR *p_toL2CAP)
 
 
     if (p_tcb->att_lcid == L2CAP_ATT_CID) {
+        /* L2CA_SendFixedChnlData() silently drops (osi_free) the buffer when the
+         * ATT fixed channel is already in cong_sent state, yet still returns
+         * L2CAP_DW_CONGESTED. Without distinguishing this from the post-enqueue
+         * congestion case, the upper layer would treat a dropped PDU as "sent"
+         * and wait for a response that never arrives. Detect the drop path
+         * up-front, release the buffer here and surface it as GATT_BUSY so that
+         * callers go through their failure path instead. */
+        if (L2CA_CheckIsCongest(L2CAP_ATT_CID, p_tcb->peer_bda)) {
+            GATT_TRACE_WARNING("ATT fixed channel already congested, drop PDU");
+            osi_free(p_toL2CAP);
+            return GATT_BUSY;
+        }
         l2cap_ret = L2CA_SendFixedChnlData (L2CAP_ATT_CID, p_tcb->peer_bda, p_toL2CAP);
     } else {
 #if (CLASSIC_BT_INCLUDED == TRUE)
@@ -360,10 +412,11 @@ tGATT_STATUS attp_send_msg_to_l2cap(tGATT_TCB *p_tcb, BT_HDR *p_toL2CAP)
     }
 
     if (l2cap_ret == L2CAP_DW_FAILED) {
-        GATT_TRACE_DEBUG("ATT   failed to pass msg:0x%0x to L2CAP",
-                         *((UINT8 *)(p_toL2CAP + 1) + p_toL2CAP->offset));
+        GATT_TRACE_DEBUG("ATT failed to pass msg to L2CAP");
         return GATT_INTERNAL_ERROR;
     } else if (l2cap_ret == L2CAP_DW_CONGESTED) {
+        /* Buffer was enqueued by L2CAP before congestion was reported;
+         * L2CAP retains ownership of it. */
         GATT_TRACE_DEBUG("ATT congested, message accepted");
         return GATT_CONGESTED;
     }
@@ -389,6 +442,7 @@ BT_HDR *attp_build_sr_msg(tGATT_TCB *p_tcb, UINT8 op_code, tGATT_SR_MSG *p_msg)
     case GATT_RSP_READ:
     case GATT_HANDLE_VALUE_NOTIF:
     case GATT_HANDLE_VALUE_IND:
+    case GATT_HANDLE_MULTI_VALUE_NOTIF:
     case GATT_RSP_ERROR:
     case GATT_RSP_MTU:
     /* Need to check the validation of parameter p_msg*/
@@ -415,6 +469,7 @@ BT_HDR *attp_build_sr_msg(tGATT_TCB *p_tcb, UINT8 op_code, tGATT_SR_MSG *p_msg)
     case GATT_RSP_READ:
     case GATT_HANDLE_VALUE_NOTIF:
     case GATT_HANDLE_VALUE_IND:
+    case GATT_HANDLE_MULTI_VALUE_NOTIF:
         p_cmd = attp_build_value_cmd(p_tcb->payload_size,
                                      op_code,
                                      p_msg->attr_value.handle,
@@ -458,7 +513,7 @@ BT_HDR *attp_build_sr_msg(tGATT_TCB *p_tcb, UINT8 op_code, tGATT_SR_MSG *p_msg)
 ** Description      This function sends the server response or indication message
 **                  to client.
 **
-** Parameter        p_tcb: pointer to the connecton control block.
+** Parameter        p_tcb: pointer to the connection control block.
 **                  p_msg: pointer to message parameters structure.
 **
 ** Returns          GATT_SUCCESS if successfully sent; otherwise error code.
@@ -611,7 +666,8 @@ tGATT_STATUS attp_send_cl_msg (tGATT_TCB *p_tcb, UINT16 clcb_idx, UINT8 op_code,
             break;
 
         case GATT_REQ_READ_MULTI:
-            p_cmd = attp_build_read_multi_cmd(p_tcb->payload_size,
+        case GATT_REQ_READ_MULTI_VAR:
+            p_cmd = attp_build_read_multi_cmd(op_code, p_tcb->payload_size,
                                               p_msg->read_multi.num_handles,
                                               p_msg->read_multi.handles);
             break;
@@ -623,7 +679,7 @@ tGATT_STATUS attp_send_cl_msg (tGATT_TCB *p_tcb, UINT16 clcb_idx, UINT8 op_code,
         if (p_cmd != NULL) {
             status = attp_cl_send_cmd(p_tcb, clcb_idx, op_code, p_cmd);
         }
-
+        GATT_TRACE_DEBUG("%s opcode=%x status=%x", __func__, op_code, status);
     } else {
         GATT_TRACE_ERROR("Peer device not connected");
     }

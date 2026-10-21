@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,9 +11,8 @@
 #include "esp_efuse_utility.h"
 #include "soc/efuse_periph.h"
 #include "hal/efuse_hal.h"
-#include "hal/misc.h"
 
-static const char *TAG = "efuse";
+ESP_LOG_ATTR_TAG(TAG, "efuse");
 
 #ifdef CONFIG_EFUSE_VIRTUAL
 extern uint32_t virt_blocks[EFUSE_BLK_MAX][COUNT_EFUSE_REG_PER_BLOCK];
@@ -74,11 +73,12 @@ esp_err_t esp_efuse_utility_check_errors(void)
     return ESP_OK;
 }
 
-// Burn values written to the efuse write registers
-esp_err_t esp_efuse_utility_burn_chip(void)
+esp_err_t esp_efuse_utility_burn_chip_opt(bool ignore_coding_errors, bool verify_written_data)
 {
     esp_err_t error = ESP_OK;
 #ifdef CONFIG_EFUSE_VIRTUAL
+    (void) ignore_coding_errors;
+    (void) verify_written_data;
     ESP_LOGW(TAG, "Virtual efuses enabled: Not really burning eFuses");
     for (int num_block = EFUSE_BLK_MAX - 1; num_block >= EFUSE_BLK0; num_block--) {
         int subblock = 0;
@@ -126,7 +126,7 @@ esp_err_t esp_efuse_utility_burn_chip(void)
             hal_memcpy(backup_write_data, (void *)EFUSE_PGM_DATA0_REG, sizeof(backup_write_data));
             int repeat_burn_op = 1;
             bool correct_written_data;
-            bool coding_error_before = efuse_hal_is_coding_error_in_block(num_block);
+            bool coding_error_before = !ignore_coding_errors && efuse_hal_is_coding_error_in_block(num_block);
             if (coding_error_before) {
                 ESP_LOGW(TAG, "BLOCK%d already has a coding error", num_block);
             }
@@ -144,12 +144,12 @@ esp_err_t esp_efuse_utility_burn_chip(void)
                         break;
                     }
                 }
-                coding_error_occurred = (coding_error_before != coding_error_after) && coding_error_before == false;
+                coding_error_occurred = !ignore_coding_errors && (coding_error_before != coding_error_after) && !coding_error_before;
                 if (coding_error_occurred) {
                     ESP_LOGW(TAG, "BLOCK%d got a coding error", num_block);
                 }
 
-                correct_written_data = esp_efuse_utility_is_correct_written_data(num_block, r_data_len);
+                correct_written_data = (verify_written_data) ? esp_efuse_utility_is_correct_written_data(num_block, r_data_len) : true;
                 if (!correct_written_data || coding_error_occurred) {
                     ESP_LOGW(TAG, "BLOCK%d: next retry to fix an error [%d/3]...", num_block, repeat_burn_op);
                     hal_memcpy((void *)EFUSE_PGM_DATA0_REG, (void *)backup_write_data, sizeof(backup_write_data));

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2020-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,17 +9,24 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
-/* ToDo - Remove this once appropriate solution is available.
-We need to define this for the file as ssl_misc.h uses private structures from mbedtls,
-which are undefined if the following flag is not defined */
-/* Many APIs in the file make use of this flag instead of `MBEDTLS_PRIVATE` */
-/* ToDo - Replace them with proper getter-setter once they are added */
+
+/* TODO: Remove this once the appropriate solution is found
+ *
+ * ssl_misc.h header uses private elements from
+ * mbedtls, which become undefined if the following flag
+ * is not defined
+ */
 #define MBEDTLS_ALLOW_PRIVATE_ACCESS
 
+// located at mbedtls/library/ssl_misc.h
+#include "ssl_misc.h"
+
 #include "mbedtls/ssl.h"
-#include "ssl_misc.h" // located at mbedtls/library/ssl_misc.h
 #include "mbedtls/platform.h"
 #include "esp_log.h"
+#include "sdkconfig.h"
+
+#include "mbedtls/esp_mbedtls_dynamic.h"
 
 #define TRACE_CHECK(_fn, _state) \
 ({ \
@@ -43,8 +50,9 @@ which are undefined if the following flag is not defined */
 })
 
 typedef enum {
-    ESP_MBEDTLS_SSL_BUF_CACHED,
+    ESP_MBEDTLS_SSL_BUF_CACHED = 0,
     ESP_MBEDTLS_SSL_BUF_NO_CACHED,
+    ESP_MBEDTLS_SSL_BUF_STATIC,
 } esp_mbedtls_ssl_buf_states;
 
 struct esp_mbedtls_ssl_buf {
@@ -80,8 +88,6 @@ int esp_mbedtls_free_rx_buffer(mbedtls_ssl_context *ssl);
 size_t esp_mbedtls_get_crt_size(mbedtls_x509_crt *cert, size_t *num);
 
 #ifdef CONFIG_MBEDTLS_DYNAMIC_FREE_CONFIG_DATA
-void esp_mbedtls_free_dhm(mbedtls_ssl_context *ssl);
-
 void esp_mbedtls_free_keycert(mbedtls_ssl_context *ssl);
 
 void esp_mbedtls_free_keycert_cert(mbedtls_ssl_context *ssl);

@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * SPDX-FileContributor: 2016-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2016-2025 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * Copyright (c) 2015-2019 Cadence Design Systems, Inc.
@@ -33,33 +33,50 @@
 
 #define TOPOFSTACK_OFFS                 0x00    /* StackType_t *pxTopOfStack */
 
+#if CONFIG_FREERTOS_UNICORE
+#define pxCurrentTCBs   pxCurrentTCB
+#endif
+
 .extern pxCurrentTCBs
+#if XCHAL_CP_NUM > 0
+/* Offsets used to get a task's coprocessor save area (CPSA) from its TCB */
 .extern offset_pxEndOfStack
 .extern offset_cpsa
+#if configNUM_CORES > 1
+/* Offset to TCB_t.uxCoreAffinityMask member. Used to pin unpinned tasks that use the FPU. */
+.extern offset_uxCoreAffinityMask
+#endif /* configNUM_CORES > 1 */
+#endif /* XCHAL_CP_NUM > 0 */
 
 /*
-Macro to get a task's coprocessor save area (CPSA) from its TCB
+--------------------------------------------------------------------------------
+  Macro get_cpsa_from_tcb - get the pointer to a task's CPSA form its TCB
 
-Entry:
-- reg_A contains a pointer to the TCB
-Exit:
-- reg_A contains a pointer to the CPSA
-- reg_B destroyed
+  Entry:
+  - "reg_A" contains a pointer to the task's TCB
+  Exit:
+  - "reg_A" contains pointer the the task's CPSA
+  - "reg_B" clobbered
+
+  The two arguments must be different AR registers.
+--------------------------------------------------------------------------------
 */
+#if XCHAL_CP_NUM > 0
     .macro get_cpsa_from_tcb reg_A reg_B
-    // Get TCB.pxEndOfStack from reg_A
+    /* Get TCB.pxEndOfStack from reg_A */
     movi    \reg_B, offset_pxEndOfStack     /* Move &offset_pxEndOfStack into reg_B */
     l32i    \reg_B, \reg_B, 0               /* Load offset_pxEndOfStack into reg_B */
     add     \reg_A, \reg_A, \reg_B          /* Calculate &pxEndOfStack to reg_A (&TCB + offset_pxEndOfStack) */
     l32i    \reg_A, \reg_A, 0               /* Load TCB.pxEndOfStack into reg_A */
-    //Offset to start of coproc save area
+    /* Offset to start of CP save area */
     movi    \reg_B, offset_cpsa             /* Move &offset_cpsa into reg_B */
     l32i    \reg_B, \reg_B, 0               /* Load offset_cpsa into reg_B */
     sub     \reg_A, \reg_A, \reg_B          /* Subtract offset_cpsa from pxEndOfStack to get to start of CP save area (unaligned) */
-    //Align down start of CP save area to 16 byte boundary
+    /* Align down start of CP save area to 16 byte boundary */
     movi    \reg_B, ~(0xF)
-    and     \reg_A, \reg_A, \reg_B          /* Align CPSA pointer to 16 bytes */
+    and     \reg_A, \reg_A, \reg_B          /* Align CP save area pointer to 16 bytes */
     .endm
+#endif /* XCHAL_CP_NUM > 0 */
 
     .global     port_IntStack
     .global     port_switch_flag    //Required by sysview_tracing build
@@ -267,7 +284,7 @@ _frxt_int_exit:
 * Manages the tick timer and calls xPortSysTickHandler() every tick.
 * See the detailed description of the XT_RTOS_ENTER macro in xtensa_rtos.h.
 *
-* Callable from C (obeys ABI conventions). Implemented in assmebly code for performance.
+* Callable from C (obeys ABI conventions). Implemented in assembly code for performance.
 *
 **********************************************************************************************************
 */
@@ -356,7 +373,7 @@ _frxt_timer_int:
 *                                           _frxt_tick_timer_init
 *                                      void _frxt_tick_timer_init(void)
 *
-* Initialize timer and timer interrrupt handler (_xt_tick_divisor_init() has already been been called).
+* Initialize timer and timer interrupt handler (_xt_tick_divisor_init() has already been been called).
 * Callable from C (obeys ABI conventions on entry).
 *
 **********************************************************************************************************
@@ -445,6 +462,15 @@ _frxt_dispatch:
     l32i    a3,  a2, 0
     l32i    sp,  a3, TOPOFSTACK_OFFS     /* SP = next_TCB->pxTopOfStack;  */
     s32i    a3,  a2, 0
+
+#if ( configNUM_CORES > 1 )
+    /* Indicate that this CPU has completed startup. */
+    movi    a2, port_uxCoreStartupDone  /* a2 = &port_uxCoreStartupDone */
+    getcoreid a3
+    addx4   a2, a3, a2                  /* a2 = &port_uxCoreStartupDone[coreid] */
+    movi    a3, 1                       /* a3 = 1 */
+    s32i    a3, a2, 0                   /* port_uxCoreStartupDone[coreid] = 1 */
+#endif /* ( configNUM_CORES > 1 ) */
 
     /* Determine the type of stack frame. */
     l32i    a2,  sp, XT_STK_EXIT        /* exit dispatcher or solicited flag */
@@ -690,5 +716,56 @@ _frxt_task_coproc_state:
 
 1:  movi    a15, 0
 2:  ret
+
+#endif /* XCHAL_CP_NUM > 0 */
+
+/*
+**********************************************************************************************************
+*                                        _frxt_coproc_exc_hook
+*                                   void _frxt_coproc_exc_hook(void)
+*
+* Implements the Xtensa RTOS porting layer's XT_RTOS_CP_EXC_HOOK function for FreeRTOS.
+*
+* May only be called from assembly code by the 'call0' instruction. Does NOT obey ABI conventions.
+* May only only use a2-4, a15 (all other regs must be preserved).
+* See the detailed description of the XT_RTOS_ENTER macro in xtensa_rtos.h.
+*
+**********************************************************************************************************
+*/
+#if XCHAL_CP_NUM > 0
+
+    .globl  _frxt_coproc_exc_hook
+    .type   _frxt_coproc_exc_hook,@function
+    .align  4
+_frxt_coproc_exc_hook:
+
+    #if configUSE_CORE_AFFINITY == 1 && configNUM_CORES > 1
+    getcoreid a2                            /* a2 = xCurCoreID */
+    /* if (port_xSchedulerRunning[xCurCoreID] == 0) */
+    movi    a3, port_xSchedulerRunning
+    addx4   a3, a2, a3
+    l32i    a3, a3, 0
+    beqz    a3, 1f                          /* Scheduler hasn't started yet. Return. */
+    /* if (port_interruptNesting[xCurCoreID] != 0) */
+    movi    a3, port_interruptNesting
+    addx4   a3, a2, a3
+    l32i    a3, a3, 0
+    bnez    a3, 1f                          /* We are in an interrupt. Return*/
+    /* CP operations are incompatible with unpinned tasks. Thus we pin the task
+    to the current running core by updating its TCB.uxCoreAffinityMask field. */
+    movi    a3, pxCurrentTCBs
+    addx4   a3, a2, a3
+    l32i    a3, a3, 0                       /* a3 = pxCurrentTCBs[xCurCoreID] */
+    movi    a4, offset_uxCoreAffinityMask
+    l32i    a4, a4, 0                       /* a4 = offset_uxCoreAffinityMask */
+    add     a3, a3, a4                      /* a3 = &TCB.uxCoreAffinityMask */
+    ssl     a2                              /* Use xCurCoreID as left shift amount */
+    movi    a4, 1
+    sll     a4, a4                          /* a4 = (1 << xCurCoreID) */
+    s32i    a4, a3, 0                       /* TCB.uxCoreAffinityMask = a4 = (1 << xCurCoreID) */
+1:
+    #endif /* configUSE_CORE_AFFINITY == 1 && configNUM_CORES > 1 */
+
+    ret
 
 #endif /* XCHAL_CP_NUM > 0 */

@@ -11,10 +11,46 @@ mainmenu "Espressif IoT Development Framework Configuration"
         default "y"
 
     config IDF_ENV_FPGA
-        # This option is for internal use only
         bool
-        default "y" if IDF_TARGET_ESP32C6 # TODO: IDF-5630
         option env="IDF_ENV_FPGA"
+        help
+            - This option is for internal use only.
+            - Enabling this option will help enable all FPGA support so as to
+              run ESP-IDF on an FPGA. This can help reproduce some issues that
+              only happens on FPGA condition, or when you have to burn some
+              efuses multiple times.
+
+    config IDF_ENV_BRINGUP
+        bool
+        help
+            - This option is ONLY used when doing new chip bringup.
+            - This option will only enable necessary hw / sw settings for running
+              a hello_world application.
+
+
+    config IDF_CI_BUILD
+        bool
+        default y if "$(IDF_CI_BUILD)" = "y" || "$(IDF_CI_BUILD)" = 1
+
+    config IDF_DOC_BUILD
+        bool
+        default y if "$(IDF_DOC_BUILD)" = "y" || "$(IDF_DOC_BUILD)" = 1
+
+    config IDF_TOOLCHAIN
+        # This option records the IDF target when sdkconfig is generated the first time.
+        # It is not updated if environment variable $IDF_TOOLCHAIN changes later, and
+        # the build system is responsible for detecting the mismatch between
+        # CONFIG_IDF_TOOLCHAIN and $IDF_TOOLCHAIN.
+        string
+        default "$IDF_TOOLCHAIN"
+
+    config IDF_TOOLCHAIN_CLANG
+        bool
+        default "y" if IDF_TOOLCHAIN="clang"
+
+    config IDF_TOOLCHAIN_GCC
+        bool
+        default "y" if IDF_TOOLCHAIN="gcc"
 
     config IDF_TARGET_ARCH_RISCV
         bool
@@ -37,9 +73,11 @@ mainmenu "Espressif IoT Development Framework Configuration"
         string
         default "$IDF_TARGET"
 
-    config IDF_TARGET_LINUX
-        bool
-        default "y" if IDF_TARGET="linux"
+    config IDF_INIT_VERSION
+        # This option records the IDF version when sdkconfig is generated the first time.
+        # It is not updated if environment variable $IDF_VERSION changes later
+        string
+        default "$IDF_INIT_VERSION"
 
     config IDF_TARGET_ESP32
         bool
@@ -63,28 +101,6 @@ mainmenu "Espressif IoT Development Framework Configuration"
         select FREERTOS_UNICORE
         select IDF_TARGET_ARCH_RISCV
 
-    config IDF_TARGET_ESP32H2
-        bool
-        default "y" if IDF_TARGET="esp32h2"
-        select FREERTOS_UNICORE
-        select IDF_TARGET_ARCH_RISCV
-
-    choice IDF_TARGET_ESP32H2_BETA_VERSION
-        prompt "ESP32-H2 beta version"
-        depends on IDF_TARGET_ESP32H2
-        default IDF_TARGET_ESP32H2_BETA_VERSION_2
-        help
-            Currently ESP32-H2 has several beta versions for internal use only.
-            Select the one that matches your chip model.
-
-        config IDF_TARGET_ESP32H2_BETA_VERSION_1
-            bool
-            prompt "ESP32-H2 beta1"
-        config IDF_TARGET_ESP32H2_BETA_VERSION_2
-            bool
-            prompt "ESP32-H2 beta2"
-    endchoice
-
     config IDF_TARGET_ESP32C2
         bool
         default "y" if IDF_TARGET="esp32c2"
@@ -97,13 +113,50 @@ mainmenu "Espressif IoT Development Framework Configuration"
         select FREERTOS_UNICORE
         select IDF_TARGET_ARCH_RISCV
 
+    config IDF_TARGET_ESP32C5
+        bool
+        default "y" if IDF_TARGET="esp32c5"
+        select FREERTOS_UNICORE
+        select IDF_TARGET_ARCH_RISCV
+
+    config IDF_TARGET_ESP32P4
+        bool
+        default "y" if IDF_TARGET="esp32p4"
+        select IDF_TARGET_ARCH_RISCV
+
+    config IDF_TARGET_ESP32H2
+        bool
+        default "y" if IDF_TARGET="esp32h2"
+        select FREERTOS_UNICORE
+        select IDF_TARGET_ARCH_RISCV
+
+    config IDF_TARGET_ESP32C61
+        bool
+        default "y" if IDF_TARGET="esp32c61"
+        select FREERTOS_UNICORE
+        select IDF_TARGET_ARCH_RISCV
+
+    config IDF_TARGET_ESP32H21
+        bool
+        default "y" if IDF_TARGET="esp32h21"
+        select FREERTOS_UNICORE
+        select IDF_TARGET_ARCH_RISCV
+
+    config IDF_TARGET_ESP32H4
+        bool
+        default "y" if IDF_TARGET="esp32h4"
+        select IDF_TARGET_ARCH_RISCV
+
+    config IDF_TARGET_ESP32S31
+        bool
+        default "y" if IDF_TARGET="esp32s31"
+        select IDF_TARGET_ARCH_RISCV
+        select IDF_ENV_BRINGUP
+
     config IDF_TARGET_LINUX
         bool
         default "y" if IDF_TARGET="linux"
-
-    config IDF_RTOS_RTTHREAD
-        bool "RT-THREAD SELECT"
-        default "n" 
+        select FREERTOS_UNICORE
 
     config IDF_FIRMWARE_CHIP_ID
         hex
@@ -111,10 +164,15 @@ mainmenu "Espressif IoT Development Framework Configuration"
         default 0x0002 if IDF_TARGET_ESP32S2
         default 0x0005 if IDF_TARGET_ESP32C3
         default 0x0009 if IDF_TARGET_ESP32S3
-        default 0x000A if IDF_TARGET_ESP32H2_BETA_VERSION_1
         default 0x000C if IDF_TARGET_ESP32C2
         default 0x000D if IDF_TARGET_ESP32C6
-        default 0x000E if IDF_TARGET_ESP32H2_BETA_VERSION_2 # ESP32H2-TODO: IDF-3475
+        default 0x0010 if IDF_TARGET_ESP32H2
+        default 0x0012 if IDF_TARGET_ESP32P4
+        default 0x0017 if IDF_TARGET_ESP32C5
+        default 0x0014 if IDF_TARGET_ESP32C61
+        default 0x0019 if IDF_TARGET_ESP32H21
+        default 0x001C if IDF_TARGET_ESP32H4
+        default 0x0020 if IDF_TARGET_ESP32S31
         default 0xFFFF
 
 
@@ -133,13 +191,15 @@ mainmenu "Espressif IoT Development Framework Configuration"
 
                 Another option, useful for only very small and limited applications, is to only link
                 the .elf file of the application, such that it can be loaded directly into RAM over
-                JTAG. Note that since IRAM and DRAM sizes are very limited, it is not possible to
-                build any complex application this way. However for kinds of testing and debugging,
+                JTAG or UART. Note that since IRAM and DRAM sizes are very limited, it is not possible
+                to build any complex application this way. However for some kinds of testing and debugging,
                 this option may provide faster iterations, since the application does not need to be
                 written into flash.
-                Note that at the moment, ESP-IDF does not contain all the startup code required to
-                initialize the CPUs and ROM memory (data/bss). Therefore it is necessary to execute
-                a bit of ROM code prior to executing the application. A gdbinit file may look as follows (for ESP32):
+
+                Note: when APP_BUILD_TYPE_RAM is selected and loaded with JTAG, ESP-IDF does not contain
+                all the startup code required to initialize the CPUs and ROM memory (data/bss).
+                Therefore it is necessary to execute a bit of ROM code prior to executing the application.
+                A gdbinit file may look as follows (for ESP32):
 
                     # Connect to a running instance of OpenOCD
                     target remote :3333
@@ -161,13 +221,20 @@ mainmenu "Espressif IoT Development Framework Configuration"
 
                 Example gdbinit files for other targets can be found in tools/test_apps/system/gdb_loadable_elf/
 
+                When loading the BIN with UART, the ROM will jump to ram and run the app after finishing the ROM
+                startup code, so there's no additional startup initialization required. You can use the
+                `load-ram` in esptool to load the generated .bin file into ram and execute.
+
+                Example:
+                    esptool --chip {chip} -p {port} -b {baud} --no-stub load-ram {app.bin}
+
                 Recommended sdkconfig.defaults for building loadable ELF files is as follows.
-                CONFIG_APP_BUILD_TYPE_ELF_RAM is required, other options help reduce application
+                CONFIG_APP_BUILD_TYPE_RAM is required, other options help reduce application
                 memory footprint.
 
-                    CONFIG_APP_BUILD_TYPE_ELF_RAM=y
+                    CONFIG_APP_BUILD_TYPE_RAM=y
                     CONFIG_VFS_SUPPORT_TERMIOS=
-                    CONFIG_NEWLIB_NANO_FORMAT=y
+                    CONFIG_LIBC_NEWLIB_NANO_FORMAT=y
                     CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT=y
                     CONFIG_ESP_DEBUG_STUBS_ENABLE=
                     CONFIG_ESP_ERR_TO_NAME_LOOKUP=
@@ -181,9 +248,11 @@ mainmenu "Espressif IoT Development Framework Configuration"
                 select APP_BUILD_BOOTLOADER
                 select APP_BUILD_USE_FLASH_SECTIONS
 
-            config APP_BUILD_TYPE_ELF_RAM
+            config APP_BUILD_TYPE_RAM
                 bool
-                prompt "ELF file, loadable into RAM (EXPERIMENTAL))"
+                prompt "Build app runs entirely in RAM (EXPERIMENTAL)"
+                select APP_BUILD_GENERATE_BINARIES
+
         endchoice # APP_BUILD_TYPE
 
         # Hidden options, set according to the choice above
@@ -193,8 +262,84 @@ mainmenu "Espressif IoT Development Framework Configuration"
         config APP_BUILD_BOOTLOADER
             bool # Whether to build the bootloader
 
+        config APP_BUILD_TYPE_PURE_RAM_APP
+            bool
+            prompt "Build app without SPI_FLASH/PSRAM support (saves ram)"
+            depends on APP_BUILD_TYPE_RAM
+            help
+                If this option is enabled, external memory and related peripherals, such as Cache, MMU,
+                Flash and PSRAM, won't be initialized. Corresponding drivers won't be introduced either.
+                Components that depend on the spi_flash component will also be unavailable, such as
+                app_update, etc. When this option is enabled, about 26KB of RAM space can be saved.
+
         config APP_BUILD_USE_FLASH_SECTIONS
             bool # Whether to place code/data into memory-mapped flash sections
+
+        menu "Minimize binary changes between builds"
+            depends on APP_BUILD_TYPE_APP_2NDBOOT
+
+            config APP_BUILD_MINIMIZE_BINARY_CHANGES
+                bool "Minimize binary changes between builds"
+                select COMPILER_NO_MERGE_CONSTANTS if IDF_TOOLCHAIN_GCC
+                help
+                    Optimize the application binary so that "idf.py flash" can
+                    flash only the data sectors that changed. Fast reflashing works
+                    without this option, enabling it improves reflash effectiveness
+                    by reducing the amount of data written on each reflash.
+
+                    Enabling this option classifies component libraries into two
+                    categories: mutable and immutable. Mutable libraries are
+                    expected to change frequently during development, while
+                    immutable libraries are considered stable. All project
+                    component libraries are treated as mutable; all other libraries
+                    are treated as immutable.
+
+                    In the generated linker script, input sections from immutable
+                    libraries are placed before those from mutable libraries. This
+                    layout helps localize changes in the output sections of the ELF
+                    file, so that recompilation primarily affects a confined area
+                    associated with the mutable libraries.
+
+                    To support this, some compiler optimizations, such as constant
+                    merging, are disabled, which helps minimize differences in the
+                    binary image between builds. However, this may increase the
+                    overall image size and flash usage.
+
+                    Additionally, this option inserts a padding, defined by the
+                    APP_BUILD_MINIMIZE_BINARY_CHANGES_PADDING option, after the input
+                    sections of mutable libraries. This allows further isolation of
+                    changes but also increases the size of the binary image and
+                    flash consumption.
+
+                    This option is primarily intended for development. It increases
+                    binary size and disables optimizations; it is not recommended
+                    for production builds.
+
+            choice APP_BUILD_MINIMIZE_BINARY_CHANGES_PADDING_SIZE
+                prompt "Padding size"
+                default APP_BUILD_MINIMIZE_BINARY_CHANGES_PADDING_4KB
+                depends on APP_BUILD_MINIMIZE_BINARY_CHANGES
+                help
+                    Selects the amount of padding (in kilobytes) to add after input
+                    sections of mutable libraries when "Minimize binary changes
+                    between builds" is enabled.
+
+                config APP_BUILD_MINIMIZE_BINARY_CHANGES_PADDING_2KB
+                    bool "2 KB"
+                config APP_BUILD_MINIMIZE_BINARY_CHANGES_PADDING_4KB
+                    bool "4 KB"
+                config APP_BUILD_MINIMIZE_BINARY_CHANGES_PADDING_8KB
+                    bool "8 KB"
+            endchoice
+
+            config APP_BUILD_MINIMIZE_BINARY_CHANGES_PADDING
+                int
+                depends on APP_BUILD_MINIMIZE_BINARY_CHANGES
+                default 2048 if APP_BUILD_MINIMIZE_BINARY_CHANGES_PADDING_2KB
+                default 4096 if APP_BUILD_MINIMIZE_BINARY_CHANGES_PADDING_4KB
+                default 8192 if APP_BUILD_MINIMIZE_BINARY_CHANGES_PADDING_8KB
+
+        endmenu  # Minimize binary changes between builds
 
         config APP_REPRODUCIBLE_BUILD
             bool "Enable reproducible build"
@@ -250,7 +395,7 @@ mainmenu "Espressif IoT Development Framework Configuration"
             bool
             depends on IDF_TARGET_ESP32
             default y if APP_COMPATIBLE_PRE_V2_1_BOOTLOADERS
-            default y if APP_BUILD_TYPE_ELF_RAM
+            default y if APP_BUILD_TYPE_RAM
 
 
     endmenu # Build type
@@ -261,12 +406,12 @@ mainmenu "Espressif IoT Development Framework Configuration"
 
         choice COMPILER_OPTIMIZATION
             prompt "Optimization Level"
-            default COMPILER_OPTIMIZATION_DEFAULT
+            default COMPILER_OPTIMIZATION_DEBUG
             help
                 This option sets compiler optimization level (gcc -O argument) for the app.
 
-                - The "Default" setting will add the -0g flag to CFLAGS.
-                - The "Size" setting will add the -0s flag to CFLAGS.
+                - The "Debug" setting will add the -Og flag to CFLAGS.
+                - The "Size" setting will add the -Os flag to CFLAGS (-Oz with Clang).
                 - The "Performance" setting will add the -O2 flag to CFLAGS.
                 - The "None" setting will add the -O0 flag to CFLAGS.
 
@@ -284,16 +429,35 @@ mainmenu "Espressif IoT Development Framework Configuration"
                 Compiler optimization for the IDF bootloader is set separately,
                 see the BOOTLOADER_COMPILER_OPTIMIZATION setting.
 
-            config COMPILER_OPTIMIZATION_DEFAULT
+            config COMPILER_OPTIMIZATION_DEBUG
                 bool "Debug (-Og)"
             config COMPILER_OPTIMIZATION_SIZE
-                bool "Optimize for size (-Os)"
+                bool "Optimize for size (-Os with GCC, -Oz with Clang)"
             config COMPILER_OPTIMIZATION_PERF
                 bool "Optimize for performance (-O2)"
             config COMPILER_OPTIMIZATION_NONE
                 bool "Debug without optimization (-O0)"
 
         endchoice
+
+        config COMPILER_ENABLE_RISCV_ZCMP
+            bool "Enable RISCV ZCMP extension"
+            depends on SOC_CPU_ZCMP_WORKAROUND
+            default n
+            help
+                Enable the RISC-V ZCMP (Compressed Macro) extension to reduce binary size
+                by optimizing function prologue and epilogue sequences.
+
+                Note: Due to a hardware issue on some ESP32 chips (e.g., ESP32C5, ESP32C61,
+                ESP32H4), executing "cm.push" may re-enable interrupts even when global
+                interrupts are disabled (mstatus.mie = 0). This can cause unexpected interrupts
+                during CPU retention or within critical sections.
+
+                Workarounds are implemented in the IDF codebase. However, if user code
+                directly disables interrupts, additional actions may be required. Refer
+                to code examples under the SOC_CPU_ZCMP_WORKAROUND macro, or disable
+                the ZCMP extension for source files that contain functions which may
+                execute while mstatus.mie = 0.
 
         choice COMPILER_OPTIMIZATION_ASSERTION_LEVEL
             prompt "Assertion level"
@@ -329,6 +493,18 @@ mainmenu "Espressif IoT Development Framework Configuration"
                     If assertions are disabled, -DNDEBUG is added to CPPFLAGS.
 
         endchoice # assertions
+
+        config COMPILER_ASSERT_NDEBUG_EVALUATE
+            bool "Enable the evaluation of the expression inside assert(X) when NDEBUG is set"
+            default n
+            help
+                When NDEBUG is set, assert(X) will not cause code to trigger an assertion.
+                With this option set, assert(X) will still evaluate the expression X, though
+                the result will never cause an assertion. This means that if X is a function
+                then the function will be called.
+
+                This is not according to the standard, which states that the assert(X) should
+                be replaced with ((void)0) if NDEBUG is defined.
 
         choice COMPILER_FLOAT_LIB_FROM
             prompt "Compiler float lib source"
@@ -451,6 +627,29 @@ mainmenu "Espressif IoT Development Framework Configuration"
             help
                 Stack smashing protection.
 
+        config COMPILER_NO_MERGE_CONSTANTS
+            bool "Disable merging const sections"
+            depends on IDF_TOOLCHAIN_GCC
+            help
+                Disable merging identical constants (string/floating-point) across compilation units.
+                This helps in better size analysis of the application binary as the rodata section
+                distribution is more uniform across libraries. On downside, it may increase
+                the binary size and hence should be used during development phase only.
+
+        config COMPILER_ENABLE_TEXT_SECTION_LITERALS
+            bool
+            depends on IDF_TOOLCHAIN_GCC
+            depends on IDF_TARGET_ARCH_XTENSA
+            default y if APP_BUILD_MINIMIZE_BINARY_CHANGES
+            help
+                Intersperse Xtensa literals within the text section to keep
+                them as close as possible to their references. This prevents
+                literals from being placed into a separate section in the
+                output file and prevents the linker from combining literal
+                pools from different object files. Enabling this is necessary
+                for fast reflashing to prevent mixing code from mutable and
+                immutable libraries.
+
         config COMPILER_WARN_WRITE_STRINGS
             bool "Enable -Wwrite-strings warning flag"
             default "n"
@@ -477,14 +676,182 @@ mainmenu "Espressif IoT Development Framework Configuration"
 
                 This option can be enabled for RISC-V targets only.
 
+        config COMPILER_DISABLE_DEFAULT_ERRORS
+            bool "Disable errors for default warnings"
+            default "n"
+            help
+                Enable this option if you do not want default warnings to be considered as errors,
+                especially when updating IDF.
+
+                This is a temporary flag that could help to allow upgrade while having
+                some time to address the warnings raised by those default warnings.
+                Alternatives are:
+                1) fix code (preferred),
+                2) remove specific warnings,
+                3) do not consider specific warnings as error.
+
+        config COMPILER_DISABLE_GCC12_WARNINGS
+            bool "Disable new warnings introduced in GCC 12"
+            default "n"
+            help
+                Enable this option if use GCC 12 or newer, and want to disable warnings which don't appear with
+                GCC 11.
+
+        config COMPILER_DISABLE_GCC13_WARNINGS
+            bool "Disable new warnings introduced in GCC 13"
+            default "n"
+            help
+                Enable this option if use GCC 13 or newer, and want to disable warnings which don't appear with
+                GCC 12.
+
+        config COMPILER_DISABLE_GCC14_WARNINGS
+            bool "Disable new warnings introduced in GCC 14"
+            default "n"
+            help
+                Enable this option if use GCC 14 or newer, and want to disable warnings which don't appear with
+                GCC 13.
+
+        config COMPILER_DISABLE_GCC15_WARNINGS
+            bool "Disable new warnings introduced in GCC 15"
+            default "n"
+            help
+                Enable this option if use GCC 15 or newer, and want to disable warnings which don't appear with
+                GCC 14.
+
         config COMPILER_DUMP_RTL_FILES
             bool "Dump RTL files during compilation"
             help
                 If enabled, RTL files will be produced during compilation. These files
                 can be used by other tools, for example to calculate call graphs.
 
+        choice COMPILER_RT_LIB
+            prompt "Compiler runtime library"
+            default COMPILER_RT_LIB_CLANGRT if IDF_TOOLCHAIN_CLANG
+            default COMPILER_RT_LIB_HOST if IDF_TARGET_LINUX
+            default COMPILER_RT_LIB_GCCLIB
+            help
+                Select runtime library to be used by compiler.
+                - GCC toolchain supports libgcc only.
+                - Clang allows to choose between libgcc or libclang_rt.
+                - For host builds ("linux" target), uses the default library.
+
+            config COMPILER_RT_LIB_GCCLIB
+                depends on !IDF_TARGET_LINUX
+                bool "libgcc"
+            config COMPILER_RT_LIB_CLANGRT
+                depends on IDF_TOOLCHAIN_CLANG && !IDF_TARGET_LINUX
+                bool "libclang_rt"
+            config COMPILER_RT_LIB_HOST
+                depends on IDF_TARGET_LINUX
+                bool "Host"
+        endchoice
+
+        config COMPILER_RT_LIB_NAME
+            string
+            default "clang_rt.builtins" if COMPILER_RT_LIB_CLANGRT
+            default "gcc" if COMPILER_RT_LIB_GCCLIB
+            default "" if COMPILER_RT_LIB_HOST
+
+        choice COMPILER_ORPHAN_SECTIONS
+            prompt "Orphan sections handling"
+            default COMPILER_ORPHAN_SECTIONS_ERROR
+            depends on !IDF_TARGET_LINUX
+            help
+                If the linker finds orphan sections, it attempts to place orphan sections after sections of the same
+                attribute such as code vs data, loadable vs non-loadable, etc.
+                That means that orphan sections could placed between sections defined in IDF linker scripts.
+                This could lead to corruption of the binary image. Configure the linker action here.
+
+            config COMPILER_ORPHAN_SECTIONS_ERROR
+                bool "Fail if orphan sections found"
+                help
+                    Fails the link step with an error if orphan sections are detected.
+
+            config COMPILER_ORPHAN_SECTIONS_WARNING
+                bool "Place with warning"
+                help
+                    Places orphan sections with a warning message.
+
+            config COMPILER_ORPHAN_SECTIONS_PLACE
+                bool "Place silently"
+                help
+                    Places orphan sections without a warning/error message.
+        endchoice
+
+        config COMPILER_STATIC_ANALYZER
+            bool "Enable compiler static analyzer"
+            default "n"
+            depends on IDF_TOOLCHAIN_GCC
+            help
+                Enable compiler static analyzer. This may produce false-positive results and increases compile time.
+
+        choice COMPILER_CXX_GLIBCXX_CONSTEXPR
+            prompt "Define _GLIBCXX_CONSTEXPR"
+            default COMPILER_CXX_GLIBCXX_CONSTEXPR_NO_CHANGE
+            depends on IDF_TOOLCHAIN_GCC && !IDF_TARGET_LINUX
+            help
+                Modify libstdc++ _GLIBCXX20_CONSTEXPR and _GLIBCXX23_CONSTEXPR definitions to provide size
+                optimizations. The total size optimization depends on the application's structure.
+                There is no robust way to determine which option would be better in a particular case.
+                Please try all available options to find the best size optimization.
+
+            config COMPILER_CXX_GLIBCXX_CONSTEXPR_NO_CHANGE
+                bool "No change"
+                help
+                    Use default _GLIBCXX20_CONSTEXPR and _GLIBCXX23_CONSTEXPR defined in libstdc++
+
+            config COMPILER_CXX_GLIBCXX_CONSTEXPR_COLD_CONSTEXPR
+                bool "_GLIBCXX2X_CONSTEXPR=__attribute__((cold)) constexpr"
+                help
+                    Define _GLIBCXX20_CONSTEXPR=__attribute__((cold)) constexpr
+                    Define _GLIBCXX23_CONSTEXPR=__attribute__((cold)) constexpr
+
+            config COMPILER_CXX_GLIBCXX_CONSTEXPR_COLD
+                bool "_GLIBCXX2X_CONSTEXPR=__attribute__((cold))"
+                help
+                    Define _GLIBCXX20_CONSTEXPR=__attribute__((cold)).
+                    Define _GLIBCXX23_CONSTEXPR=__attribute__((cold)).
+        endchoice
+
     endmenu # Compiler Options
 
     menu "Component config"
+        comment "!!! MINIMAL_BUILD is enabled !!!"
+        depends on "${IDF_MINIMAL_BUILD}"
+        comment "Only common components and those transitively required by the main component are listed"
+        depends on "${IDF_MINIMAL_BUILD}"
+        comment "If a component configuration is missing, please add it to the main component's requirements"
+        depends on "${IDF_MINIMAL_BUILD}"
+
         source "$COMPONENT_KCONFIGS_SOURCE_FILE"
+
+        menu "Configuration for components not included in the build"
+            depends on "${IDF_BUILD_V2}"
+            osource "$COMPONENT_KCONFIGS_EXCLUDED_SOURCE_FILE"
+        endmenu
+
     endmenu
+
+    menu "Project configuration for components not included in the build"
+        depends on "${IDF_BUILD_V2}"
+        osource "$COMPONENT_KCONFIGS_PROJBUILD_EXCLUDED_SOURCE_FILE"
+    endmenu
+
+    config IDF_EXPERIMENTAL_FEATURES
+        bool "Make experimental features visible"
+        default "n"
+        help
+            By enabling this option, ESP-IDF experimental feature options will be visible.
+
+            Note you should still enable a certain experimental feature option to use it, and you
+            should read the corresponding risk warning and known issue list carefully.
+
+            Current experimental feature list:
+
+            - CONFIG_ESPTOOLPY_FLASHFREQ_120M && CONFIG_ESPTOOLPY_FLASH_SAMPLE_MODE_DTR
+            - CONFIG_SPIRAM_SPEED_120M && CONFIG_SPIRAM_MODE_OCT
+            - CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH
+            - CONFIG_ESP_WIFI_EAP_TLS1_3
+            - CONFIG_ESP_WIFI_NAN_SECURITY
+            - CONFIG_USB_HOST_EXT_PORT_RESET_ATTEMPTS
+            - CONFIG_GDMA_ENABLE_WEIGHTED_ARBITRATION

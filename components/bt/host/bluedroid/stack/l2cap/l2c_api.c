@@ -215,7 +215,7 @@ UINT16 L2CA_ConnectReq (UINT16 psm, BD_ADDR p_bd_addr)
 **
 **  Parameters:       PSM: L2CAP PSM for the connection
 **                    BD address of the peer
-**                   Enhaced retransmission mode configurations
+**                   Enhanced retransmission mode configurations
 
 ** Returns          the CID of the connection, or 0 if it failed to start
 **
@@ -760,7 +760,7 @@ bool L2CA_GetIdentifiers(uint16_t lcid, uint16_t *rcid, uint16_t *handle)
 **
 ** NOTE             This timeout takes effect after at least 1 channel has been
 **                  established and removed. L2CAP maintains its own timer from
-**                  whan a connection is established till the first channel is
+**                  when a connection is established till the first channel is
 **                  set up.
 *******************************************************************************/
 BOOLEAN L2CA_SetIdleTimeout (UINT16 cid, UINT16 timeout, BOOLEAN is_global)
@@ -863,7 +863,7 @@ UINT8 L2CA_SetTraceLevel (UINT8 new_level)
     return (l2cb.l2cap_trace_level);
 }
 
-
+#if (CLASSIC_BT_INCLUDED == TRUE)
 /*******************************************************************************
 **
 ** Function     L2CA_SetDesireRole
@@ -901,6 +901,7 @@ UINT8 L2CA_SetDesireRole (UINT8 new_role)
 
     return (l2cb.desire_role);
 }
+#endif // (CLASSIC_BT_INCLUDED == TRUE)
 
 #if (CLASSIC_BT_INCLUDED == TRUE)
 
@@ -1297,7 +1298,7 @@ UINT8 L2CA_GetChnlFcrMode (UINT16 lcid)
 
 #endif  ///CLASSIC_BT_INCLUDED == TRUE
 
-#if (BLE_INCLUDED == TRUE)
+#if (BLE_L2CAP_COC_INCLUDED == TRUE)
 /*******************************************************************************
 **
 ** Function         L2CA_RegisterLECoc
@@ -1608,7 +1609,7 @@ BOOLEAN L2CA_GetPeerLECocConfig (UINT16 lcid, tL2CAP_LE_CFG_INFO* peer_cfg)
 
     return TRUE;
 }
-#endif  ///BLE_INCLUDED == TRUE
+#endif // (BLE_L2CAP_COC_INCLUDED == TRUE)
 
 #if (L2CAP_NUM_FIXED_CHNLS > 0)
 /*******************************************************************************
@@ -1649,7 +1650,8 @@ BOOLEAN  L2CA_RegisterFixedChannel (UINT16 fixed_cid, tL2CAP_FIXED_CHNL_REG *p_f
 **  Return value:   TRUE if connection started
 **
 *******************************************************************************/
-BOOLEAN L2CA_ConnectFixedChnl (UINT16 fixed_cid, BD_ADDR rem_bda, tBLE_ADDR_TYPE bd_addr_type, BOOLEAN is_aux)
+BOOLEAN L2CA_ConnectFixedChnl (UINT16 fixed_cid, BD_ADDR rem_bda, tBLE_ADDR_TYPE bd_addr_type, BOOLEAN is_aux,
+                                BOOLEAN is_pawr_synced, UINT8 adv_handle, UINT8 subevent)
 {
     tL2C_LCB *p_lcb;
     tBT_TRANSPORT transport = BT_TRANSPORT_BR_EDR;
@@ -1738,6 +1740,11 @@ BOOLEAN L2CA_ConnectFixedChnl (UINT16 fixed_cid, BD_ADDR rem_bda, tBLE_ADDR_TYPE
 #if (BLE_INCLUDED == TRUE)
     p_lcb->is_aux = is_aux;
     p_lcb->open_addr_type = bd_addr_type;
+#if (BT_BLE_FEAT_PAWR_EN == TRUE)
+    p_lcb->is_pawr_synced = is_pawr_synced;
+    p_lcb->adv_handle = adv_handle;
+    p_lcb->subevent = subevent;
+#endif // (BT_BLE_FEAT_PAWR_EN == TRUE)
 #endif
     if (!l2cu_create_conn(p_lcb, transport)) {
         L2CAP_TRACE_WARNING ("%s() - create_conn failed", __func__);
@@ -1856,6 +1863,11 @@ UINT16 L2CA_SendFixedChnlData (UINT16 fixed_cid, BD_ADDR rem_bda, BT_HDR *p_buf)
 
 BOOLEAN L2CA_CheckIsCongest(UINT16 fixed_cid, BD_ADDR addr)
 {
+    if ((fixed_cid < L2CAP_FIRST_FIXED_CHNL) || (fixed_cid > L2CAP_LAST_FIXED_CHNL)) {
+        L2CAP_TRACE_ERROR ("L2CA_CheckIsCongest()  Invalid CID: 0x%04x", fixed_cid);
+        return TRUE;
+    }
+
     tL2C_LCB *p_lcb;
     p_lcb = l2cu_find_lcb_by_bd_addr(addr, BT_TRANSPORT_LE);
 
@@ -1900,6 +1912,8 @@ BOOLEAN L2CA_RemoveFixedChnl (UINT16 fixed_cid, BD_ADDR rem_bda)
     tL2C_LCB    *p_lcb;
     tL2C_CCB    *p_ccb;
     tBT_TRANSPORT   transport = BT_TRANSPORT_BR_EDR;
+
+    L2CAP_TRACE_DEBUG("%s cid=%04x bda="MACSTR"", __func__, fixed_cid, MAC2STR(rem_bda));
 
     /* Check CID is valid and registered */
     if ( (fixed_cid < L2CAP_FIRST_FIXED_CHNL) || (fixed_cid > L2CAP_LAST_FIXED_CHNL)
@@ -1948,6 +1962,36 @@ BOOLEAN L2CA_RemoveFixedChnl (UINT16 fixed_cid, BD_ADDR rem_bda)
 
     return (TRUE);
 }
+
+#if BLE_INCLUDED == TRUE
+BOOLEAN L2CA_BleDisconnect (BD_ADDR rem_bda)
+{
+    tL2C_LCB    *p_lcb;
+    tGATT_TCB   *p_tcb;
+
+    p_lcb = l2cu_find_lcb_by_bd_addr (rem_bda, BT_TRANSPORT_LE);
+    if (p_lcb == NULL) {
+        return FALSE;
+    }
+
+    if (p_lcb->link_state != LST_CONNECTED) {
+        return FALSE;
+    }
+
+    p_lcb->disc_reason = HCI_ERR_CONN_CAUSE_LOCAL_HOST;
+    p_lcb->link_state = LST_DISCONNECTING;
+    btsnd_hcic_disconnect (p_lcb->handle, HCI_ERR_PEER_USER);
+
+    p_tcb = gatt_find_tcb_by_addr(rem_bda, BT_TRANSPORT_LE);
+    if (p_tcb == NULL) {
+        return FALSE;
+    }
+
+    gatt_set_ch_state(p_tcb, GATT_CH_CLOSING);
+
+    return TRUE;
+}
+#endif
 
 /*******************************************************************************
 **
@@ -2106,6 +2150,33 @@ UINT8 L2CA_DataWrite (UINT16 cid, BT_HDR *p_data)
     return l2c_data_write (cid, p_data, L2CAP_FLUSHABLE_CH_BASED);
 }
 #endif  ///CLASSIC_BT_INCLUDED == TRUE
+
+/*******************************************************************************
+**
+** Function         l2cap_bqb_write_data
+**
+** Description      Call L2CA_DataWrite and write I-Frame data for BQB test.
+**
+** Returns          None
+**
+*******************************************************************************/
+#if (BT_CLASSIC_BQB_INCLUDED == TRUE)
+void l2cap_bqb_write_data(UINT16 cid)
+{
+    BT_HDR *p_buf;
+    uint8_t *p;
+
+    if ((p_buf = (BT_HDR *)osi_malloc(SDP_DATA_BUF_SIZE)) != NULL) {
+        p_buf->len = 30;
+        p_buf->offset = L2CAP_MIN_OFFSET;
+        p = (UINT8 *)(p_buf + 1) + p_buf->offset;
+        for(int i = 0 ; i < 10; i++) {
+            UINT8_TO_BE_STREAM(p, 0)
+        }
+        L2CA_DataWrite(cid, p_buf);
+    }
+}
+#endif /* BT_CLASSIC_BQB_INCLUDED */
 
 /*******************************************************************************
 **
@@ -2342,7 +2413,15 @@ void l2ble_update_att_acl_pkt_num(UINT8 type, tl2c_buff_param_t *param)
             xSemaphoreGive(buff_semaphore);
             break;
         }
-        fixed_queue_t * queue = p_lcb->p_fixed_ccbs[L2CAP_ATT_CID - L2CAP_FIRST_FIXED_CHNL]->xmit_hold_q;
+
+        tL2C_CCB *p_ccb = p_lcb->p_fixed_ccbs[L2CAP_ATT_CID - L2CAP_FIRST_FIXED_CHNL];
+        if(p_ccb == NULL) {
+            L2CAP_TRACE_ERROR("%s not found p_ccb", __func__);
+            xSemaphoreGive(buff_semaphore);
+            break;
+        }
+
+        fixed_queue_t * queue = p_ccb->xmit_hold_q;
         att_max_num = MIN(p_lcb->link_xmit_quota, L2CAP_CACHE_ATT_ACL_NUM);
         if (queue == NULL){
             L2CAP_TRACE_ERROR("%s not found queue", __func__);
@@ -2376,6 +2455,12 @@ void l2ble_update_att_acl_pkt_num(UINT8 type, tl2c_buff_param_t *param)
         xSemaphoreGive(buff_semaphore);
         vSemaphoreDelete(buff_semaphore);
         buff_semaphore = NULL;
+        break;
+    }
+    case L2CA_BUFF_FREE:{
+        xSemaphoreTake(buff_semaphore, portMAX_DELAY);
+        // Do nothing
+        xSemaphoreGive(buff_semaphore);
         break;
     }
     default:

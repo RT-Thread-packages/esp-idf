@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
@@ -40,7 +40,7 @@
 #define HID_RPT_ID_KEY_IN        2   // Keyboard input report ID
 #define HID_RPT_ID_CC_IN         3   //Consumer Control input report ID
 #define HID_RPT_ID_VENDOR_OUT    4   // Vendor output report ID
-#define HID_RPT_ID_LED_OUT       0  // LED output report ID
+#define HID_RPT_ID_LED_OUT       2  // LED output report ID
 #define HID_RPT_ID_FEATURE       0  // Feature report ID
 
 #define HIDD_APP_ID			0x1812//ATT_SVC_HID
@@ -183,7 +183,7 @@ enum {
     HIDD_LE_CHAR_MAX //= HIDD_LE_REPORT_CHAR + HIDD_LE_NB_REPORT_INST_MAX,
 };
 
-///att read event table Indexs
+///att read event table Indexes
 enum {
     HIDD_LE_READ_INFO_EVT,
     HIDD_LE_READ_CTNL_PT_EVT,
@@ -306,7 +306,8 @@ typedef struct
 /* service engine control block */
 typedef struct {
     hidd_clcb_t                  hidd_clcb[HID_MAX_APPS];          /* connection link*/
-    esp_gatt_if_t                gatt_if;
+    esp_gatt_if_t                gatt_if;                          /* HIDD_APP_ID */
+    esp_gatt_if_t                bat_gatt_if;                      /* BATTRAY_APP_ID */
     bool                         enabled;
     bool                         is_take;
     bool                         is_primery;
@@ -327,7 +328,7 @@ void hidd_le_create_service(esp_gatt_if_t gatts_if);
 
 void hidd_set_attr_value(uint16_t handle, uint16_t val_len, const uint8_t *value);
 
-void hidd_get_attr_value(uint16_t handle, uint16_t *length, uint8_t **value);
+void hidd_get_attr_value(uint16_t handle, uint16_t *length, const uint8_t **value);
 
 esp_err_t hidd_register_cb(void);
 

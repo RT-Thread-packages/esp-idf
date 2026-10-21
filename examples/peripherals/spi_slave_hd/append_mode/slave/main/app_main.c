@@ -14,22 +14,25 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "driver/spi_slave_hd.h"
-#include "esp_serial_slave_link/essl_spi.h"
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////// Please update the following configuration according to your Hardware spec /////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
 #define GPIO_MOSI           11
 #define GPIO_MISO           13
 #define GPIO_SCLK           12
 #define GPIO_CS             10
-#define HOST_ID             1
+
+#define HOST_ID             SPI2_HOST
 #define QUEUE_SIZE          6
-#define TRANSACTION_LEN     16
-#define SYNC_REG_FROM_HOST  (14 * 4)
-#define SYNC_REG_TO_HOST    (15 * 4)
+#define TRANSACTION_LEN     64
 
 //---------This should be negotiated with the Master!!!!-------------//
 #define SLAVE_READY_FLAG    0x88
-#define READY_FLAG_REG      0
-
+#define SLAVE_SHARE_REG_NUM 3
+#define READY_FLAG_REG      (0 * 4) // first register is used for ready flag
+#define SYNC_REG_FROM_HOST  (1 * 4) // second register is used for sync from host
+#define SYNC_REG_TO_HOST    (2 * 4) // third register is used for sync to host
 
 struct trans_link_s {
     spi_slave_hd_data_t trans;
@@ -41,7 +44,6 @@ typedef struct trans_link_s trans_link_t;
 /* Pointer to the current transaction */
 trans_link_t *tx_curr_trans;
 trans_link_t *rx_curr_trans;
-
 
 static void init_slave_hd(void)
 {
@@ -71,7 +73,7 @@ static esp_err_t create_transaction_pool(uint8_t **data_buf, trans_link_t *trans
 {
     for (int i = 0; i < times; i++) {
         //malloc data buffers for transaction
-        data_buf[i] = heap_caps_calloc(1, TRANSACTION_LEN, MALLOC_CAP_DMA);
+        data_buf[i] = spi_bus_dma_memory_alloc(HOST_ID, TRANSACTION_LEN, 0);
         if (!data_buf[i]) {
             ESP_LOGI("Create pool:", "No enough memory");
             return ESP_ERR_NO_MEM;
@@ -82,7 +84,7 @@ static esp_err_t create_transaction_pool(uint8_t **data_buf, trans_link_t *trans
 
         //link the recycling transaction descriptors
         if (i != QUEUE_SIZE - 1) {
-            trans_link[i].next = &trans_link[i+1];
+            trans_link[i].next = &trans_link[i + 1];
         } else {
             trans_link[i].next = &trans_link[0];
         }
@@ -101,7 +103,7 @@ static void prepare_tx_data(trans_link_t *tx_trans)
      */
     uint8_t data = rand() % 50;
     tx_trans->trans.len = TRANSACTION_LEN;
-    for(int i = 0; i < tx_trans->trans.len; i++) {
+    for (int i = 0; i < tx_trans->trans.len; i++) {
         tx_trans->trans.data[i] = data + i;
     }
     tx_trans->recycled = 0;
@@ -241,8 +243,8 @@ void app_main(void)
     init_slave_hd();
 
     //Init the shared register
-    uint8_t init_value[SOC_SPI_MAXIMUM_BUFFER_SIZE] = {0x0};
-    spi_slave_hd_write_buffer(HOST_ID, 0, init_value, SOC_SPI_MAXIMUM_BUFFER_SIZE);
+    uint8_t init_value[SLAVE_SHARE_REG_NUM * 4] = {0x0};
+    spi_slave_hd_write_buffer(HOST_ID, 0, init_value, sizeof(init_value));
 
     uint8_t ready_flag = SLAVE_READY_FLAG;
     spi_slave_hd_write_buffer(HOST_ID, READY_FLAG_REG, &ready_flag, 4);

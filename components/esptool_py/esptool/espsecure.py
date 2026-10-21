@@ -4,19 +4,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import os
+import subprocess
 import sys
 
-try:
-    sys.path.remove(os.path.dirname(os.path.realpath(__file__)))  # do not import this script
-except ValueError:
-    pass
-
-try:
-    import espsecure
-except ImportError:
-    raise ModuleNotFoundError('No module named "espsecure" please install espsecure.py by running '
-                              'the install and export scripts.')
-
 if __name__ == '__main__':
-    espsecure._main()  # type: ignore
+    print(
+        "Warning: DEPRECATED: 'espsecure.py' wrapper is deprecated. "
+        "Please use 'espsecure' or 'python -m espsecure' instead.",
+        file=sys.stderr,
+    )
+    sys.exit(subprocess.run([sys.executable, '-m', 'espsecure'] + sys.argv[1:]).returncode)

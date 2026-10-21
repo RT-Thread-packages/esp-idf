@@ -22,6 +22,8 @@ entries:
     rtc_data -> rtc_data
     rtc_rodata -> rtc_data
     rtc_bss -> rtc_bss
+    spm_text -> spm_text
+    spm_data -> spm_data
 
 [scheme:rtc]
 entries:
@@ -43,6 +45,14 @@ entries:
 [scheme:noflash_text]
 entries:
     text -> iram0_text
+
+[scheme:spm]
+entries:
+    text -> spm_text
+    data -> spm_data
+    rodata -> spm_data
+    bss -> spm_bss
+    common -> spm_bss
 
 [mapping:default]
 archive: *

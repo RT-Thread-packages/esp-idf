@@ -2,17 +2,20 @@
 
 examples/build_system/cmake/import_lib:
   disable_test:
-    - if: IDF_TARGET in ["esp32c2", "esp32c3", "esp32s2", "esp32s3"]
-      temporary: true
-      reason: lack of runners
-
-examples/build_system/cmake/linux_host_app:
-  enable:
-    - if: IDF_TARGET == "linux"
-      reason: only test on linux
+    - if: IDF_TARGET not in ["esp32", "esp32c3"]
+      reason: Testing on two diff architectures is sufficient
 
 examples/build_system/cmake/plugins:
   disable_test:
     - if: IDF_TARGET not in ["esp32", "esp32c3"]
-      temporary: true
-      reason: lack of runners
+      reason: Testing on two diff architectures is sufficient
+
+examples/build_system/cmakev2/features/import_lib:
+  disable_test:
+    - if: IDF_TARGET not in ["esp32", "esp32c3"]
+      reason: QEMU tests limited to esp32 and esp32c3
+
+examples/build_system/cmakev2/features/plugins:
+  disable_test:
+    - if: IDF_TARGET not in ["esp32", "esp32c3"]
+      reason: Testing on two diff architectures is sufficient

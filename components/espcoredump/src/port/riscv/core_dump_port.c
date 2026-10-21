@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,6 +8,8 @@
  * @file
  * @brief Core dump port implementation for RISC-V based boards.
  */
+
+#include "sdkconfig.h"
 
 #include <string.h>
 #include <stdbool.h>
@@ -20,16 +22,15 @@
 #include "esp_core_dump_port.h"
 
 /* TAG used for logs */
-const static DRAM_ATTR char TAG[] __attribute__((unused)) = "esp_core_dump_port";
+const static char TAG[] __attribute__((unused)) = "esp_core_dump_port";
 
 /* Code associated to RISC-V in ELF format */
 #define COREDUMP_EM_RISCV                   0xF3
 
 #define COREDUMP_INVALID_CAUSE_VALUE        0xFFFF
-#define COREDUMP_FAKE_STACK_START           0x20000000U
-#define COREDUMP_FAKE_STACK_LIMIT           0x30000000U
-
-#if CONFIG_ESP_COREDUMP_ENABLE
+// Fake stack range is outside of DRAM and EXTRAM regions
+#define COREDUMP_FAKE_STACK_START           0x70000000U
+#define COREDUMP_FAKE_STACK_LIMIT           0x80000000U
 
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #define max(a,b) ((a) < (b) ? (b) : (a))
@@ -37,7 +38,7 @@ const static DRAM_ATTR char TAG[] __attribute__((unused)) = "esp_core_dump_port"
 /**
  * Union representing the registers of the CPU as they will be written
  * in the core dump.
- * Registers can be adressed with their names thanks to the structure, or as
+ * Registers can be addressed with their names thanks to the structure, or as
  * an array of 32 words.
  */
 #define RISCV_GP_REGS_COUNT 32
@@ -100,11 +101,11 @@ typedef union {
  * Other fields are not strictly required by GDB, we can then replace them
  * by a padding. Among these fields, we can find PPID, SID or system time.
  */
-#define PRSTATUS_SIZE				204
-#define PRSTATUS_OFFSET_PR_CURSIG	12
-#define PRSTATUS_OFFSET_PR_PID		24
-#define PRSTATUS_OFFSET_PR_REG		72
-#define ELF_GREGSET_T_SIZE		    128
+#define PRSTATUS_SIZE               204
+#define PRSTATUS_OFFSET_PR_CURSIG   12
+#define PRSTATUS_OFFSET_PR_PID      24
+#define PRSTATUS_OFFSET_PR_REG      72
+#define ELF_GREGSET_T_SIZE          128
 
 /* We can determine the padding thanks to the previous macros */
 #define PRSTATUS_SIG_PADDING        (PRSTATUS_OFFSET_PR_CURSIG)
@@ -126,23 +127,23 @@ typedef struct {
  * Assert that our structure is designed the way we are expecting it to be.
  */
 _Static_assert(offsetof(riscv_prstatus, signal) == PRSTATUS_OFFSET_PR_CURSIG,
-                        "Wrong offset for signal field in riscv_prstatus structure");
+               "Wrong offset for signal field in riscv_prstatus structure");
 _Static_assert(offsetof(riscv_prstatus, pid) == PRSTATUS_OFFSET_PR_PID,
-                        "Wrong offset for pid field in riscv_prstatus structure");
+               "Wrong offset for pid field in riscv_prstatus structure");
 _Static_assert(offsetof(riscv_prstatus, regs) == PRSTATUS_OFFSET_PR_REG,
-                        "Wrong offset for regs field in riscv_prstatus structure");
+               "Wrong offset for regs field in riscv_prstatus structure");
 _Static_assert(sizeof(riscv_regs) == ELF_GREGSET_T_SIZE,
-                        "Wrong size for riscv_regs union");
+               "Wrong size for riscv_regs union");
 _Static_assert(sizeof(riscv_prstatus) == PRSTATUS_SIZE,
-                        "Wrong size for riscv_prstatus structure");
+               "Wrong size for riscv_prstatus structure");
 
 /**
  * Structure used to add some extra info inside core file.
  */
 typedef struct {
     uint32_t crashed_task_tcb;
+    uint32_t isr_context;
 } riscv_extra_info_t;
-
 
 /* Allocate the fake stack that will be used by broken tasks. */
 static RvExcFrame s_fake_stack_frame = {
@@ -157,9 +158,10 @@ static uint32_t s_fake_stacks_num = 0;
 /* Statically initialize the extra information structure. */
 static riscv_extra_info_t s_extra_info = { 0 };
 
-inline void esp_core_dump_port_init(panic_info_t *info)
+inline void esp_core_dump_port_init(panic_info_t *info, bool isr_context)
 {
     s_extra_info.crashed_task_tcb = COREDUMP_CURR_TASK_MARKER;
+    s_extra_info.isr_context = isr_context;
 }
 
 /**
@@ -212,7 +214,7 @@ uint8_t* esp_core_dump_get_isr_stack_top(void)
 uint32_t esp_core_dump_get_isr_stack_end(void)
 {
     uint8_t* isr_top_stack = esp_core_dump_get_isr_stack_top();
-    return (uint32_t)(isr_top_stack + (xPortGetCoreID()+1)*configISR_STACK_SIZE);
+    return (uint32_t)(isr_top_stack + (xPortGetCoreID() + 1) * configISR_STACK_SIZE);
 }
 
 /**
@@ -221,22 +223,25 @@ uint32_t esp_core_dump_get_isr_stack_end(void)
 static inline bool esp_core_dump_task_stack_end_is_sane(uint32_t sp)
 {
     return esp_ptr_in_dram((void *)sp)
-#if CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY
-        || esp_stack_ptr_in_extram(sp)
+#if CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
+           || esp_stack_ptr_in_extram(sp)
 #endif
 #if CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP
-        || esp_ptr_in_rtc_dram_fast((void*) sp)
+           || esp_ptr_in_rtc_dram_fast((void*) sp)
 #endif
-    ;
+#if SOC_MEM_SPM_SUPPORTED
+           || esp_ptr_in_spm((void *)sp)
+#endif
+           ;
 }
 
 bool esp_core_dump_check_stack(core_dump_task_header_t *task)
 {
     // Check task's stack
     if (!esp_stack_ptr_is_sane(task->stack_start) ||
-        !esp_core_dump_task_stack_end_is_sane(task->stack_end) ||
-        (task->stack_start >= task->stack_end) ||
-        ((task->stack_end-task->stack_start) > COREDUMP_MAX_TASK_STACK_SIZE)) {
+            !esp_core_dump_task_stack_end_is_sane(task->stack_end) ||
+            (task->stack_start >= task->stack_end) ||
+            ((task->stack_end - task->stack_start) > COREDUMP_MAX_TASK_STACK_SIZE)) {
         // Check if current task stack is corrupted
         ESP_COREDUMP_LOG_PROCESS("Invalid stack (%x...%x)!", task->stack_start, task->stack_end);
         return false;
@@ -262,7 +267,7 @@ uint32_t esp_core_dump_get_stack(core_dump_task_header_t *task,
     *stk_vaddr = stack_addr;
 
     if (stack_addr >= COREDUMP_FAKE_STACK_START &&
-        stack_addr < COREDUMP_FAKE_STACK_LIMIT) {
+            stack_addr < COREDUMP_FAKE_STACK_LIMIT) {
         /* In this case, the stack address pointed by the task is a fake stack
          * generated previously. So it doesn't really point to actual data.
          * Thus, we must provide the address of the fake stack data. */
@@ -306,15 +311,19 @@ bool esp_core_dump_check_task(core_dump_task_header_t *task)
  */
 bool esp_core_dump_mem_seg_is_sane(uint32_t addr, uint32_t sz)
 {
-    //TODO: external SRAM not supported yet
-    return (esp_ptr_in_dram((void *)addr) && esp_ptr_in_dram((void *)(addr+sz-1)))
-        || (esp_ptr_in_rtc_slow((void *)addr) && esp_ptr_in_rtc_slow((void *)(addr+sz-1)))
-        || (esp_ptr_in_rtc_dram_fast((void *)addr) && esp_ptr_in_rtc_dram_fast((void *)(addr+sz-1)))
-        || (esp_ptr_in_iram((void *)addr) && esp_ptr_in_iram((void *)(addr+sz-1)));
+    return (esp_ptr_in_dram((void *)addr) && esp_ptr_in_dram((void *)(addr + sz - 1)))
+           || (esp_ptr_in_rtc_slow((void *)addr) && esp_ptr_in_rtc_slow((void *)(addr + sz - 1)))
+           || (esp_ptr_in_rtc_dram_fast((void *)addr) && esp_ptr_in_rtc_dram_fast((void *)(addr + sz - 1)))
+           || (esp_ptr_external_ram((void *)addr) && esp_ptr_external_ram((void *)(addr + sz - 1)))
+           || (esp_ptr_in_iram((void *)addr) && esp_ptr_in_iram((void *)(addr + sz - 1)))
+#if SOC_MEM_SPM_SUPPORTED
+           || (esp_ptr_in_spm((void *)addr) && esp_ptr_in_spm((void *)(addr + sz - 1)))
+#endif
+           ;
 }
 
 /**
- * Get the task's registers dump when the panic occured.
+ * Get the task's registers dump when the panic occurred.
  * Returns the size, in bytes, of the data pointed by reg_dumps.
  * The data pointed by reg_dump are allocated statically, thus, they must be
  * used (or copied) before calling this function again.
@@ -353,7 +362,8 @@ uint32_t esp_core_dump_get_task_regs_dump(core_dump_task_header_t *task, void **
 /**
  * Save the crashed task handle in the extra info structure.
  */
-void esp_core_dump_port_set_crashed_tcb(uint32_t handle) {
+void esp_core_dump_port_set_crashed_tcb(uint32_t handle)
+{
     s_extra_info.crashed_task_tcb = handle;
 }
 
@@ -375,7 +385,7 @@ uint32_t esp_core_dump_get_extra_info(void **info)
     return size;
 }
 
-#if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH && CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF
+#if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH
 
 void esp_core_dump_summary_parse_extra_info(esp_core_dump_summary_t *summary, void *ei_data)
 {
@@ -399,7 +409,7 @@ void esp_core_dump_summary_parse_exc_regs(esp_core_dump_summary_t *summary, void
     summary->ex_info.ra = stack->ra;
     summary->ex_info.sp = stack->sp;
     ESP_COREDUMP_LOGD("mstatus:0x%x mtvec:0x%x mcause:0x%x mval:0x%x RA: 0x%x SP: 0x%x",
-                       stack->mstatus, stack->mtvec, stack->mcause, stack->mtval, stack->ra, stack->sp);
+                      stack->mstatus, stack->mtvec, stack->mcause, stack->mtval, stack->ra, stack->sp);
     a_reg = &stack->a0;
     for (i = 0; i < 8; i++) {
         summary->ex_info.exc_a[i] = a_reg[i];
@@ -418,7 +428,7 @@ void esp_core_dump_summary_parse_backtrace_info(esp_core_dump_bt_info_t *bt_info
     /* Check whether the stack is a fake stack created during coredump generation
      * If its a fake stack, we don't have any actual stack dump
      */
-    if (vaddr >= (void*) COREDUMP_FAKE_STACK_START && vaddr < (void*) COREDUMP_FAKE_STACK_LIMIT) {
+    if (vaddr >= (void *) COREDUMP_FAKE_STACK_START && vaddr < (void *) COREDUMP_FAKE_STACK_LIMIT) {
         bt_info->dump_size = 0;
         return;
     }
@@ -443,6 +453,89 @@ void esp_core_dump_summary_parse_backtrace_info(esp_core_dump_bt_info_t *bt_info
     bt_info->dump_size = dump_size;
 }
 
-#endif /* #if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH && CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF */
+#endif /* #if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH */
 
+#if CONFIG_ESP_COREDUMP_STACK_SIZE > 0
+
+#if CONFIG_ESP_SYSTEM_HW_STACK_GUARD
+#include "esp_private/hw_stack_guard.h"
 #endif
+
+/**
+ * @brief Define the type that will be used to describe the current context when
+ * doing a backup of the current stack. This same structure is used to restore the stack.
+ */
+typedef struct {
+    uint32_t sp;
+#if CONFIG_ESP_SYSTEM_HW_STACK_GUARD
+    uint32_t sp_min;
+    uint32_t sp_max;
+#endif // CONFIG_ESP_SYSTEM_HW_STACK_GUARD
+} core_dump_stack_context_t;
+
+static core_dump_stack_context_t s_stack_context;
+
+/* Helper functions defined in core_dump_common.c */
+void esp_core_dump_report_backup_stack(uint32_t old_sp);
+void esp_core_dump_report_restore_stack(uint32_t old_sp);
+void esp_core_dump_write_elf_and_check(void);
+void esp_core_dump_report_stack_usage(uint32_t new_sp);
+
+/**
+ * @brief Function setting up the core dump stack.
+ *
+ * @note This function **must** be inlined as it modifies the stack pointer.
+ */
+FORCE_INLINE_ATTR void esp_core_dump_replace_stack(uint32_t new_stack, uint32_t new_sp)
+{
+#if CONFIG_ESP_SYSTEM_HW_STACK_GUARD
+    /* Save the current area we are watching to restore it later */
+    esp_hw_stack_guard_get_bounds(xPortGetCoreID(), &s_stack_context.sp_min, &s_stack_context.sp_max);
+    /* Since the stack is going to change, make sure we disable protection or an exception would be triggered */
+    esp_hw_stack_guard_monitor_stop();
+#endif
+
+    /* Save the current stack pointer and replace it with the core dump stack pointer */
+    asm volatile("mv %0, sp \n\t\
+                   mv sp, %1 \n\t\
+                  "
+                 : "=&r"(s_stack_context.sp)
+                 : "r"(new_sp));
+
+    esp_core_dump_report_backup_stack(s_stack_context.sp);
+
+#if CONFIG_ESP_SYSTEM_HW_STACK_GUARD
+    /* Re-enable the stack guard to check if the stack is big enough for coredump generation  */
+    esp_hw_stack_guard_set_bounds(new_stack, new_sp);
+    esp_hw_stack_guard_monitor_start();
+#endif
+}
+
+FORCE_INLINE_ATTR void esp_core_dump_restore_stack(void)
+{
+    /* Restore the stack pointer. */
+    esp_core_dump_report_restore_stack(s_stack_context.sp);
+
+#if CONFIG_ESP_SYSTEM_HW_STACK_GUARD
+    esp_hw_stack_guard_monitor_stop();
+#endif
+
+    /* Restore the stack pointer to the original value */
+    asm volatile("mv sp, %0 \n\t" :: "r"(s_stack_context.sp));
+
+#if CONFIG_ESP_SYSTEM_HW_STACK_GUARD
+    /* Monitor the same stack area that was set before replacing the stack pointer */
+    esp_hw_stack_guard_set_bounds(s_stack_context.sp_min, s_stack_context.sp_max);
+    esp_hw_stack_guard_monitor_start();
+#endif
+}
+
+void esp_core_dump_port_write(uint32_t new_stack, uint32_t new_sp)
+{
+    esp_core_dump_replace_stack(new_stack, new_sp);
+    esp_core_dump_write_elf_and_check();
+    esp_core_dump_report_stack_usage(new_sp);
+    esp_core_dump_restore_stack();
+}
+
+#endif // CONFIG_ESP_COREDUMP_STACK_SIZE > 0

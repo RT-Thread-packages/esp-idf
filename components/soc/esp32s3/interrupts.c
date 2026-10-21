@@ -1,7 +1,7 @@
 /*
- * SPDX-FileCopyrightText: 2020-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
 #include "soc/interrupts.h"
@@ -80,8 +80,8 @@ const char *const esp_isr_names[ETS_MAX_INTR_SOURCE] = {
     [74] = "DMA_OUT_CH3",
     [75] = "DMA_OUT_CH4",
     [76] = "RSA",
-    [77] = "SHA",
-    [78] = "AES",
+    [77] = "AES",
+    [78] = "SHA",
     [79] = "FROM_CPU_INTR0",
     [80] = "FROM_CPU_INTR1",
     [81] = "FROM_CPU_INTR2",

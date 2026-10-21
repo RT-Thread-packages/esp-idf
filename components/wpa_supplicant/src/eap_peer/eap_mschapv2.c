@@ -87,7 +87,7 @@ eap_mschapv2_deinit(struct eap_sm *sm, void *priv)
 	os_free(data->peer_challenge);
 	os_free(data->auth_challenge);
 	wpabuf_free(data->prev_challenge);
-	os_free(data);
+	bin_clear_free(data, sizeof(*data));
 }
 
 static void *
@@ -140,7 +140,7 @@ eap_mschapv2_challenge_reply(
 	const u8 *identity, *password;
 	int pwhash;
 
-	wpa_printf(MSG_DEBUG, "EAP-MSCHAPV2: Generate Challenge Response\n");
+	wpa_printf(MSG_DEBUG, "EAP-MSCHAPV2: Generate Challenge Response");
 
 	identity = eap_get_config_identity(sm, &identity_len);
 	password = eap_get_config_password2(sm, &password_len, &pwhash);
@@ -285,7 +285,7 @@ eap_mschapv2_password_changed(struct eap_sm *sm,
 			WPA_EVENT_PASSWORD_CHANGED
 			"EAP-MSCHAPV2: Password changed successfully");
 		data->prev_error = 0;
-		os_free(config->password);
+		bin_clear_free(config->password, config->password_len);
 		if (config->flags & EAP_CONFIG_FLAGS_EXT_PASSWORD) {
 			/* TODO: update external storage */
 		} else if (config->flags & EAP_CONFIG_FLAGS_PASSWORD_NTHASH) {
@@ -296,7 +296,8 @@ eap_mschapv2_password_changed(struct eap_sm *sm,
 						 config->new_password_len,
 						 config->password);
 			}
-			os_free(config->new_password);
+			bin_clear_free(config->new_password,
+				       config->new_password_len);
 		} else {
 			config->password = config->new_password;
 			config->password_len = config->new_password_len;
@@ -366,7 +367,7 @@ eap_mschapv2_success(struct eap_sm *sm,
 static int eap_mschapv2_failure_txt(struct eap_sm *sm,
 				    struct eap_mschapv2_data *data, char *txt)
 {
-	char *pos = "";
+	const char *pos = "";
 	int retry = 1;
 	struct eap_peer_config *config = eap_get_config(sm);
 
@@ -671,13 +672,13 @@ static int eap_mschapv2_check_config(struct eap_sm *sm)
 
 	if (config->identity == NULL ||
 	    config->identity_len == 0) {
-		wpa_printf(MSG_ERROR, "EAP-MSCHAPV2: idetity not configured\n");
+		wpa_printf(MSG_ERROR, "EAP-MSCHAPV2: idetity not configured");
 		return -1;
 	}
 
 	if (config->password == NULL ||
 	    config->password_len == 0) {
-		wpa_printf(MSG_ERROR, "EAP-MSCHAPV2: Password not configured\n");
+		wpa_printf(MSG_ERROR, "EAP-MSCHAPV2: Password not configured");
 		return -1;
 	}
 
@@ -704,7 +705,7 @@ static int eap_mschapv2_check_mslen(struct eap_sm *sm, size_t len,
 			   (unsigned long) len);
 		return 0;
 	}
-	wpa_printf(MSG_ERROR, "EAP-MSCHAPV2: Invalid header len=%lu ms_len=%lu\n",
+	wpa_printf(MSG_ERROR, "EAP-MSCHAPV2: Invalid header len=%lu ms_len=%lu",
 		  (unsigned long)len, (unsigned long)ms_len);
 
 	return -1;
@@ -786,7 +787,7 @@ static struct wpabuf * eap_mschapv2_process(struct eap_sm *sm, void *priv,
 	case MSCHAPV2_OP_FAILURE:
 		return eap_mschapv2_failure(sm, data, ret, ms, len, id);
 	default:
-		wpa_printf(MSG_ERROR, "EAP-MSCHAPV2: Unknown op code %d - ignored\n",
+		wpa_printf(MSG_ERROR, "EAP-MSCHAPV2: Unknown op code %d - ignored",
 			  ms->op_code);
 		ret->ignore = TRUE;
 		return NULL;

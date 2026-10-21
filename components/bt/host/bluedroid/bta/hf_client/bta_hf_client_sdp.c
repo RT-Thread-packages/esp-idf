@@ -114,7 +114,7 @@ BOOLEAN bta_hf_client_add_record(char *p_service_name, UINT8 scn,
 
     /* add profile descriptor list */
     profile_uuid = UUID_SERVCLASS_HF_HANDSFREE;
-    version = HFP_VERSION_1_7;
+    version = HFP_VERSION_1_8;
 
     result &= SDP_AddProfileDescriptorList(sdp_handle, profile_uuid, version);
 
@@ -204,7 +204,10 @@ void bta_hf_client_del_record(tBTA_HF_CLIENT_DATA *p_data)
     if (bta_hf_client_cb.sdp_handle != 0) {
         SDP_DeleteRecord(bta_hf_client_cb.sdp_handle);
         bta_hf_client_cb.sdp_handle = 0;
-        BTM_FreeSCN(bta_hf_client_cb.scn);
+        if (bta_hf_client_cb.scn != 0) {
+            BTM_FreeSCN(bta_hf_client_cb.scn);
+            bta_hf_client_cb.scn = 0;
+        }
         BTM_SecClrService(BTM_SEC_SERVICE_HF_HANDSFREE);
         bta_sys_remove_uuid(UUID_SERVCLASS_HF_HANDSFREE);
     }

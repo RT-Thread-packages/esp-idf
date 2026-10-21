@@ -1,7 +1,7 @@
 /*
- * SPDX-FileCopyrightText: 2020-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
 #pragma once
@@ -39,7 +39,16 @@ typedef union {
 #define I_D_SRAM_SEGMENT_SIZE       0x10000
 #define I_D_SPLIT_LINE_ALIGN        0x100
 #define I_D_SPLIT_LINE_SHIFT        0x8
-#define I_D_FAULT_ADDR_SHIFT        0x2
+#define I_FAULT_ADDR_SHIFT          0x2
+#define D_FAULT_ADDR_SHIFT          0x4
+
+#define IRAM0_VIOLATE_STATUS_ADDR_OFFSET  0x40000000
+#define DRAM0_VIOLATE_STATUS_ADDR_OFFSET  0x3C000000
+
+//Icache
+#define SENSITIVE_CORE_X_ICACHE_PMS_CONSTRAIN_SRAM_WORLD_X_R  0x1
+#define SENSITIVE_CORE_X_ICACHE_PMS_CONSTRAIN_SRAM_WORLD_X_W  0x2
+#define SENSITIVE_CORE_X_ICACHE_PMS_CONSTRAIN_SRAM_WORLD_X_F  0x4
 
 //IRAM0
 #define SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_SRAM_WORLD_X_R  0x1

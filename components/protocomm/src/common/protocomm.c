@@ -1,11 +1,12 @@
 /*
- * SPDX-FileCopyrightText: 2018-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include <esp_err.h>
 #include <esp_log.h>
@@ -149,7 +150,7 @@ esp_err_t protocomm_open_session(protocomm_t *pc, uint32_t session_id)
     if (pc->sec && pc->sec->new_transport_session) {
         esp_err_t ret = pc->sec->new_transport_session(pc->sec_inst, session_id);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to launch new session with ID: %d", session_id);
+            ESP_LOGE(TAG, "Failed to launch new session with ID: %" PRId32, session_id);
             return ret;
         }
     }
@@ -165,7 +166,7 @@ esp_err_t protocomm_close_session(protocomm_t *pc, uint32_t session_id)
     if (pc->sec && pc->sec->close_transport_session) {
         esp_err_t ret = pc->sec->close_transport_session(pc->sec_inst, session_id);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Error while closing session with ID: %d", session_id);
+            ESP_LOGE(TAG, "Error while closing session with ID: %" PRId32, session_id);
             return ret;
         }
     }
@@ -424,4 +425,16 @@ esp_err_t protocomm_unset_version(protocomm_t *pc, const char *ep_name)
     }
 
     return protocomm_remove_endpoint(pc, ep_name);
+}
+
+esp_err_t protocomm_get_sec_version(protocomm_t *pc, int *sec_ver, uint8_t *sec_patch_ver)
+{
+    if (pc == NULL || sec_ver == NULL || sec_patch_ver == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *sec_ver = pc->sec->ver;
+    *sec_patch_ver = pc->sec->patch_ver;
+
+    return ESP_OK;
 }

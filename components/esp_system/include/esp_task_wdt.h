@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2023 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,7 +20,7 @@ extern "C" {
  */
 typedef struct {
     uint32_t timeout_ms;        /**< TWDT timeout duration in milliseconds */
-    uint32_t idle_core_mask;    /**< Mask of the cores who's idle task should be subscribed on initialization */
+    uint32_t idle_core_mask;    /**< Bitmask of the core whose idle task should be subscribed on initialization where 1 << i means that core i's idle task will be monitored by the TWDT */
     bool trigger_panic;         /**< Trigger panic when timeout occurs */
 } esp_task_wdt_config_t;
 
@@ -32,17 +32,35 @@ typedef struct esp_task_wdt_user_handle_s * esp_task_wdt_user_handle_t;
 /**
  * @brief  Initialize the Task Watchdog Timer (TWDT)
  *
- * This function configures and initializes the TWDT. If the TWDT is already initialized when this function is called,
- * this function will update the TWDT's current configuration. This funciton will also subscribe the idle tasks if
+ * This function configures and initializes the TWDT. This function will subscribe the idle tasks if
  * configured to do so. For other tasks, users can subscribe them using esp_task_wdt_add() or esp_task_wdt_add_user().
+ * This function won't start the timer if no task have been registered yet.
  *
- * @note esp_task_wdt_init() must only be called after the scheduler is started
+ * @note esp_task_wdt_init() must only be called after the scheduler is started. Moreover, it must not be called by
+ *       multiple tasks simultaneously.
  * @param[in] config Configuration structure
  * @return
  *  - ESP_OK: Initialization was successful
+ *  - ESP_ERR_INVALID_STATE: Already initialized
  *  - Other: Failed to initialize TWDT
  */
 esp_err_t esp_task_wdt_init(const esp_task_wdt_config_t *config);
+
+/**
+ * @brief Reconfigure the Task Watchdog Timer (TWDT)
+ *
+ * The function reconfigures the running TWDT. It must already be initialized when this function is called.
+ *
+ * @note esp_task_wdt_reconfigure() must not be called by multiple tasks simultaneously.
+ *
+ * @param[in] config Configuration structure
+ *
+ * @return
+ *  - ESP_OK: Reconfiguring was successful
+ *  - ESP_ERR_INVALID_STATE: TWDT not initialized yet
+ *  - Other: Failed to initialize TWDT
+ */
+esp_err_t esp_task_wdt_reconfigure(const esp_task_wdt_config_t *config);
 
 /**
  * @brief   Deinitialize the Task Watchdog Timer (TWDT)
@@ -51,6 +69,7 @@ esp_err_t esp_task_wdt_init(const esp_task_wdt_config_t *config);
  * are still subscribed to the TWDT, or when the TWDT is already deinitialized, will result in an error code being
  * returned.
  *
+ * @note esp_task_wdt_deinit() must not be called by multiple tasks simultaneously.
  * @return
  *  - ESP_OK: TWDT successfully deinitialized
  *  - Other: Failed to deinitialize TWDT
@@ -149,6 +168,41 @@ esp_err_t esp_task_wdt_delete_user(esp_task_wdt_user_handle_t user_handle);
  *  - ESP_ERR_INVALID_STATE: TWDT was never initialized
  */
 esp_err_t esp_task_wdt_status(TaskHandle_t task_handle);
+
+/**
+ * @brief User ISR callback placeholder
+ *
+ * This function is called by task_wdt_isr function (ISR for when TWDT times out). It can be defined in user code to
+ * handle TWDT events.
+ *
+ * @note It has the same limitations as the interrupt function. Do not use ESP_LOGx functions inside.
+ */
+void __attribute__((weak)) esp_task_wdt_isr_user_handler(void);
+
+typedef void (*task_wdt_msg_handler)(void *opaque, const char *msg);
+
+/**
+ * @brief Prints or retrieves information about tasks/users that triggered the Task Watchdog Timeout.
+ *
+ * This function provides various operations to handle tasks/users that did not reset the Task Watchdog in time.
+ * It can print detailed information about these tasks/users, such as their names, associated CPUs, and whether they have been reset.
+ * Additionally, it can retrieve the total length of the printed information or the CPU affinity of the failing tasks.
+ *
+ * @param[in]  msg_handler Optional message handler function that will be called for each printed line.
+ * @param[in]  opaque      Optional pointer to opaque data that will be passed to the message handler function.
+ * @param[out] cpus_fail   Optional pointer to an integer where the CPU affinity of the failing tasks will be stored.
+ *
+ * @return
+ *     - ESP_OK: The function executed successfully.
+ *     - ESP_FAIL: No triggered tasks were found, and thus no information was printed or retrieved.
+ *
+ * @note
+ *     - If `msg_handler` is not provided, the information will be printed to console using ESP_EARLY_LOGE.
+ *     - If `msg_handler` is provided, the function will send the printed information to the provided message handler function.
+ *     - If `cpus_fail` is provided, the function will store the CPU affinity of the failing tasks in the provided integer.
+ *     - During the execution of this function, logging is allowed in critical sections, as TWDT timeouts are considered fatal errors.
+ */
+esp_err_t esp_task_wdt_print_triggered_tasks(task_wdt_msg_handler msg_handler, void *opaque, int *cpus_fail);
 
 #ifdef __cplusplus
 }

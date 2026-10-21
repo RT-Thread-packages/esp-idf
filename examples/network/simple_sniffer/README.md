@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 | ESP32-C3 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-S2 | ESP32-S3 | ESP32-S31 |
+| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | -------- | --------- |
 
 # Simple Sniffer Example
 
@@ -17,7 +17,10 @@ This example is based on console component. For more information about console, 
 
 ### Hardware Required
 
-To run this example with WiFi interface, you should have one ESP32 dev board integrated with a SD card slot (e.g. [ESP-WROVER-KIT](https://docs.espressif.com/projects/esp-idf/en/latest/hw-reference/modules-and-boards.html#esp-wrover-kit-v4-1)) or just connect [ESP32-DevKitC](https://docs.espressif.com/projects/esp-idf/en/latest/hw-reference/modules-and-boards.html#esp32-devkitc-v4) to a SD card breakout board. To run this example with Ethernet interface option, you should have one ESP32 dev board with physical layer Ethernet support (e.g. [ESP32-Ethernet-Kit](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/esp32/get-started-ethernet-kit.html#)) or connect SPI-Ethernet module (e.g. DM9051) to your dev board.
+To run this example with the WiFi interface, use an ESP32 development board with an integrated SD card slot (for example, [ESP-WROVER-KIT](https://docs.espressif.com/projects/esp-idf/en/v4.4/esp32/hw-reference/esp32/get-started-wrover-kit.html)), or connect an SD card breakout board to your dev kit. Verify that the default SD pins are available on your board; if not, update the pin assignments in the project configuration.
+
+To run this example with the Ethernet interface, use an ESP32 development board with a physical layer Ethernet (PHY) interface (for example, [ESP32-Ethernet-Kit](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/esp32/get-started-ethernet-kit.html#)), or connect an SPI-Ethernet module (for example, DM9051) to your board.
+
 If you want to send packets to host, make sure to connect ESP32 to some kind of [JTAG adapter](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/jtag-debugging/index.html#jtag-debugging-selecting-jtag-adapter).
 
 #### Ethernet Pin Assignment
@@ -26,7 +29,7 @@ See common pin assignments for Ethernet from [ethernet examples folder](../../et
 
 ### Configure the project
 
-Open the project configuration menu (`idf.py menuconfig`). Then go into `Example Configuration` menu.
+Open the project configuration menu (`idf.py menuconfig`). Then go into `Example Configuration` in top menu.
 
 - Check `Store command history in flash` if you want to save command history into flash (recommend).
 - Select where to save the pcap file in `Select destination to store pcap file` menu item.
@@ -38,10 +41,8 @@ Open the project configuration menu (`idf.py menuconfig`). Then go into `Example
 - Set the length of sniffer work queue in `Length of sniffer work queue` menu item.
 - Set the stack size of the sniffer task in `Stack size of sniffer task` menu item.
 - Set the priority of the sniffer task in `Length of sniffer work queue` menu item.
-- Select Ethernet Type
-  - `No Ethernet` means your board does not have Ethernet.
-  - `Internal EMAC` means ESP32 EMAC is used in conjunction with with selected PHY.
-  - `DM9051 Module`, `W5500 Module` or `KSZ8851SNL Module` means that SPI-Ethernet module is used with its own EMAC and PHY.
+
+To configure Ethernet device(s), go to `Example Ethernet Configuration` in top menu.
   - For more information related to Ethernet configurations see common configuration of Ethernet from [ethernet examples folder](../../ethernet/README.md#common-configurations).
 
 ### Build and Flash
@@ -316,8 +317,8 @@ I (130566) cmd_pcap: .pcap file close done
 
 ## Troubleshooting
 
-- Make sure you have pluged in your SD card and mount it into filesystem before doing sniffer work or you will get error message like “Create file /sdcard/sniffer0.pcap failed”.
-- To protect the SD card, we recommand you to execute command `unmount sd` before you plug out your SD card.
+- Make sure you have plugged in your SD card and mount it into filesystem before doing sniffer work or you will get error message like “Create file /sdcard/sniffer0.pcap failed”.
+- To protect the SD card, we recommend you to execute command `unmount sd` before you plug out your SD card.
 - Make sure to run `esp32 apptrace` command before or immediately after a new sniffer task started when you try this example with JTAG. Otherwise the console will issue warning message `waiting for apptrace established` every 1 second. If the apptrace communication doesn't be established within 10 seconds (can be altered by macro `SNIFFER_APPTRACE_RETRY`), this sniffer command will failed with an error message `waiting for apptrace established timeout`.
 
 (For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you as soon as possible.)

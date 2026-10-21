@@ -121,7 +121,7 @@ struct wps_config {
 	/**
 	 * pin - Enrollee Device Password (%NULL for Registrar or PBC)
 	 */
-	const u8 pin[9];
+	u8 pin[9];
 
 	/**
 	 * pin_len - Length on pin in octets
@@ -521,7 +521,9 @@ enum wps_event {
 	/**
 	 * WPS_EV_AP_PIN_SUCCESS - External Registrar used correct AP PIN
 	 */
-	WPS_EV_AP_PIN_SUCCESS
+	WPS_EV_AP_PIN_SUCCESS,
+
+	WPS_EV_SELECTED_REGISTRAR_TIMEOUT,
 };
 
 /**
@@ -868,6 +870,9 @@ void wps_registrar_complete(struct wps_registrar *registrar, const u8 *uuid_e,
 void wps_registrar_probe_req_rx(struct wps_registrar *reg, const u8 *addr,
 				const struct wpabuf *wps_data,
 				int p2p_wildcard);
+#ifdef ESP_SUPPLICANT
+bool esp_wps_registrar_check_pbc_overlap(struct wps_context *wps);
+#endif /* ESP_SUPPLICANT */
 int wps_registrar_update_ie(struct wps_registrar *reg);
 int wps_registrar_get_info(struct wps_registrar *reg, const u8 *addr,
 			   char *buf, size_t buflen);

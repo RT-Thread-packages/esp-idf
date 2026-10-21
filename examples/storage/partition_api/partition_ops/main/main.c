@@ -43,9 +43,9 @@ void app_main(void)
     assert(memcmp(store_data, read_data, sizeof(read_data)) == 0);
     ESP_LOGI(TAG, "Read data: %s", read_data);
 
-    // Erase the area where the data was written. Erase size shoud be a multiple of SPI_FLASH_SEC_SIZE
+    // Erase the area where the data was written. Erase size should be a multiple of SPI_FLASH_SEC_SIZE
     // and also be SPI_FLASH_SEC_SIZE aligned
-    ESP_ERROR_CHECK(esp_partition_erase_range(partition, 0, SPI_FLASH_SEC_SIZE));
+    ESP_ERROR_CHECK(esp_partition_erase_range(partition, 0, partition->erase_size));
 
     // Read back the data (should all now be 0xFF's)
     memset(store_data, 0xFF, sizeof(read_data));
@@ -53,6 +53,16 @@ void app_main(void)
     assert(memcmp(store_data, read_data, sizeof(read_data)) == 0);
 
     ESP_LOGI(TAG, "Erased data");
+
+    // Find the custom partition in the partition table
+    partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "custom_partition");
+    assert(partition != NULL);
+
+    memset(read_data, 0, sizeof(read_data));
+    // Read the data and check if it matches the expected content (first 12 bytes should be "abcdef123456", rest should be 0x00's)
+    ESP_ERROR_CHECK(esp_partition_read(partition, 0, read_data, sizeof(read_data)));
+    assert(memcmp("abcdef123456", read_data, 12) == 0);
+    ESP_LOGI(TAG, "Read data from custom partition: %s", read_data);
 
     ESP_LOGI(TAG, "Example end");
 }

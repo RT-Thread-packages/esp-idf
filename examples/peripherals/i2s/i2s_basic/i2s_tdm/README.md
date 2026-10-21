@@ -1,5 +1,5 @@
-| Supported Targets | ESP32-C3 | ESP32-S3 |
-| ----------------- | -------- | -------- |
+| Supported Targets | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-P4 | ESP32-S3 | ESP32-S31 |
+| ----------------- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | -------- | --------- |
 
 # I2S Basic TDM Mode Example
 
@@ -11,7 +11,7 @@ This example is going to show how to use the TDM mode in simplex mode or full-du
 
 ### Hardware Required
 
-* A development board with any one of ESP32-C3 or ESP32-S3 SoC
+* A development board with any supported Espressif SOC chip (see `Supported Targets` table above)
 * A USB cable for power supply and programming
 
 ### Configure the Project

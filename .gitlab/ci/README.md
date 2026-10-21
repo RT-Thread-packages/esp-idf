@@ -21,11 +21,9 @@
       - [Shell Script Related](#shell-script-related)
   - [Manifest File to Control the Build/Test apps](#manifest-file-to-control-the-buildtest-apps)
     - [Grammar](#grammar)
-      - [Operands](#operands)
-      - [Operators](#operators)
-      - [Limitation:](#limitation)
-    - [How does it work?](#how-does-it-work)
-    - [Example](#example)
+    - [Special Rules](#special-rules)
+  - [Upload/Download Artifacts to Internal Minio Server](#uploaddownload-artifacts-to-internal-minio-server)
+  - [Revision Marker Naming Rules](#revision-marker-naming-rules)
 
 ## General Workflow
 
@@ -52,7 +50,7 @@
 - `custom_test[_esp32/esp32s2/...]`
 - `docker`
 - `docs`
-- `docs_fast`, triggers a fast docs build, not a full build which is the CI default. This skips PDF build as well as doxygen APIs, reducing the build time by 90+%.
+- `docs_full`, triggers a full docs build, regardless of files changed
 - `example_test[_esp32/esp32s2/...]`
 - `fuzzer_test`
 - `host_test`
@@ -62,13 +60,11 @@
 - `macos_test`
 - `nvs_coverage`
 - `submodule`
-- `unit_test[_esp32/esp32s2/...]`
-- `weekend_test`
 - `windows`
 
 There are two general labels (not recommended since these two labels will trigger a lot of jobs)
 
-- `target_test`: includes all target for `example_test`, `custom_test`, `component_ut`, `unit_test`, `integration_test`
+- `target_test`: includes all target for `example_test`, `custom_test`, `component_ut`, `integration_test`
 - `all_test`: includes all test labels
 
 ### How to trigger a `detached` pipeline without pushing new commits?
@@ -144,10 +140,11 @@ check if there's a suitable `.if-<if-anchor-you-need>` anchor
 1. if there is, create a rule following [`rules` Template Naming Rules](#rules-template-naming-rules).For detail information, please refer to [GitLab Documentation `rules-if`](https://docs.gitlab.com/ee/ci/yaml/README.html#rulesif). Here's an example.
 
     ```yaml
-    .rules:dev:
+    .rules:patterns:clang_tidy:
       rules:
-        - <<: *if-trigger
+        - <<: *if-protected
         - <<: *if-dev-push
+          changes: *patterns-c-files
     ```
 
 2. if there isn't
@@ -196,7 +193,7 @@ if a name has multi phrases, use `-` to concatenate them.
 
     - `target_test`
 
-      a combination of `example_test`, `custom_test`, `unit_test`, `component_ut`, `integration_test` and all targets
+      a combination of `example_test`, `custom_test`, `component_ut`, `integration_test` and all targets
 
 #### `rules` Template Naming Rules
 
@@ -238,86 +235,27 @@ To run these commands in shell script locally, place `source tools/ci/utils.sh` 
 
 ### Grammar
 
-#### Operands
+We're using the latest version of [idf-build-apps][idf-build-apps]. Please refer to their [documentation][manifest-doc]
 
-- Variables start with `SOC_`. The value would be parsed from components/soc/[TARGET]/include/soc/*_caps.h
-- `IDF_TARGET`
-- `INCLUDE_DEFAULT` (The default value of officially supported targets is 1, otherwise is 0)
-- String, must be double-quoted. e.g. `"esp32"`, `"12345"`
-- Integer, support decimal and hex. e.g. `1`, `0xAB`
-- List with String and Integer inside, the type could be mixed. e.g. `["esp32", 1]`
+[idf-build-apps]: https://github.com/espressif/idf-build-apps
+[manifest-doc]: https://docs.espressif.com/projects/idf-build-apps/en/latest/manifest.html
 
-#### Operators
+### Special Rules
 
-- `==`, `!=`, `>`, `>=`, `<`, `<=`
-- `and`, `or`
-- `in`, `not in` with list
-- parentheses
+In ESP-IDF CI, there's a few more special rules are additionally supported to disable the check app dependencies feature:
 
-#### Limitation:
+- Add MR labels `BUILD_AND_TEST_ALL_APPS`
+- Pipeline variable `IDF_CI_SELECT_ALL_PYTEST_CASES=1`
+- Run in protected branches
 
-- all operators are binary operator. For more than two operands, you may use nested parentheses trick. For example,
-  - `A == 1 or (B == 2 and C in [1,2,3])`
-  - `(A == 1 and B == 2) or (C not in ["3", "4", 5])`
+## Upload/Download Artifacts to Internal Minio Server
 
-### How does it work?
+Please refer to the documentation [here](https://docs.espressif.com/projects/idf-ci/en/latest/guides/cli.html)
 
-By default, we enable build and test jobs for supported targets. In other words, if an app supports all supported targets, it does not need to be added in a manifest file. The manifest files are files that set the violation rules for apps.
+## Revision Marker Naming Rules
 
-three rules (disable rules are calculated after the `enable` rule):
-- enable: run CI build/test jobs for targets that match any of the specified conditions only
-- disable: will not run CI build/test jobs for targets that match any of the specified conditions
-- disable_test: will not run CI test jobs for targets that match any of the specified conditions
+When specifying chip revisions for testing markers, configurations or filenames, strictly follow the format `esp32<series>_rev<number>` (or similarly `<series>_rev<number>` when brief).
 
-Each key is a test folder. Will apply to all folders inside.
+> e.g., `esp32_rev3`, `esp32c2_rev2`, `esp32c3_rev1`, `esp32p4_rev1`, `esp32c5_rev1`
 
-If one sub folder is in a special case, you can overwrite the rules for this folder by adding another entry for this folder itself. Each folder's rules are standalone, and will not inherit its parent's rules. (YAML inheritance is too complicated for reading)
-
-For example in the following codeblock, only `disable` rule exists in `examples/foo/bar`. It's unaware of its parent's `enable` rule. 
-
-```yaml
-examples/foo:
-  enable:
-    - if: IDF_TARGET == "esp32"
-
-examples/foo/bar:
-  disable:
-    - if: IDF_TARGET == "esp32s2"
-```
-
-### Example
-
-```yaml
-examples/foo:
-  enable:
-    - if IDF_TARGET in ["esp32", 1, 2, 3]
-    - if IDF_TARGET not in ["4", "5", 6]
-  # should be run under all targets!
-
-examples/bluetooth:
-  disable:  # disable both build and tests jobs
-    - if: SOC_BT_SUPPORTED != 1
-    # reason is optional if there's no `temporary: true`
-  disable_test:
-    - if: IDF_TARGET == "esp32"
-      temporary: true
-      reason: lack of ci runners  # required when `temporary: true`
-
-examples/bluetooth/test_foo:
-  # each folder's settings are standalone
-  disable:
-    - if: IDF_TARGET == "esp32s2"
-      temporary: true
-      reason: no idea
-  # unlike examples/bluetooth, the apps under this folder would not be build nor test for "no idea" under target esp32s2
-
-examples/get-started/hello_world:
-  enable:
-    - if: IDF_TARGET == "linux"
-      reason: this one only supports linux!
-
-examples/get-started/blink:
-  enable:
-    - if: INCLUDE_DEFAULT == 1 or IDF_TARGET == "linux"
-      reason: This one supports all supported targets and linux
-```
+This convention replaces the legacy `eco` naming format (e.g., `esp32c2eco4`).

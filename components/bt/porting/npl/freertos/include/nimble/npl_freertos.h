@@ -12,6 +12,24 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "sdkconfig.h"
+
+#if ((defined(CONFIG_BT_NIMBLE_USE_ESP_TIMER) && CONFIG_BT_NIMBLE_USE_ESP_TIMER) || \
+     (defined(CONFIG_BT_LE_USE_ESP_TIMER) && CONFIG_BT_LE_USE_ESP_TIMER))
+/* Use esp timer instead of FreeRTOS timer to implement the callout. */
+#define BLE_NPL_USE_ESP_TIMER       (1)
+#else
+/* Always use esp timer */
+#define BLE_NPL_USE_ESP_TIMER       (1)
+#endif
+
+typedef struct {
+    uint16_t evt_count;
+    uint16_t evtq_count;
+    uint16_t co_count;
+    uint16_t sem_count;
+    uint16_t mutex_count;
+} ble_npl_count_info_t;
 
 typedef void ble_npl_event_fn(struct ble_npl_event *ev);
 
@@ -26,7 +44,7 @@ struct ble_npl_eventq_freertos {
 };
 
 struct ble_npl_callout_freertos {
-#if CONFIG_BT_NIMBLE_USE_ESP_TIMER
+#if BLE_NPL_USE_ESP_TIMER
    esp_timer_handle_t handle;
 #else
     TimerHandle_t handle;
@@ -72,7 +90,7 @@ ble_npl_error_t npl_freertos_sem_pend(struct ble_npl_sem *sem,
 
 ble_npl_error_t npl_freertos_sem_release(struct ble_npl_sem *sem);
 
-void npl_freertos_callout_init(struct ble_npl_callout *co,
+int npl_freertos_callout_init(struct ble_npl_callout *co,
                                struct ble_npl_eventq *evq,
                                ble_npl_event_fn *ev_cb, void *ev_arg);
 

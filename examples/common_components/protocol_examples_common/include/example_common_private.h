@@ -1,9 +1,9 @@
 /*
- * SPDX-FileCopyrightText: 2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2023 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
-/*  Private Funtions of protocol example common */
+/*  Private Functions of protocol example common */
 
 #pragma once
 
@@ -14,13 +14,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#if CONFIG_EXAMPLE_CONNECT_IPV6
-#define NR_OF_IP_ADDRESSES_TO_WAIT_FOR (2)
-#else
-#define NR_OF_IP_ADDRESSES_TO_WAIT_FOR (1)
-#endif
-
 
 #if CONFIG_EXAMPLE_CONNECT_IPV6
 #define MAX_IP6_ADDRS_PER_NETIF (5)
@@ -52,6 +45,11 @@ void example_wifi_shutdown(void);
 esp_err_t example_wifi_connect(void);
 void example_ethernet_shutdown(void);
 esp_err_t example_ethernet_connect(void);
+void example_thread_shutdown(void);
+esp_err_t example_thread_connect(void);
+esp_err_t example_ppp_connect(void);
+void example_ppp_start(void);
+void example_ppp_shutdown(void);
 
 
 

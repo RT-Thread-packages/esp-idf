@@ -2,10 +2,31 @@
 # All the relative URL paths are intended to be GitHub ones
 # For Espressif's public projects please use '../../espressif/proj', not a '../proj'
 #
+# Submodules SBOM information
+# ---------------------------
+# Submodules, which are used directly and not forked into espressif namespace should
+# contain SBOM information here. Other submodules should have the SBOM manifest file
+# included in the root of their project's repository.
+#
+# The sbom-hash entry records the submodule's checkout SHA as presented in git-tree
+# commit object. For example spiffs submodule
+#
+# $ git ls-tree HEAD components/spiffs/spiffs
+# 160000 commit 0dbb3f71c5f6fae3747a9d935372773762baf852	components/spiffs/spiffs
+#
+# The hash can be also obtained with git submodule command
+#
+# $ git submodule status components/spiffs/spiffs
+# 0dbb3f71c5f6fae3747a9d935372773762baf852 components/spiffs/spiffs (0.2-255-g0dbb3f71c5f6)
+#
+# The submodule SHA recorded here has to match with SHA, which is presented in git-tree.
+# This is checked by CI. Also please don't forget to update the submodule version
+# if you are changing the sbom-hash. This is important for SBOM generation.
 
 [submodule "components/bt/controller/lib_esp32"]
 	path = components/bt/controller/lib_esp32
 	url = ../../espressif/esp32-bt-lib.git
+	shallow = true
 
 [submodule "components/mbedtls/mbedtls"]
 	path = components/mbedtls/mbedtls
@@ -22,15 +43,53 @@
 [submodule "components/esp_wifi/lib"]
 	path = components/esp_wifi/lib
 	url = ../../espressif/esp32-wifi-lib.git
+	shallow = true
 
 [submodule "components/bt/controller/lib_esp32c3_family"]
 	path = components/bt/controller/lib_esp32c3_family
 	url = ../../espressif/esp32c3-bt-lib.git
+	shallow = true
 
 [submodule "components/esp_phy/lib"]
 	path = components/esp_phy/lib
 	url = ../../espressif/esp-phy-lib.git
+	shallow = true
+
+[submodule "components/bt/controller/lib_esp32h4/esp32h4-bt-lib"]
+	path = components/bt/controller/lib_esp32h4/esp32h4-bt-lib
+	url = ../../espressif/esp32h4-bt-lib.git
+	shallow = true
+
+[submodule "components/bt/controller/lib_esp32c6/esp32c6-bt-lib"]
+	path = components/bt/controller/lib_esp32c6/esp32c6-bt-lib
+	url = ../../espressif/esp32c6-bt-lib.git
+	shallow = true
+
+[submodule "components/bt/controller/lib_esp32c5/esp32c5-bt-lib"]
+	path = components/bt/controller/lib_esp32c5/esp32c5-bt-lib
+	url = ../../espressif/esp32c5-bt-lib.git
+	shallow = true
 
 [submodule "components/heap/tlsf"]
 	path = components/heap/tlsf
 	url = ../../espressif/tlsf.git
+
+[submodule "components/esp_coex/lib"]
+	path = components/esp_coex/lib
+	url = ../../espressif/esp-coex-lib.git
+	shallow = true
+
+[submodule "components/bt/esp_ble_mesh/lib/lib"]
+	path = components/bt/esp_ble_mesh/lib/lib
+	url = ../../espressif/esp-ble-mesh-lib.git
+	shallow = true
+
+[submodule "components/bt/esp_ble_audio/lib/lib"]
+	path = components/bt/esp_ble_audio/lib/lib
+	url = ../../espressif/esp-ble-audio-lib.git
+	shallow = true
+
+[submodule "components/bt/controller/lib_esp32s31/esp32s31-bt-lib"]
+	path = components/bt/controller/lib_esp32s31/esp32s31-bt-lib
+	url = ../../espressif/esp32s31-bt-lib.git
+	shallow = true

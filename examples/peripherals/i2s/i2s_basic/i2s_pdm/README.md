@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 | ESP32-C3 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-P4 | ESP32-S3 | ESP32-S31 |
+| ----------------- | ----- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | -------- | --------- |
 
 # I2S Basic PDM Mode Example
 
@@ -13,12 +13,12 @@ This example is going to show how to use the PDM TX and RX mode.
 
 #### General
 
-* A development board with any one of ESP32, ESP32-C3 or ESP32-S3 SoC
+* A development board with any supported Espressif SOC chip (see `Supported Targets` table above)
 * A USB cable for power supply and programming
 
 #### PDM RX
 
-* A PDM microphone whose `sel` pin is supposed to be pulled down, and connecting its `clk` pin to `EXAMPLE_PDM_RX_CLK_IO`, `data` pin to `EXAMPLE_PDM_RX_DIN_IO`.
+* For non-ESP32-S3 SoC, a PDM microphone whose `sel` pin is supposed to be pulled down, and connecting its `clk` pin to `EXAMPLE_PDM_RX_CLK_IO`, `data` pin to `EXAMPLE_PDM_RX_DIN_IO`.
 
 ```
 ┌───────────────────────┐               ┌──────────────────┐
@@ -36,12 +36,72 @@ This example is going to show how to use the PDM TX and RX mode.
 └───────────────────────┘               └──────────────────┘
 ```
 
+* For ESP32-S3 SoC, this example shows how to support 8 PDM microphones, in this case, the connection can be:
+
+```
+┌──────────────────┐                        ┌─────────────────────────┐                        ┌──────────────────┐
+│  PDM microphone3 │                        │            ESP          │                        │  PDM microphone1 │
+│                  │      PDM clock         │                         │          PDM clock     │                  │
+│             CLK  │◄───┬───────────────────┤  EXAMPLE_PDM_RX_CLK_IO  ├───────────────────┬───►│ CLK              │
+│                  │    │                   │                         │                   │    │                  │
+│             DATA ├────┼────┐              │  EXAMPLE_PDM_RX_DIN_IO  │◄─────────────┬────┼────┤ DATA             │
+│                  │    │    │              │                         │              │    │    │                  │
+│             SEL  ├────┼────┼─────────┐    │                         │    ┌─────────┼────┼────┤ SEL              │
+│                  │    │    │         │    │                         │    │         │    │    │                  │
+│             GND  ├────┼────┼────┐    │    │                         │    │    ┌────┼────┼────┤ GND              │
+│                  │    │    │    │    │    │                         │    │    │    │    │    │                  │
+│             VCC  ├────┼────┼────┼────┤    │                         │    ├────┼────┼────┼────┤ VCC              │
+└──────────────────┘    │    │    │    │    │                         │    │    │    │    │    └──────────────────┘
+                        │    │    │    │    │                         │    │    │    │    │
+┌──────────────────┐    │    │    │    │    │                         │    │    │    │    │    ┌──────────────────┐
+│  PDM microphone4 │    │    │    │    │    │                         │    │    │    │    │    │  PDM microphone2 │
+│                  │    │    │    │    │    │                         │    │    │    │    │    │                  │
+│             CLK  │◄───┤    │    │    │    │                         │    │    │    │    ├───►│ CLK              │
+│                  │    │    │    │    │    │                         │    │    │    │    │    │                  │
+│             DATA ├────┼────┴────┼────┼───►│ EXAMPLE_PDM_RX_DIN1_IO  │    │    │    └────┼────┤ DATA             │
+│                  │    │         │    │    │                         │    │    │         │    │                  │
+│             SEL  ├────┼─────────┤    │    │                         │    │    ├─────────┼────┤ SEL              │
+│                  │    │         │    │    │                         │    │    │         │    │                  │
+│             GND  ├────┼─────────┤    │    │                         │    │    ├─────────┼────┤ GND              │
+│                  │    │         │    │    │                         │    │    │         │    │                  │
+│             VCC  ├────┼─────────┼────┤    │                         │    ├────┼─────────┼────┤ VCC              │
+└──────────────────┘    │         │    │    │                         │    │    │         │    └──────────────────┘
+                        │         │    │    │                         │    │    │         │
+┌──────────────────┐    │         │    │    │                         │    │    │         │    ┌──────────────────┐
+│  PDM microphone7 │    │         │    │    │                         │    │    │         │    │  PDM microphone5 │
+│                  │    │         │    │    │                         │    │    │         │    │                  │
+│             CLK  │◄───┤         │    │    │                         │    │    │         ├───►│ CLK              │
+│                  │    │         │    │    │                         │    │    │         │    │                  │
+│             DATA ├────┼────┐    │    │    │ EXAMPLE_PDM_RX_DIN2_IO  │◄───┼────┼────┬────┼────┤ DATA             │
+│                  │    │    │    │    │    │                         │    │    │    │    │    │                  │
+│             SEL  ├────┼────┼────┼────┤    │                         │    ├────┼────┼────┼────┤ SEL              │
+│                  │    │    │    │    │    │                         │    │    │    │    │    │                  │
+│             GND  ├────┼────┼────┤    │    │                         │    │    ├────┼────┼────┤ GND              │
+│                  │    │    │    │    │    │                         │    │    │    │    │    │                  │
+│             VCC  ├────┼────┼────┼────┤    │                         │    ├────┼────┼────┼────┤ VCC              │
+└──────────────────┘    │    │    │    │    │                         │    │    │    │    │    └──────────────────┘
+                        │    │    │    │    │                         │    │    │    │    │
+┌──────────────────┐    │    │    │    │    │                         │    │    │    │    │    ┌──────────────────┐
+│  PDM microphone8 │    │    │    │    │    │                         │    │    │    │    │    │  PDM microphone6 │
+│                  │    │    │    │    │    │                         │    │    │    │    │    │                  │
+│             CLK  │◄───┘    │    │    │    │                         │    │    │    │    └───►│ CLK              │
+│                  │         │    │    │    │                         │    │    │    │         │                  │
+│             DATA ├─────────┴────┼────┼───►│ EXAMPLE_PDM_RX_DIN3_IO  │    │    │    └─────────┤ DATA             │
+│                  │              │    │    │                         │    │    │              │                  │
+│             SEL  ├──────────────┤    │    │                         │    │    ├──────────────┤ SEL              │
+│                  │              │    │    │                         │    │    │              │                  │
+│             GND  ├──────────────┴────┼────┤           GND           ├────┼────┴──────────────┤ GND              │
+│                  │                   │    │                         │    │                   │                  │
+│             VCC  ├───────────────────┴────┤           VCC           ├────┴───────────────────┤ VCC              │
+└──────────────────┘                        └─────────────────────────┘                        └──────────────────┘
+```
+
 #### PDM TX
 
 * An earphone or a speaker
-* An audio power amplifier that can input PDM signal. If the power amplifier can only receive the analog signal without PDM clock, a low-pass passive or active filter is required to restore the PDM data wave into analog signal, before it is transmitted to the power amplifier.
+* An audio power amplifier that can input PDM signal. If the power amplifier can only receive the analog signal without PDM clock (i.e. DAC line mode, otherwise codec line mode), a low-pass passive or active filter is required to restore the PDM data wave into analog signal, before it is transmitted to the power amplifier.
 
-**MAX98358**
+**MAX98358 (codec case)**
 
 Please refer to the [Datasheet of MAX98358](https://datasheets.maximintegrated.com/en/ds/MAX98358.pdf) for more details.
 
@@ -61,9 +121,9 @@ Please refer to the [Datasheet of MAX98358](https://datasheets.maximintegrated.c
 └────────────────────────┘               └───────────────┘
 ```
 
-**NS4150**
+**NS4150 (dac case)**
 
-Please refer to the [Datasheet of NS4150](http://www.nsiway.com.cn/product/44.html) for more details.
+Please refer to the NS4150 datasheet for more details.
 
 ```
 ┌────────────────────────┐                              ┌───────────────┐

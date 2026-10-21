@@ -1,21 +1,11 @@
 /*
- * SPDX-FileCopyrightText: 2019-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2019-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * System level MSPI APIs (private)
- */
-/**
- * Currently the MSPI timing tuning related APIs are designed to be private.
- * Because:
- * 1. now we don't split SPI0 and SPI1, we don't have a component for SPI0, including PSRAM, Cache, etc..
- * 2. SPI0 and SPI1 are strongly coupling.
- *
- * In the future, we may consider creating a component for SPI0, and spi_flash component will only work on SPI1 (and it
- * can rely on SPI0). Therefore, we can put these APIs there.
- *
  */
 #pragma once
 
@@ -24,10 +14,14 @@
 #include "sdkconfig.h"
 #include "esp_rom_spiflash.h"
 #include "esp_err.h"
-#include "esp_flash.h"
-#include "hal/spi_flash_hal.h"
-#include "spi_flash_override.h"
 #include "soc/soc_caps.h"
+#include "soc/clk_tree_defs.h"
+
+#include "hal/spi_flash_hal.h"
+
+#include "esp_flash.h"
+#include "esp_flash_chips/esp_flash_types.h"
+#include "esp_flash_chips/spi_flash_override.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,16 +35,17 @@ typedef enum {
     ESP_MSPI_IO_CS0, /* cs for spi flash */
     ESP_MSPI_IO_HD,
     ESP_MSPI_IO_WP,
-#if SOC_SPI_MEM_SUPPORT_OPI_MODE
+#if SOC_SPI_MEM_SUPPORT_FLASH_OPI_MODE
     ESP_MSPI_IO_DQS,
     ESP_MSPI_IO_D4,
     ESP_MSPI_IO_D5,
     ESP_MSPI_IO_D6,
     ESP_MSPI_IO_D7,
-#endif // SOC_SPI_MEM_SUPPORT_OPI_MODE
+#endif // SOC_SPI_MEM_SUPPORT_FLASH_OPI_MODE
 #if CONFIG_SPIRAM
-    ESP_MSPI_IO_CS1 /* cs for spi ram */
+    ESP_MSPI_IO_CS1, /* cs for spi ram */
 #endif
+    ESP_MSPI_IO_MAX, /* Maximum IO MSPI occupied */
 } esp_mspi_io_t;
 
 /**
@@ -59,40 +54,14 @@ typedef enum {
 esp_err_t spi_flash_init_chip_state(void);
 
 /**
- * @brief Make MSPI work under 20Mhz, remove the timing tuning required delays.
- * @param control_spi1  Select whether to control SPI1. For tuning, we need to use SPI1. After tuning (during startup stage), let the flash driver to control SPI1
- */
-void spi_timing_enter_mspi_low_speed_mode(bool control_spi1);
-
-/**
- * @brief Make MSPI work under the frequency as users set, may add certain delays to MSPI RX direction to meet timing requirements.
- * @param control_spi1  Select whether to control SPI1. For tuning, we need to use SPI1. After tuning (during startup stage), let the flash driver to control SPI1
- */
-void spi_timing_enter_mspi_high_speed_mode(bool control_spi1);
-
-/**
- * @brief Switch MSPI into low speed mode / high speed mode.
- * @note This API is cache safe, it will freeze both D$ and I$ and restore them after MSPI is switched
- * @note For some of the MSPI high frequency settings (e.g. 80M DDR mode Flash or PSRAM), timing tuning is required.
- *       Certain delays will be added to the MSPI RX direction. When CPU clock switches from PLL to XTAL, should call
- *       this API first to enter MSPI low speed mode to remove the delays, and vice versa.
- */
-void spi_timing_change_speed_mode_cache_safe(bool switch_down);
-
-/**
- * @brief Tune MSPI flash timing to make it work under high frequency
- */
-void spi_timing_flash_tuning(void);
-
-/**
- * @brief Tune MSPI psram timing to make it work under high frequency
- */
-void spi_timing_psram_tuning(void);
-
-/**
  * @brief To initislize the MSPI pins
  */
 void esp_mspi_pin_init(void);
+
+/**
+ * @brief Reserve MSPI IOs
+ */
+void esp_mspi_pin_reserve(void);
 
 /**
  * @brief Get the number of the GPIO corresponding to the given MSPI io
@@ -110,21 +79,15 @@ uint8_t esp_mspi_get_io(esp_mspi_io_t io);
 void spi_flash_set_rom_required_regs(void);
 
 /**
- * @brief Initialize main flash
- * @param chip Pointer to main SPI flash(SPI1 CS0) chip to use..
- */
-esp_err_t esp_flash_init_main(esp_flash_t *chip);
-
-/**
  * @brief Should be only used by SPI1 Flash driver to know the necessary timing registers
  * @param out_timing_config Pointer to timing_tuning parameters.
  */
 void spi_timing_get_flash_timing_param(spi_flash_hal_timing_config_t *out_timing_config);
 
 /**
- * @brief Get the knowledge if the MSPI timing is tuned or not
+ * @brief Get the knowledge if the Flash timing is tuned or not
  */
-bool spi_timing_is_tuned(void);
+bool spi_flash_timing_is_tuned(void);
 
 /**
  * @brief Set Flash chip specifically required MSPI register settings here
@@ -154,7 +117,20 @@ void spi_flash_set_erasing_flag(bool status);
 bool spi_flash_brownout_need_reset(void);
 
 /**
+ * @brief Check whether esp-chip supports 32bit address properly
+ *
+ * @return ESP_OK for supported, ESP_ERR_NOT_SUPPORTED for not supported
+*/
+esp_err_t esp_mspi_32bit_address_flash_feature_check(void);
+
+#if CONFIG_SPI_FLASH_HPM_ON
+/**
  * @brief Enable SPI flash high performance mode.
+ *
+ * @note 1. When `CONFIG_SPI_FLASH_HPM_ON` is True, caller can always call this function without taking whether the used
+ *          frequency falls into the HPM range into consideration.
+ *       2. However, caller shouldn't attempt to call this function on Octal flash. `CONFIG_SPI_FLASH_HPM_ON` may be
+ *          True when `CONFIG_ESPTOOLPY_FLASH_MODE_AUTO_DETECT && !CONFIG_ESPTOOLPY_OCT_FLASH`
  *
  * @return ESP_OK if success.
  */
@@ -175,24 +151,70 @@ const spi_flash_hpm_dummy_conf_t *spi_flash_hpm_get_dummy(void);
  * @return true Yes, and work under HPM with adjusting dummy. Otherwise, false.
  */
 bool spi_flash_hpm_dummy_adjust(void);
+#endif //CONFIG_SPI_FLASH_HPM_ON
 
-typedef enum {
-    FLASH_WRAP_MODE_8B = 0,
-    FLASH_WRAP_MODE_16B = 2,
-    FLASH_WRAP_MODE_32B = 4,
-    FLASH_WRAP_MODE_64B = 6,
-    FLASH_WRAP_MODE_DISABLE = 1
-} spi_flash_wrap_mode_t;
+#if CONFIG_ESP_SLEEP_SET_FLASH_DPD
 
 /**
- * @brief set wrap mode of flash
+ * @brief Get the duration of entering deep power-down mode.
  *
- * @param mode: wrap mode support disable, 16 32, 64 byte
+ * @return Entering deep power-down mode time(tDp), in microseconds.
+ */
+uint32_t spi_flash_dpd_get_enter_duration(void);
+
+/**
+ * @brief Get the duration of exiting deep power-down mode.
+ *
+ * @return Exiting deep power-down mode time(tRES1), in microseconds.
+ */
+uint32_t spi_flash_dpd_get_exit_duration(void);
+
+/**
+ * @brief Enable or disable SPI flash deep power-down mode.
+ *
+ * @param enable True to enter deep power-down mode, false to exit.
+ * @param wait_delay If true, wait tDP (enter) or tRES1 (exit) after the command.
+ *                   If false, skip the delay; the caller must ensure timing is met elsewhere
+ *
+ * @note If using self-provided flash (not the chip’s factory-default flash), consult its datasheet to use this API safely.
+ *
+ * @return ESP_OK if success.
+ */
+esp_err_t spi_flash_enable_deep_power_down_mode(bool enable, bool wait_delay);
+#endif
+
+#if SOC_SPI_MEM_SUPPORT_WRAP
+/**
+ * @brief set wrap size of flash
+ *
+ * @param wrap_size: wrap mode support disable, 16 32, 64 byte
  *
  * @return esp_err_t : ESP_OK for successful.
  *
  */
-esp_err_t spi_flash_wrap_set(spi_flash_wrap_mode_t mode);
+esp_err_t spi_flash_wrap_enable(spi_flash_wrap_size_t wrap_size);
+
+/**
+ * @brief Probe flash wrap method
+ *
+ * @return esp_err_t: ESP_OK for success
+ */
+esp_err_t spi_flash_wrap_probe(void);
+
+/**
+ * @brief disable cache wrap
+ */
+esp_err_t spi_flash_wrap_disable(void);
+
+/**
+ * @brief Check whether flash and esp chip supports wrap mode.
+ *
+ * @param wrap_size wrap size.
+ * @return true: wrap support, otherwise, false.
+ */
+bool spi_flash_support_wrap_size(uint32_t wrap_size);
+
+#endif //SOC_SPI_MEM_SUPPORT_WRAP
 
 /**
  * @brief SPI flash critical section enter function.
@@ -269,6 +291,7 @@ extern const spi_flash_guard_funcs_t g_flash_guard_no_os_ops;
  * @note Only called in startup. User should not call this function.
  */
 void spi_flash_rom_impl_init(void);
+
 
 
 #ifdef __cplusplus

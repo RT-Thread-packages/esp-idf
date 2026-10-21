@@ -14,6 +14,11 @@ menu "Cache config"
             bool "16KB"
     endchoice
 
+    config ESP32S2_INSTRUCTION_CACHE_SIZE
+        hex
+        default 0x2000 if ESP32S2_INSTRUCTION_CACHE_8KB
+        default 0x4000 if ESP32S2_INSTRUCTION_CACHE_16KB
+
     choice ESP32S2_INSTRUCTION_CACHE_LINE_SIZE
         prompt "Instruction cache line size"
         default ESP32S2_INSTRUCTION_CACHE_LINE_32B
@@ -28,8 +33,7 @@ menu "Cache config"
 
     choice ESP32S2_DATA_CACHE_SIZE
         prompt "Data cache size"
-        default ESP32S2_DATA_CACHE_0KB if !SPIRAM
-        default ESP32S2_DATA_CACHE_8KB if SPIRAM
+        default ESP32S2_DATA_CACHE_8KB
         help
             Data cache size to be set on application startup.
             If you use 0KB data cache, the other 16KB will be added to the heap
@@ -43,6 +47,12 @@ menu "Cache config"
         config ESP32S2_DATA_CACHE_16KB
             bool "16KB"
     endchoice
+
+    config ESP32S2_DATA_CACHE_SIZE
+        hex
+        default 0 if ESP32S2_DATA_CACHE_0KB
+        default 0x2000 if ESP32S2_DATA_CACHE_8KB
+        default 0x4000 if ESP32S2_DATA_CACHE_16KB
 
     choice ESP32S2_DATA_CACHE_LINE_SIZE
         prompt "Data cache line size"

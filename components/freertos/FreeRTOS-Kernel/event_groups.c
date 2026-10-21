@@ -1,13 +1,12 @@
 /*
- * SPDX-FileCopyrightText: 2020 Amazon.com, Inc. or its affiliates
+ * FreeRTOS Kernel V10.5.1 (ESP-IDF SMP modified)
+ * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ *
+ * SPDX-FileCopyrightText: 2021 Amazon.com, Inc. or its affiliates
  *
  * SPDX-License-Identifier: MIT
  *
- * SPDX-FileContributor: 2016-2022 Espressif Systems (Shanghai) CO LTD
- */
-/*
- * FreeRTOS Kernel V10.4.3
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * SPDX-FileContributor: 2023 Espressif Systems (Shanghai) CO LTD
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -44,6 +43,8 @@
 #include "task.h"
 #include "timers.h"
 #include "event_groups.h"
+/* Include private IDF API additions for critical thread safety macros */
+#include "esp_private/freertos_idf_additions_priv.h"
 
 /* Lint e961, e750 and e9021 are suppressed as a MISRA exception justified
  * because the MPU ports require MPU_WRAPPERS_INCLUDED_FROM_API_FILE to be defined
@@ -79,9 +80,7 @@ typedef struct EventGroupDef_t
         uint8_t ucStaticallyAllocated; /*< Set to pdTRUE if the event group is statically allocated to ensure no attempt is made to free the memory. */
     #endif
 
-#ifdef ESP_PLATFORM
-    portMUX_TYPE xEventGroupLock;   /* Spinlock required for SMP critical sections */
-#endif // ESP_PLATFORM
+    portMUX_TYPE xEventGroupLock; /* Spinlock required for SMP critical sections */
 } EventGroup_t;
 
 /*-----------------------------------------------------------*/
@@ -110,13 +109,14 @@ static BaseType_t prvTestWaitCondition( const EventBits_t uxCurrentEventBits,
         configASSERT( pxEventGroupBuffer );
 
         #if ( configASSERT_DEFINED == 1 )
-            {
-                /* Sanity check that the size of the structure used to declare a
-                 * variable of type StaticEventGroup_t equals the size of the real
-                 * event group structure. */
-                volatile size_t xSize = sizeof( StaticEventGroup_t );
-                configASSERT( xSize == sizeof( EventGroup_t ) );
-            } /*lint !e529 xSize is referenced if configASSERT() is defined. */
+        {
+            /* Sanity check that the size of the structure used to declare a
+             * variable of type StaticEventGroup_t equals the size of the real
+             * event group structure. */
+            volatile size_t xSize = sizeof( StaticEventGroup_t );
+            configASSERT( xSize == sizeof( EventGroup_t ) );
+            ( void ) xSize; /* Prevent unused variable warning when configASSERT() is not used. */
+        } /*lint !e529 xSize is referenced if configASSERT() is defined. */
         #endif /* configASSERT_DEFINED */
 
         /* The user has provided a statically allocated event group - use it. */
@@ -128,18 +128,18 @@ static BaseType_t prvTestWaitCondition( const EventBits_t uxCurrentEventBits,
             vListInitialise( &( pxEventBits->xTasksWaitingForBits ) );
 
             #if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 )
-                {
-                    /* Both static and dynamic allocation can be used, so note that
-                     * this event group was created statically in case the event group
-                     * is later deleted. */
-                    pxEventBits->ucStaticallyAllocated = pdTRUE;
-                }
+            {
+                /* Both static and dynamic allocation can be used, so note that
+                 * this event group was created statically in case the event group
+                 * is later deleted. */
+                pxEventBits->ucStaticallyAllocated = pdTRUE;
+            }
             #endif /* configSUPPORT_DYNAMIC_ALLOCATION */
 
-            traceEVENT_GROUP_CREATE( pxEventBits );
-#ifdef ESP_PLATFORM
+            /* Initialize the event group's spinlock. */
             portMUX_INITIALIZE( &pxEventBits->xEventGroupLock );
-#endif // ESP_PLATFORM
+
+            traceEVENT_GROUP_CREATE( pxEventBits );
         }
         else
         {
@@ -182,17 +182,16 @@ static BaseType_t prvTestWaitCondition( const EventBits_t uxCurrentEventBits,
             vListInitialise( &( pxEventBits->xTasksWaitingForBits ) );
 
             #if ( configSUPPORT_STATIC_ALLOCATION == 1 )
-                {
-                    /* Both static and dynamic allocation can be used, so note this
-                     * event group was allocated statically in case the event group is
-                     * later deleted. */
-                    pxEventBits->ucStaticallyAllocated = pdFALSE;
-                }
+            {
+                /* Both static and dynamic allocation can be used, so note this
+                 * event group was allocated statically in case the event group is
+                 * later deleted. */
+                pxEventBits->ucStaticallyAllocated = pdFALSE;
+            }
             #endif /* configSUPPORT_STATIC_ALLOCATION */
 
-#ifdef ESP_PLATFORM
+            /* Initialize the event group's spinlock. */
             portMUX_INITIALIZE( &pxEventBits->xEventGroupLock );
-#endif // ESP_PLATFORM
 
             traceEVENT_GROUP_CREATE( pxEventBits );
         }
@@ -214,24 +213,18 @@ EventBits_t xEventGroupSync( EventGroupHandle_t xEventGroup,
 {
     EventBits_t uxOriginalBitValue, uxReturn;
     EventGroup_t * pxEventBits = xEventGroup;
-#ifndef ESP_PLATFORM
     BaseType_t xAlreadyYielded;
-#endif // ESP_PLATFORM
     BaseType_t xTimeoutOccurred = pdFALSE;
 
     configASSERT( ( uxBitsToWaitFor & eventEVENT_BITS_CONTROL_BYTES ) == 0 );
     configASSERT( uxBitsToWaitFor != 0 );
     #if ( ( INCLUDE_xTaskGetSchedulerState == 1 ) || ( configUSE_TIMERS == 1 ) )
-        {
-            configASSERT( !( ( xTaskGetSchedulerState() == taskSCHEDULER_SUSPENDED ) && ( xTicksToWait != 0 ) ) );
-        }
+    {
+        configASSERT( !( ( xTaskGetSchedulerState() == taskSCHEDULER_SUSPENDED ) && ( xTicksToWait != 0 ) ) );
+    }
     #endif
 
-#ifdef ESP_PLATFORM // IDF-3755
-    taskENTER_CRITICAL( &( pxEventBits->xEventGroupLock ) );
-#else
-    vTaskSuspendAll();
-#endif // ESP_PLATFORM
+    prvENTER_CRITICAL_OR_SUSPEND_ALL( &( pxEventBits->xEventGroupLock ) );
     {
         uxOriginalBitValue = pxEventBits->uxEventBits;
 
@@ -274,17 +267,10 @@ EventBits_t xEventGroupSync( EventGroupHandle_t xEventGroup,
             }
         }
     }
-#ifdef ESP_PLATFORM // IDF-3755
-    taskEXIT_CRITICAL( &( pxEventBits->xEventGroupLock ) );
-#else
-    xAlreadyYielded = xTaskResumeAll();
-#endif // ESP_PLATFORM
+    xAlreadyYielded = prvEXIT_CRITICAL_OR_RESUME_ALL( &( pxEventBits->xEventGroupLock ) );
 
     if( xTicksToWait != ( TickType_t ) 0 )
     {
-#ifdef ESP_PLATFORM
-        portYIELD_WITHIN_API();
-#else
         if( xAlreadyYielded == pdFALSE )
         {
             portYIELD_WITHIN_API();
@@ -293,7 +279,6 @@ EventBits_t xEventGroupSync( EventGroupHandle_t xEventGroup,
         {
             mtCOVERAGE_TEST_MARKER();
         }
-#endif // ESP_PLATFORM
 
         /* The task blocked to wait for its required bits to be set - at this
          * point either the required bits were set or the block time expired.  If
@@ -352,11 +337,7 @@ EventBits_t xEventGroupWaitBits( EventGroupHandle_t xEventGroup,
 {
     EventGroup_t * pxEventBits = xEventGroup;
     EventBits_t uxReturn, uxControlBits = 0;
-#ifdef ESP_PLATFORM
-    BaseType_t xWaitConditionMet;
-#else
     BaseType_t xWaitConditionMet, xAlreadyYielded;
-#endif // ESP_PLATFORM
     BaseType_t xTimeoutOccurred = pdFALSE;
 
     /* Check the user is not attempting to wait on the bits used by the kernel
@@ -365,16 +346,12 @@ EventBits_t xEventGroupWaitBits( EventGroupHandle_t xEventGroup,
     configASSERT( ( uxBitsToWaitFor & eventEVENT_BITS_CONTROL_BYTES ) == 0 );
     configASSERT( uxBitsToWaitFor != 0 );
     #if ( ( INCLUDE_xTaskGetSchedulerState == 1 ) || ( configUSE_TIMERS == 1 ) )
-        {
-            configASSERT( !( ( xTaskGetSchedulerState() == taskSCHEDULER_SUSPENDED ) && ( xTicksToWait != 0 ) ) );
-        }
+    {
+        configASSERT( !( ( xTaskGetSchedulerState() == taskSCHEDULER_SUSPENDED ) && ( xTicksToWait != 0 ) ) );
+    }
     #endif
 
-#ifdef ESP_PLATFORM // IDF-3755
-    taskENTER_CRITICAL( &( pxEventBits->xEventGroupLock ) );
-#else
-    vTaskSuspendAll();
-#endif // ESP_PLATFORM
+    prvENTER_CRITICAL_OR_SUSPEND_ALL( &( pxEventBits->xEventGroupLock ) );
     {
         const EventBits_t uxCurrentEventBits = pxEventBits->uxEventBits;
 
@@ -442,17 +419,10 @@ EventBits_t xEventGroupWaitBits( EventGroupHandle_t xEventGroup,
             traceEVENT_GROUP_WAIT_BITS_BLOCK( xEventGroup, uxBitsToWaitFor );
         }
     }
-#ifdef ESP_PLATFORM // IDF-3755
-    taskEXIT_CRITICAL( &( pxEventBits->xEventGroupLock ) );
-#else
-    xAlreadyYielded = xTaskResumeAll();
-#endif // ESP_PLATFORM
+    xAlreadyYielded = prvEXIT_CRITICAL_OR_RESUME_ALL( &( pxEventBits->xEventGroupLock ) );
 
     if( xTicksToWait != ( TickType_t ) 0 )
     {
-#ifdef ESP_PLATFORM
-        portYIELD_WITHIN_API();
-#else
         if( xAlreadyYielded == pdFALSE )
         {
             portYIELD_WITHIN_API();
@@ -461,7 +431,6 @@ EventBits_t xEventGroupWaitBits( EventGroupHandle_t xEventGroup,
         {
             mtCOVERAGE_TEST_MARKER();
         }
-#endif // ESP_PLATFORM
 
         /* The task blocked to wait for its required bits to be set - at this
          * point either the required bits were set or the block time expired.  If
@@ -566,11 +535,11 @@ EventBits_t xEventGroupGetBitsFromISR( EventGroupHandle_t xEventGroup )
     EventGroup_t const * const pxEventBits = xEventGroup;
     EventBits_t uxReturn;
 
-    uxSavedInterruptStatus = portSET_INTERRUPT_MASK_FROM_ISR();
+    prvENTER_CRITICAL_OR_MASK_ISR( ( portMUX_TYPE * ) &( pxEventBits->xEventGroupLock ), uxSavedInterruptStatus );
     {
         uxReturn = pxEventBits->uxEventBits;
     }
-    portCLEAR_INTERRUPT_MASK_FROM_ISR( uxSavedInterruptStatus );
+    prvEXIT_CRITICAL_OR_UNMASK_ISR( ( portMUX_TYPE * ) &( pxEventBits->xEventGroupLock ), uxSavedInterruptStatus );
 
     return uxReturn;
 } /*lint !e818 EventGroupHandle_t is a typedef used in other functions to so can't be pointer to const. */
@@ -579,7 +548,8 @@ EventBits_t xEventGroupGetBitsFromISR( EventGroupHandle_t xEventGroup )
 EventBits_t xEventGroupSetBits( EventGroupHandle_t xEventGroup,
                                 const EventBits_t uxBitsToSet )
 {
-    ListItem_t * pxListItem, * pxNext;
+    ListItem_t * pxListItem;
+    ListItem_t * pxNext;
     ListItem_t const * pxListEnd;
     List_t const * pxList;
     EventBits_t uxBitsToClear = 0, uxBitsWaitedFor, uxControlBits;
@@ -593,14 +563,14 @@ EventBits_t xEventGroupSetBits( EventGroupHandle_t xEventGroup,
 
     pxList = &( pxEventBits->xTasksWaitingForBits );
     pxListEnd = listGET_END_MARKER( pxList ); /*lint !e826 !e740 !e9087 The mini list structure is used as the list end to save RAM.  This is checked and valid. */
-#ifdef ESP_PLATFORM // IDF-3755
-    taskENTER_CRITICAL( &( pxEventBits->xEventGroupLock ) );
-    /* We are about to traverse a task list which is a kernel data structure.
-     * Thus we need to call vTaskTakeKernelLock() to take the kernel lock. */
-    vTaskTakeKernelLock();
-#else
-    vTaskSuspendAll();
-#endif // ESP_PLATFORM
+
+    prvENTER_CRITICAL_OR_SUSPEND_ALL( &( pxEventBits->xEventGroupLock ) );
+    #if ( configNUMBER_OF_CORES > 1 )
+
+        /* We are about to traverse a task list which is a kernel data structure.
+         * Thus we need to call prvTakeKernelLock() to take the kernel lock. */
+        prvTakeKernelLock();
+    #endif /* configNUMBER_OF_CORES > 1 */
     {
         traceEVENT_GROUP_SET_BITS( xEventGroup, uxBitsToSet );
 
@@ -672,13 +642,12 @@ EventBits_t xEventGroupSetBits( EventGroupHandle_t xEventGroup,
          * bit was set in the control word. */
         pxEventBits->uxEventBits &= ~uxBitsToClear;
     }
-#ifdef ESP_PLATFORM // IDF-3755
-    /* Release the previously taken kernel lock, then release the event group spinlock. */
-    vTaskReleaseKernelLock();
-    taskEXIT_CRITICAL( &( pxEventBits->xEventGroupLock ) );
-#else
-    ( void ) xTaskResumeAll();
-#endif // ESP_PLATFORM
+    #if ( configNUMBER_OF_CORES > 1 )
+        /* Release the previously taken kernel lock. */
+        prvReleaseKernelLock();
+    #endif /* configNUMBER_OF_CORES > 1 */
+    ( void ) prvEXIT_CRITICAL_OR_RESUME_ALL( &( pxEventBits->xEventGroupLock ) );
+
 
     return pxEventBits->uxEventBits;
 }
@@ -687,18 +656,22 @@ EventBits_t xEventGroupSetBits( EventGroupHandle_t xEventGroup,
 void vEventGroupDelete( EventGroupHandle_t xEventGroup )
 {
     EventGroup_t * pxEventBits = xEventGroup;
-    const List_t * pxTasksWaitingForBits = &( pxEventBits->xTasksWaitingForBits );
+    const List_t * pxTasksWaitingForBits;
 
-    traceEVENT_GROUP_DELETE( xEventGroup );
+    configASSERT( pxEventBits );
 
-    // IDF-3755
-    taskENTER_CRITICAL( &( pxEventBits->xEventGroupLock ) );
-#ifdef ESP_PLATFORM
-    /* We are about to traverse a task list which is a kernel data structure.
-     * Thus we need to call vTaskTakeKernelLock() to take the kernel lock. */
-    vTaskTakeKernelLock();
-#endif
+    pxTasksWaitingForBits = &( pxEventBits->xTasksWaitingForBits );
+
+    prvENTER_CRITICAL_OR_SUSPEND_ALL( &( pxEventBits->xEventGroupLock ) );
+    #if ( configNUMBER_OF_CORES > 1 )
+
+        /* We are about to traverse a task list which is a kernel data structure.
+         * Thus we need to call prvTakeKernelLock() to take the kernel lock. */
+        prvTakeKernelLock();
+    #endif /* configNUMBER_OF_CORES > 1 */
     {
+        traceEVENT_GROUP_DELETE( xEventGroup );
+
         while( listCURRENT_LIST_LENGTH( pxTasksWaitingForBits ) > ( UBaseType_t ) 0 )
         {
             /* Unblock the task, returning 0 as the event list is being deleted
@@ -707,33 +680,69 @@ void vEventGroupDelete( EventGroupHandle_t xEventGroup )
             vTaskRemoveFromUnorderedEventList( pxTasksWaitingForBits->xListEnd.pxNext, eventUNBLOCKED_DUE_TO_BIT_SET );
         }
     }
-#ifdef ESP_PLATFORM
-    /* Release the previously taken kernel lock. */
-    vTaskReleaseKernelLock();
-#endif
-    taskEXIT_CRITICAL( &( pxEventBits->xEventGroupLock ) );
+    #if ( configNUMBER_OF_CORES > 1 )
+        /* Release the previously taken kernel lock. */
+        prvReleaseKernelLock();
+    #endif /* configNUMBER_OF_CORES > 1 */
+    prvEXIT_CRITICAL_OR_RESUME_ALL( &( pxEventBits->xEventGroupLock ) );
 
-        #if ( ( configSUPPORT_DYNAMIC_ALLOCATION == 1 ) && ( configSUPPORT_STATIC_ALLOCATION == 0 ) )
-            {
-                /* The event group can only have been allocated dynamically - free
-                 * it again. */
-                vPortFree( pxEventBits );
-            }
-        #elif ( ( configSUPPORT_DYNAMIC_ALLOCATION == 1 ) && ( configSUPPORT_STATIC_ALLOCATION == 1 ) )
-            {
-                /* The event group could have been allocated statically or
-                 * dynamically, so check before attempting to free the memory. */
-                if( pxEventBits->ucStaticallyAllocated == ( uint8_t ) pdFALSE )
-                {
-                    vPortFree( pxEventBits );
-                }
-                else
-                {
-                    mtCOVERAGE_TEST_MARKER();
-                }
-            }
-        #endif /* configSUPPORT_DYNAMIC_ALLOCATION */
+    #if ( ( configSUPPORT_DYNAMIC_ALLOCATION == 1 ) && ( configSUPPORT_STATIC_ALLOCATION == 0 ) )
+    {
+        /* The event group can only have been allocated dynamically - free
+         * it again. */
+        vPortFree( pxEventBits );
+    }
+    #elif ( ( configSUPPORT_DYNAMIC_ALLOCATION == 1 ) && ( configSUPPORT_STATIC_ALLOCATION == 1 ) )
+    {
+        /* The event group could have been allocated statically or
+         * dynamically, so check before attempting to free the memory. */
+        if( pxEventBits->ucStaticallyAllocated == ( uint8_t ) pdFALSE )
+        {
+            vPortFree( pxEventBits );
+        }
+        else
+        {
+            mtCOVERAGE_TEST_MARKER();
+        }
+    }
+    #endif /* configSUPPORT_DYNAMIC_ALLOCATION */
 }
+/*-----------------------------------------------------------*/
+
+#if ( configSUPPORT_STATIC_ALLOCATION == 1 )
+    BaseType_t xEventGroupGetStaticBuffer( EventGroupHandle_t xEventGroup,
+                                           StaticEventGroup_t ** ppxEventGroupBuffer )
+    {
+        BaseType_t xReturn;
+        EventGroup_t * pxEventBits = xEventGroup;
+
+        configASSERT( pxEventBits );
+        configASSERT( ppxEventGroupBuffer );
+
+        #if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 )
+        {
+            /* Check if the event group was statically allocated. */
+            if( pxEventBits->ucStaticallyAllocated == ( uint8_t ) pdTRUE )
+            {
+                *ppxEventGroupBuffer = ( StaticEventGroup_t * ) pxEventBits;
+                xReturn = pdTRUE;
+            }
+            else
+            {
+                xReturn = pdFALSE;
+            }
+        }
+        #else /* configSUPPORT_DYNAMIC_ALLOCATION */
+        {
+            /* Event group must have been statically allocated. */
+            *ppxEventGroupBuffer = ( StaticEventGroup_t * ) pxEventBits;
+            xReturn = pdTRUE;
+        }
+        #endif /* configSUPPORT_DYNAMIC_ALLOCATION */
+
+        return xReturn;
+    }
+#endif /* configSUPPORT_STATIC_ALLOCATION */
 /*-----------------------------------------------------------*/
 
 /* For internal use only - execute a 'set bits' command that was pended from

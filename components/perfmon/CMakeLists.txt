@@ -1,6 +1,13 @@
 idf_build_get_property(target IDF_TARGET)
-if(${target} STREQUAL "esp32c3" OR ${target} STREQUAL "esp32h2" OR ${target} STREQUAL "esp32c2")
-        return()
+
+if(${target} STREQUAL "linux")
+    return() # This component is not supported by the POSIX/Linux simulator
+endif()
+
+idf_build_get_property(arch IDF_TARGET_ARCH)
+
+if(NOT "${arch}" STREQUAL "xtensa")
+    return()
 endif()
 
 set(xtensa_perfmon_srcs "xtensa_perfmon_access.c"

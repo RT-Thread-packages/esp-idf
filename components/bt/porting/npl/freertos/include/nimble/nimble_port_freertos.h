@@ -37,6 +37,7 @@ void npl_freertos_funcs_init(void);
 void npl_freertos_funcs_deinit(void);
 int npl_freertos_mempool_init(void);
 struct npl_funcs_t * npl_freertos_funcs_get(void);
+int npl_freertos_set_controller_npl_info(ble_npl_count_info_t *ctrl_npl_info);
 #ifdef __cplusplus
 }
 #endif

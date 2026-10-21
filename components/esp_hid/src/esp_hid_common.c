@@ -1,18 +1,13 @@
-// Copyright 2017-2019 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+/*
+ * SPDX-FileCopyrightText: 2017-2026 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
+#include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
+#include <stdbool.h>
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_hid_common.h"
@@ -52,7 +47,6 @@ typedef enum {
     PARSE_WAIT_USAGE_PAGE, PARSE_WAIT_USAGE, PARSE_WAIT_COLLECTION_APPLICATION, PARSE_WAIT_END_COLLECTION
 } s_parse_step_t;
 
-
 static s_parse_step_t s_parse_step = PARSE_WAIT_USAGE_PAGE;
 static uint8_t s_collection_depth = 0;
 static hid_report_params_t s_report_params = {0,};
@@ -70,6 +64,19 @@ static int add_report(temp_hid_report_map_t *map, esp_hid_report_item_t *item)
     }
     memcpy(&(map->reports[map->reports_len]), item, sizeof(esp_hid_report_item_t));
     map->reports_len++;
+    return 0;
+}
+
+static int add_report_len_bits_to(uint16_t *len_bits, uint16_t size, uint16_t count)
+{
+    uint32_t add = (uint32_t)size * (uint32_t)count;
+    uint32_t new_len = (uint32_t)(*len_bits) + add;
+
+    if (new_len > UINT16_MAX) {
+        ESP_LOGE(TAG, "report length overflow: %u + %u * %u", *len_bits, size, count);
+        return -1;
+    }
+    *len_bits = (uint16_t)new_len;
     return 0;
 }
 
@@ -199,7 +206,6 @@ static int handle_report(hid_report_params_t *report, bool first)
     return 0;
 }
 
-
 static int parse_cmd(const uint8_t *data, size_t len, size_t index, hid_report_cmd_t **out)
 {
     if (index == len) {
@@ -299,15 +305,34 @@ static int handle_cmd(hid_report_cmd_t *cmd)
         } else if (cmd->cmd == HID_RM_USAGE) {
             s_report_params.inner_usage = cmd->value;
         } else if (cmd->cmd == HID_RM_REPORT_SIZE) {
-            s_report_size = cmd->value;
+            if (cmd->value > UINT16_MAX) {
+                ESP_LOGE(TAG, "REPORT_SIZE too large: %" PRIu32, cmd->value);
+                s_parse_step = PARSE_WAIT_USAGE_PAGE;
+                return -1;
+            }
+            s_report_size = (uint16_t)cmd->value;
         } else if (cmd->cmd == HID_RM_REPORT_COUNT) {
-            s_report_count = cmd->value;
+            if (cmd->value > UINT16_MAX) {
+                ESP_LOGE(TAG, "REPORT_COUNT too large: %" PRIu32, cmd->value);
+                s_parse_step = PARSE_WAIT_USAGE_PAGE;
+                return -1;
+            }
+            s_report_count = (uint16_t)cmd->value;
         } else if (cmd->cmd == HID_RM_INPUT) {
-            s_report_params.input_len += (s_report_size * s_report_count);
+            if (add_report_len_bits_to(&s_report_params.input_len, s_report_size, s_report_count) != 0) {
+                s_parse_step = PARSE_WAIT_USAGE_PAGE;
+                return -1;
+            }
         } else if (cmd->cmd == HID_RM_OUTPUT) {
-            s_report_params.output_len += (s_report_size * s_report_count);
+            if (add_report_len_bits_to(&s_report_params.output_len, s_report_size, s_report_count) != 0) {
+                s_parse_step = PARSE_WAIT_USAGE_PAGE;
+                return -1;
+            }
         } else if (cmd->cmd == HID_RM_FEATURE) {
-            s_report_params.feature_len += (s_report_size * s_report_count);
+            if (add_report_len_bits_to(&s_report_params.feature_len, s_report_size, s_report_count) != 0) {
+                s_parse_step = PARSE_WAIT_USAGE_PAGE;
+                return -1;
+            }
         } else if (cmd->cmd == HID_RM_COLLECTION) {
             s_collection_depth += 1;
         } else if (cmd->cmd == HID_RM_END_COLLECTION) {
@@ -341,7 +366,6 @@ static int handle_cmd(hid_report_cmd_t *cmd)
     return 0;
 }
 
-
 esp_hid_report_map_t *esp_hid_parse_report_map(const uint8_t *hid_rm, size_t hid_rm_len)
 {
     size_t index = 0;
@@ -363,6 +387,11 @@ esp_hid_report_map_t *esp_hid_parse_report_map(const uint8_t *hid_rm, size_t hid
         }
     }
 
+    temp_hid_report_map_t *map = s_temp_hid_report_map;
+    if (map == NULL) {
+        return NULL;
+    }
+
     esp_hid_report_map_t *out = (esp_hid_report_map_t *)calloc(1, sizeof(esp_hid_report_map_t));
     if (out == NULL) {
         ESP_LOGE(TAG, "hid_report_map malloc failed");
@@ -370,8 +399,6 @@ esp_hid_report_map_t *esp_hid_parse_report_map(const uint8_t *hid_rm, size_t hid
         s_temp_hid_report_map = NULL;
         return NULL;
     }
-
-    temp_hid_report_map_t *map = s_temp_hid_report_map;
 
     esp_hid_report_item_t *reports = (esp_hid_report_item_t *)calloc(1, map->reports_len * sizeof(esp_hid_report_item_t));
     if (reports == NULL) {
@@ -412,7 +439,7 @@ esp_hid_report_map_t *esp_hid_parse_report_map(const uint8_t *hid_rm, size_t hid
 
 void esp_hid_free_report_map(esp_hid_report_map_t *map)
 {
-    if (map != NULL){
+    if (map != NULL) {
         free(map->reports);
         free(map);
     }
@@ -451,7 +478,7 @@ const char *esp_hid_usage_str(esp_hid_usage_t usage)
 
 const char *esp_hid_protocol_mode_str(uint8_t protocol)
 {
-    if (protocol >= (sizeof(s_hid_protocol_names)/sizeof(s_hid_protocol_names[0]))) {
+    if (protocol >= (sizeof(s_hid_protocol_names) / sizeof(s_hid_protocol_names[0]))) {
         return s_unknown_str;
     }
     return s_hid_protocol_names[protocol];
@@ -459,7 +486,7 @@ const char *esp_hid_protocol_mode_str(uint8_t protocol)
 
 const char *esp_hid_report_type_str(uint8_t report_type)
 {
-    if (report_type >= (sizeof(s_hid_report_type_names)/sizeof(s_hid_report_type_names[0]))) {
+    if (report_type >= (sizeof(s_hid_report_type_names) / sizeof(s_hid_report_type_names[0]))) {
         return s_unknown_str;
     }
     return s_hid_report_type_names[report_type];
@@ -467,7 +494,7 @@ const char *esp_hid_report_type_str(uint8_t report_type)
 
 const char *esp_hid_cod_major_str(uint8_t cod_major)
 {
-    if (cod_major >= (sizeof(s_hid_cod_major_names)/sizeof(s_hid_cod_major_names[0]))) {
+    if (cod_major >= (sizeof(s_hid_cod_major_names) / sizeof(s_hid_cod_major_names[0]))) {
         return s_unknown_str;
     }
     return s_hid_cod_major_names[cod_major];

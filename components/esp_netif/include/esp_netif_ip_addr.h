@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include <machine/endian.h>
+#include "sdkconfig.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,8 +79,21 @@ extern "C" {
 
 #define ESP_IP4TOADDR(a,b,c,d) esp_netif_htonl(ESP_IP4TOUINT32(a, b, c, d))
 
-#define ESP_IP4ADDR_INIT(a, b, c, d)  { .type = ESP_IPADDR_TYPE_V4, .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}};
-#define ESP_IP6ADDR_INIT(a, b, c, d)  { .type = ESP_IPADDR_TYPE_V6, .u_addr = { .ip6 = { .addr = { a, b, c, d }, .zone = 0 }}};
+#define ESP_IP4ADDR_INIT(a, b, c, d)  { .u_addr = { .ip4 = { .addr = ESP_IP4TOADDR(a, b, c, d) }}, .type = ESP_IPADDR_TYPE_V4 }
+#define ESP_IP6ADDR_INIT(a, b, c, d)  { .u_addr = { .ip6 = { .addr = { a, b, c, d }, .zone = 0 }}, .type = ESP_IPADDR_TYPE_V6 }
+
+#ifndef IP4ADDR_STRLEN_MAX
+#define IP4ADDR_STRLEN_MAX  16
+#endif
+
+#if defined(CONFIG_LWIP_IPV4) && defined(CONFIG_LWIP_IPV6)
+#define ESP_IP_IS_ANY(addr)    ((addr.type == ESP_IPADDR_TYPE_V4 && ip4_addr_isany_val(addr.u_addr.ip4)) || \
+                                (addr.type == ESP_IPADDR_TYPE_V6 && ip6_addr_isany_val(addr.u_addr.ip6)))
+#elif defined(CONFIG_LWIP_IPV4)
+#define ESP_IP_IS_ANY(addr)    (ip4_addr_isany_val(addr.u_addr.ip4))
+#elif defined(CONFIG_LWIP_IPV6)
+#define ESP_IP_IS_ANY(addr)    (ip6_addr_isany_val(addr.u_addr.ip6))
+#endif
 
 /**
  * @brief IPv6 address
@@ -130,7 +144,7 @@ typedef enum {
  *
  * @return IPv6 type in form of enum esp_ip6_addr_type_t
  */
-esp_ip6_addr_type_t esp_netif_ip6_get_addr_type(esp_ip6_addr_t* ip6_addr);
+esp_ip6_addr_type_t esp_netif_ip6_get_addr_type(const esp_ip6_addr_t* ip6_addr);
 
 /**
  * @brief  Copy IP addresses

@@ -1,17 +1,19 @@
 /*
- * SPDX-FileCopyrightText: 2015-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <stdbool.h>
+#include "sdkconfig.h"
 #include "esp_log.h"
 #include "esp_rom_sys.h"
+#include "esp_rom_caps.h"
 #include "bootloader_init.h"
 #include "bootloader_utility.h"
 #include "bootloader_common.h"
 #include "bootloader_hooks.h"
 
-static const char *TAG = "boot";
+ESP_LOG_ATTR_TAG(TAG, "boot");
 
 static int select_partition_number(bootloader_state_t *bs);
 static int selected_boot_partition(const bootloader_state_t *bs);
@@ -52,6 +54,11 @@ void __attribute__((noreturn)) call_start_cpu0(void)
     if (boot_index == INVALID_INDEX) {
         bootloader_reset();
     }
+
+    // 2.1 Load the TEE image
+#if CONFIG_SECURE_ENABLE_TEE
+    bootloader_utility_load_tee_image(&bs);
+#endif
 
     // 3. Load the app image for booting
     bootloader_utility_load_boot_image(&bs, boot_index);
@@ -98,9 +105,12 @@ static int selected_boot_partition(const bootloader_state_t *bs)
             if (bootloader_common_erase_part_type_data(list_erase, ota_data_erase) == false) {
                 ESP_LOGE(TAG, "Not all partitions were erased");
             }
+#ifdef CONFIG_BOOTLOADER_RESERVE_RTC_MEM
+            bootloader_common_set_rtc_retain_mem_factory_reset_state();
+#endif
             return bootloader_utility_get_selected_boot_partition(bs);
         }
-#endif
+#endif // CONFIG_BOOTLOADER_FACTORY_RESET
         // TEST firmware.
 #ifdef CONFIG_BOOTLOADER_APP_TEST
         bool app_test_level = false;
@@ -117,7 +127,7 @@ static int selected_boot_partition(const bootloader_state_t *bs)
                 return INVALID_INDEX;
             }
         }
-#endif
+#endif // CONFIG_BOOTLOADER_APP_TEST
         // Customer implementation.
         // if (gpio_pin_1 == true && ...){
         //     boot_index = required_boot_partition;
@@ -126,8 +136,10 @@ static int selected_boot_partition(const bootloader_state_t *bs)
     return boot_index;
 }
 
+#if CONFIG_LIBC_NEWLIB
 // Return global reent struct if any newlib functions are linked to bootloader
 struct _reent *__getreent(void)
 {
     return _GLOBAL_REENT;
 }
+#endif

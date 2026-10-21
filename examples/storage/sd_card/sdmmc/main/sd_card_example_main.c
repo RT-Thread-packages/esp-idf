@@ -14,11 +14,122 @@
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
+#include "driver/gpio.h"
+#include "sd_test_io.h"
+#if SOC_SDMMC_IO_POWER_EXTERNAL || SOC_SDMMC_IO_UHS_POWER_EXTERNAL
+#include "sd_pwr_ctrl_by_on_chip_ldo.h"
+#endif
+
+#define EXAMPLE_MAX_CHAR_SIZE    64
 
 static const char *TAG = "example";
 
 #define MOUNT_POINT "/sdcard"
+#define EXAMPLE_IS_UHS1    (CONFIG_EXAMPLE_SDMMC_SPEED_UHS_I_SDR50 || CONFIG_EXAMPLE_SDMMC_SPEED_UHS_I_DDR50 || CONFIG_EXAMPLE_SDMMC_SPEED_UHS_I_SDR104)
 
+#ifdef CONFIG_EXAMPLE_DEBUG_PIN_CONNECTIONS
+const char* names[] = {"CLK", "CMD", "D0", "D1", "D2", "D3"};
+const int pins[] = {CONFIG_EXAMPLE_PIN_CLK,
+                    CONFIG_EXAMPLE_PIN_CMD,
+                    CONFIG_EXAMPLE_PIN_D0
+                    #ifdef CONFIG_EXAMPLE_SDMMC_BUS_WIDTH_4
+                    ,CONFIG_EXAMPLE_PIN_D1,
+                    CONFIG_EXAMPLE_PIN_D2,
+                    CONFIG_EXAMPLE_PIN_D3
+                    #endif
+                    };
+
+const int pin_count = sizeof(pins)/sizeof(pins[0]);
+
+#if CONFIG_EXAMPLE_ENABLE_ADC_FEATURE
+const int adc_channels[] = {CONFIG_EXAMPLE_ADC_PIN_CLK,
+                            CONFIG_EXAMPLE_ADC_PIN_CMD,
+                            CONFIG_EXAMPLE_ADC_PIN_D0
+                            #ifdef CONFIG_EXAMPLE_SDMMC_BUS_WIDTH_4
+                            ,CONFIG_EXAMPLE_ADC_PIN_D1,
+                            CONFIG_EXAMPLE_ADC_PIN_D2,
+                            CONFIG_EXAMPLE_ADC_PIN_D3
+                            #endif
+                            };
+#endif //CONFIG_EXAMPLE_ENABLE_ADC_FEATURE
+
+pin_configuration_t config = {
+    .names = names,
+    .pins = pins,
+#if CONFIG_EXAMPLE_ENABLE_ADC_FEATURE
+    .adc_channels = adc_channels,
+#endif
+};
+#endif //CONFIG_EXAMPLE_DEBUG_PIN_CONNECTIONS
+
+static esp_err_t s_example_write_file(const char *path, char *data)
+{
+    ESP_LOGI(TAG, "Opening file %s", path);
+    FILE *f = fopen(path, "w");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "Failed to open file for writing");
+        return ESP_FAIL;
+    }
+    fprintf(f, data);
+    fclose(f);
+    ESP_LOGI(TAG, "File written");
+
+    return ESP_OK;
+}
+
+static esp_err_t s_example_read_file(const char *path)
+{
+    ESP_LOGI(TAG, "Reading file %s", path);
+    FILE *f = fopen(path, "r");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        return ESP_FAIL;
+    }
+    char line[EXAMPLE_MAX_CHAR_SIZE];
+    fgets(line, sizeof(line), f);
+    fclose(f);
+
+    // strip newline
+    char *pos = strchr(line, '\n');
+    if (pos) {
+        *pos = '\0';
+    }
+    ESP_LOGI(TAG, "Read from file: '%s'", line);
+
+    return ESP_OK;
+}
+
+#if CONFIG_EXAMPLE_PIN_CARD_POWER_RESET
+static esp_err_t s_example_reset_card_power(void)
+{
+    esp_err_t ret = ESP_FAIL;
+    gpio_config_t io_conf = {
+        .mode = GPIO_MODE_OUTPUT,
+        .pin_bit_mask = (1ULL<<CONFIG_EXAMPLE_PIN_CARD_POWER_RESET),
+    };
+    ret = gpio_config(&io_conf);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to config GPIO");
+        return ret;
+    }
+
+    ret = gpio_set_level(CONFIG_EXAMPLE_PIN_CARD_POWER_RESET, 1);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set GPIO level");
+        return ret;
+    }
+
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    ret = gpio_set_level(CONFIG_EXAMPLE_PIN_CARD_POWER_RESET, 0);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set GPIO level");
+        return ret;
+    }
+
+    return ESP_OK;
+}
+#endif // CONFIG_EXAMPLE_PIN_CARD_POWER_RESET
 
 void app_main(void)
 {
@@ -46,11 +157,59 @@ void app_main(void)
     // production applications.
 
     ESP_LOGI(TAG, "Using SDMMC peripheral");
+
+    // By default, SD card frequency is initialized to SDMMC_FREQ_DEFAULT (20MHz)
+    // For setting a specific frequency, use host.max_freq_khz (range 400kHz - 40MHz for SDMMC)
+    // Example: for fixed frequency of 10MHz, use host.max_freq_khz = 10000;
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+    host.unaligned_multi_block_rw_max_chunk_size = 8;
+#if CONFIG_EXAMPLE_SDMMC_SPEED_HS
+    host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
+#elif CONFIG_EXAMPLE_SDMMC_SPEED_UHS_I_SDR50
+    host.slot = SDMMC_HOST_SLOT_0;
+    host.max_freq_khz = SDMMC_FREQ_SDR50;
+    host.flags &= ~SDMMC_HOST_FLAG_DDR;
+#elif CONFIG_EXAMPLE_SDMMC_SPEED_UHS_I_DDR50
+    host.slot = SDMMC_HOST_SLOT_0;
+    host.max_freq_khz = SDMMC_FREQ_DDR50;
+#elif CONFIG_EXAMPLE_SDMMC_SPEED_UHS_I_SDR104
+    host.slot = SDMMC_HOST_SLOT_0;
+    host.max_freq_khz = SDMMC_FREQ_SDR104;
+    host.flags &= ~SDMMC_HOST_FLAG_DDR;
+#endif
+
+#if SOC_SDMMC_IO_UHS_POWER_EXTERNAL
+    //for uhs-i power
+    host.io_voltage = 1.8f;
+#endif
+
+    // For SoCs where the SD power can be supplied both via an internal or external (e.g. on-board LDO) power supply.
+    // When using specific IO pins (which can be used for ultra high-speed SDMMC) to connect to the SD card
+    // and the internal LDO power supply, we need to initialize the power supply first.
+#if CONFIG_EXAMPLE_SD_PWR_CTRL_LDO_INTERNAL_IO
+    sd_pwr_ctrl_ldo_config_t ldo_config = {
+        .ldo_chan_id = CONFIG_EXAMPLE_SD_PWR_CTRL_LDO_IO_ID,
+    };
+    sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
+
+    ret = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create a new on-chip LDO power control driver");
+        return;
+    }
+    host.pwr_ctrl_handle = pwr_ctrl_handle;
+#endif
+
+#if CONFIG_EXAMPLE_PIN_CARD_POWER_RESET
+    ESP_ERROR_CHECK(s_example_reset_card_power());
+#endif
 
     // This initializes the slot without card detect (CD) and write protect (WP) signals.
     // Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.
     sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+#if EXAMPLE_IS_UHS1
+    slot_config.flags |= SDMMC_SLOT_FLAG_UHS1;
+#endif
 
     // Set bus width to use:
 #ifdef CONFIG_EXAMPLE_SDMMC_BUS_WIDTH_4
@@ -87,6 +246,9 @@ void app_main(void)
         } else {
             ESP_LOGE(TAG, "Failed to initialize the card (%s). "
                      "Make sure SD card lines have pull-up resistors in place.", esp_err_to_name(ret));
+#ifdef CONFIG_EXAMPLE_DEBUG_PIN_CONNECTIONS
+            check_sd_card_pins(&config, pin_count);
+#endif
         }
         return;
     }
@@ -99,19 +261,14 @@ void app_main(void)
 
     // First create a file.
     const char *file_hello = MOUNT_POINT"/hello.txt";
-
-    ESP_LOGI(TAG, "Opening file %s", file_hello);
-    FILE *f = fopen(file_hello, "w");
-    if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for writing");
+    char data[EXAMPLE_MAX_CHAR_SIZE];
+    snprintf(data, EXAMPLE_MAX_CHAR_SIZE, "%s %s!\n", "Hello", card->cid.name);
+    ret = s_example_write_file(file_hello, data);
+    if (ret != ESP_OK) {
         return;
     }
-    fprintf(f, "Hello %s!\n", card->cid.name);
-    fclose(f);
-    ESP_LOGI(TAG, "File written");
 
     const char *file_foo = MOUNT_POINT"/foo.txt";
-
     // Check if destination file exists before renaming
     struct stat st;
     if (stat(file_foo, &st) == 0) {
@@ -126,27 +283,51 @@ void app_main(void)
         return;
     }
 
-    // Open renamed file for reading
-    ESP_LOGI(TAG, "Reading file %s", file_foo);
-    f = fopen(file_foo, "r");
-    if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for reading");
+    ret = s_example_read_file(file_foo);
+    if (ret != ESP_OK) {
         return;
     }
 
-    // Read a line from file
-    char line[64];
-    fgets(line, sizeof(line), f);
-    fclose(f);
-
-    // Strip newline
-    char *pos = strchr(line, '\n');
-    if (pos) {
-        *pos = '\0';
+    // Format FATFS
+#ifdef CONFIG_EXAMPLE_FORMAT_SD_CARD
+    ret = esp_vfs_fat_sdcard_format(mount_point, card);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to format FATFS (%s)", esp_err_to_name(ret));
+        return;
     }
-    ESP_LOGI(TAG, "Read from file: '%s'", line);
+
+    if (stat(file_foo, &st) == 0) {
+        ESP_LOGI(TAG, "file still exists");
+        return;
+    } else {
+        ESP_LOGI(TAG, "file doesn't exist, formatting done");
+    }
+#endif // CONFIG_EXAMPLE_FORMAT_SD_CARD
+
+    const char *file_nihao = MOUNT_POINT"/nihao.txt";
+    memset(data, 0, EXAMPLE_MAX_CHAR_SIZE);
+    snprintf(data, EXAMPLE_MAX_CHAR_SIZE, "%s %s!\n", "Nihao", card->cid.name);
+    ret = s_example_write_file(file_nihao, data);
+    if (ret != ESP_OK) {
+        return;
+    }
+
+    //Open file for reading
+    ret = s_example_read_file(file_nihao);
+    if (ret != ESP_OK) {
+        return;
+    }
 
     // All done, unmount partition and disable SDMMC peripheral
     esp_vfs_fat_sdcard_unmount(mount_point, card);
     ESP_LOGI(TAG, "Card unmounted");
+
+    // Deinitialize the power control driver if it was used
+#if CONFIG_EXAMPLE_SD_PWR_CTRL_LDO_INTERNAL_IO
+    ret = sd_pwr_ctrl_del_on_chip_ldo(pwr_ctrl_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to delete the on-chip LDO power control driver");
+        return;
+    }
+#endif
 }

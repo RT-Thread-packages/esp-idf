@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 |
-| ----------------- | ----- |
+| Supported Targets | ESP32 | ESP32-S31 |
+| ----------------- | ----- | --------- |
 
 # Hands-Free Audio Gateway (HF-AG)
 
@@ -9,11 +9,11 @@ This example is to show how to use the APIs of Hands-Free Audio Gateway (hf_ag) 
 
 ### Hardware Required
 
-This example is designed to run on commonly available ESP32 development board, e.g. ESP32-DevKitC. To operate this example, it should be connected to a Hands-Free Client running on a Headphone/Headset or on another ESP32 development board loaded with [hfp_hf](../hfp_hf) example of ESP-IDF.
+This example is designed to run on commonly available ESP32 and ESP32-S31 development boards, e.g. ESP32-DevKitC and so on. To operate this example, it should be connected to a Hands-Free Client running on a Headphone/Headset or on another ESP32 or ESP32-S31 development board loaded with [hfp_hf](../hfp_hf) example of ESP-IDF.
 
 ### Configure the project
 
-Open the project configuration menu: 
+Open the project configuration menu:
 
 ```bash
 idf.py menuconfig
@@ -23,7 +23,7 @@ idf.py menuconfig
 
 #### Data Path
 
-ESP32 HFP supports two types of audio datapath: PCM and HCI.
+ESP32 HFP supports two types of audio datapath: PCM and HCI. Currently, ESP32-S31 HFP only supports HCI.
 
 The default configuration is `PCM`, if you want to use `vHCI` you should configure the data path before building and downloading the binary.
 
@@ -35,7 +35,7 @@ The default configuration is `PCM`, if you want to use `vHCI` you should configu
 
     `Component config --> Bluetooth --> Bluedroid Options --> Hands Free/Handset Profile --> audio(SCO) data path --> PCM`.
 
-- vHCI: To use vHCI, audio data stream will be directed from Bluetooth Controller through vHCI on ESP32 and go through the Bluedroid to the Application layer. In menuconfig, you should choose vHCI in `menuconfig` path:
+- vHCI: To use vHCI, audio data stream will be directed from Bluetooth Controller through vHCI and go through the Bluedroid to the Application layer. In menuconfig, you should choose vHCI in `menuconfig` path:
 
     `Component config --> Bluetooth controller --> BR/EDR Sync(SCO/eSCO) default data path --> HCI`
 
@@ -43,9 +43,28 @@ The default configuration is `PCM`, if you want to use `vHCI` you should configu
 
     `Component config --> Bluetooth --> Bluedroid Options --> Hands Free/Handset Profile --> audio(SCO) data path --> HCI`.
 
+#### PCM Signal Configurations
+
+PCM Signal supports three configurations in menuconfig: PCM Role, PCM Polar and Channel Mode(Stereo/Mono).
+
+- PCM Role: PCM role can be configured as PCM master or PCM slave. The default configuration is `Master`, you can change the PCM role in `menuconfig` path:
+    `Component config --> Bluetooth --> Controller Options --> PCM Signal Configurations --> PCM Signal Configurations: Role, Polar and Channel Mode(Stereo/Mono) --> PCM Role`
+
+- PCM Polar: PCM polarity can be configured as Falling Edge or Rising Edge. The default configuration is `Falling Edge`, you can change the PCM polar in `menuconfig` path:
+    `Component config --> Bluetooth --> Controller Options --> PCM Signal Configurations --> PCM Signal Configurations: Role, Polar and Channel Mode(Stereo/Mono) --> PCM Polar`
+
+- Channel Mode(Stereo/Mono): PCM frame synchronization signal can be configured as Stereo mode or Mono mode, where the Mono mode can be configured in two different forms(Mono mode 1 and Mono mode 2). As is shown in the figure ![Stereo/Mono](image/Channel_Mode_Stereo_Mono.png)
+
+  - Stereo Mode(Dual channel): FSYNC and DOUT signals both change simultaneously on the edge of CLK. The FSYNC signal continues until the end of the current channel-data transmission.
+  - Mono Mode 1(Single channel): FSYNC signal starts to change a CLK clock cycle earlier than the DOUT signal, which means that the FSYNC signal takes effect a clock cycle earlier than the first bit of the current channel-data transmission. The FSYNC signal continues for one extra CLK clock cycle.
+  - Mono Mode 2(Single channel): FSYNC and DOUT signals both change simultaneously on the edge of CLK. The FSYNC signal continues for one extra CLK clock cycle.
+
+- The default configuration is `Stereo Mode`, you can change the PCM Channel mode in `menuconfig` path:
+    `Component config --> Bluetooth --> Controller Options --> PCM Signal Configurations --> PCM Signal Configurations: Role, Polar and Channel Mode(Stereo/Mono) --> Channel Mode(Stereo/Mono)`
+
 ### Codec Choice
 
-ESP32 supports two types of codec for HFP audio data: `CVSD` and `mSBC`.
+Supported targets provide two types of codec for HFP audio data: `CVSD` and `mSBC`.
 
 `CVSD` is the default setting and is also the widely used codec for voice audio. But, `mSBC` is designed to have a better voice quality through `HFP`. To select which one is in use, we provide `Wide Band Speech` item in the `menuconfig`:
 
@@ -75,7 +94,7 @@ See the [Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/l
 
 ## Example Output
 
-When you flash and monitor this example, the commands help table prints the following log at the very begining:
+When you flash and monitor this example, the commands help table prints the following log at the very beginning:
 
 ```
 Type 'help' to get the list of commands.
@@ -137,12 +156,12 @@ You can type `cona` to establish the audio connection between HF Unit and AG dev
 
 #### Choice of Codec
 
-ESP32 supports both CVSD and mSBC codec. HF Unit and AG device determine which codec to use by exchanging features during service level connection. The choice of codec also depends on the your configuration in `menuconfig`.
+Supported targets support both CVSD and mSBC codec. HF Unit and AG device determine which codec to use by exchanging features during service level connection. The choice of codec also depends on the your configuration in `menuconfig`.
 
 Since CVSD is the default codec in HFP, we just show the scenarios using mSBC:
 
 - If you enable `BT_HFP_WBS_ENABLE` in `menuconfig`, mSBC will be available.
-- If both HF Unit and AG support mSBC and `BT_HFP_WBS_ENABLE` is enabled, ESP32 chooses mSBC.
+- If both HF Unit and AG support mSBC and `BT_HFP_WBS_ENABLE` is enabled, the local device chooses mSBC.
 - If you use PCM data path, mSBC is not available.
 
 ### Answer or Reject an Incoming Call
@@ -234,15 +253,11 @@ I (245311) BT_APP_HF: --Audio State connected
 
 #### Device Status Indication
 
-You can type `ind <call> <ntk> <callsetup> <sig>` to send device status of AG to HF Unit. Log on AG prints such as:  `Device Indicator Changed!`  and on HF Unit side prints such as:
+You can type `ciev <ind_type> <value>` to send device status of AG to HF Unit. Log on AG prints such as:  `Device Indicator Changed!`  and on HF Unit side prints such as:
 
 ```
-E (293641) BT_HF: APP HFP event: CALL_IND_EVT
-E (293641) BT_HF: --Call indicator call in progress
-E (293641) BT_HF: APP HFP event: CALL_SETUP_IND_EVT
-E (293651) BT_HF: --Call setup indicator INCOMING
-E (293651) BT_HF: APP HFP event: SIGNAL_STRENGTH_IND_EVT
-E (293661) BT_HF: -- signal strength: 5
+I (106167) BT_HF: APP HFP event: CALL_SETUP_IND_EVT
+I (106167) BT_HF: --Call setup indicator INCOMING
 ```
 
 **Note: The AG device sends only the changed status to the HF Unit.**
@@ -274,7 +289,7 @@ E (19556) BT_HF: --in-band ring state Provided
 
 If you encounter any problems, please check if the following rules are followed:
 
-- You should type the command in the terminal according to the format described in the commands help table. 
+- You should type the command in the terminal according to the format described in the commands help table.
 - Not all commands in the table are supported by the HF Unit.
 - If you want to `hf con;` to establish a service level connection with a specific HF Unit, you should add the MAC address of the HF Unit in `app_hf_msg_set.c` for example: `esp_bd_addr_t peer_addr = {0xb4, 0xe6, 0x2d, 0xeb, 0x09, 0x93};`
 - Use `esp_hf_client_register_callback()` and  `esp_hf_client_init();` before  establishing a service level connection.
@@ -286,6 +301,5 @@ Due to the complexity of the HFP, this example has more source files than other 
 - The example will respond to user command through the UART console. Please go to `console_uart.c` for the configuration details.
 - For the voice interface, ESP32 has provided PCM input/output signals which can be directed to GPIO pins. So, please go to `gpio_pcm_config.c` for the configuration details.
 - If you want to update the command table, please refer to `app_hf_msg_set.c`.
-- If you want to update the command parse rules, please refer to `app_hf_msg_prs.c`.
 - If you want to update the responses of the AG or want to update the log, please refer to `bt_app_hf.c`.
 - The task configuration part is in `bt_app_core.c`.

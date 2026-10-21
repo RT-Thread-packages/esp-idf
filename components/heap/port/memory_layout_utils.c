@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,22 +8,11 @@
 #include "sdkconfig.h"
 #include "esp_log.h"
 #include "soc/soc_memory_layout.h"
+#include "esp_rom_caps.h"
 
-#ifdef CONFIG_IDF_TARGET_ESP32C3
-#include "esp32c3/rom/rom_layout.h"
-#define ROM_HAS_LAYOUT_TABLE 1
-#elif CONFIG_IDF_TARGET_ESP32S3
-#include "esp32s3/rom/rom_layout.h"
-#define ROM_HAS_LAYOUT_TABLE 1
-#elif CONFIG_IDF_TARGET_ESP32H2
-#include "esp32h2/rom/rom_layout.h"
-#define ROM_HAS_LAYOUT_TABLE 1
-#elif CONFIG_IDF_TARGET_ESP32C2
-#include "esp32c2/rom/rom_layout.h"
-#define ROM_HAS_LAYOUT_TABLE 1
-#else
-#define ROM_HAS_LAYOUT_TABLE 0
-#endif
+#if ESP_ROM_HAS_LAYOUT_TABLE
+#include "rom/rom_layout.h"
+#endif // ESP_ROM_HAS_LAYOUT_TABLE
 
 static const char *TAG = "memory_layout";
 
@@ -36,9 +25,10 @@ extern soc_reserved_region_t soc_reserved_memory_region_end;
 
 static size_t s_get_num_reserved_regions(void)
 {
-    size_t result = ( &soc_reserved_memory_region_end
-             - &soc_reserved_memory_region_start );
-#if ROM_HAS_LAYOUT_TABLE
+    size_t result = (uintptr_t)&soc_reserved_memory_region_end - (uintptr_t)&soc_reserved_memory_region_start;
+    result /= sizeof(soc_reserved_region_t);
+
+#if ESP_ROM_HAS_LAYOUT_TABLE
     return result + 1; // ROM table means one entry needs to be added at runtime
 #else
     return result;
@@ -66,11 +56,15 @@ static int s_compare_reserved_regions(const void *a, const void *b)
 */
 static void s_prepare_reserved_regions(soc_reserved_region_t *reserved, size_t count)
 {
-#if ROM_HAS_LAYOUT_TABLE
+#if ESP_ROM_HAS_LAYOUT_TABLE
     /* Get the ROM layout to find which part of DRAM is reserved */
     const ets_rom_layout_t *layout = ets_rom_layout_p;
     reserved[0].start = (intptr_t)layout->dram0_rtos_reserved_start;
+#if SOC_DIRAM_ROM_RESERVE_HIGH && CONFIG_ESP32P4_SELECTS_REV_LESS_V3
+    reserved[0].end = SOC_DIRAM_ROM_RESERVE_HIGH;
+#else
     reserved[0].end = SOC_DIRAM_DRAM_HIGH;
+#endif
 
     memcpy(reserved + 1, &soc_reserved_memory_region_start, (count - 1) * sizeof(soc_reserved_region_t));
 #else

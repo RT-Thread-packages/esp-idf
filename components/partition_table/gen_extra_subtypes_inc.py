@@ -1,20 +1,19 @@
 #!/usr/bin/env python
 # SPDX-FileCopyrightText: 2022 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
-
 import argparse
 
 
 def gen_header_file(path: str, subtypes: str) -> None:
     HDR_MESSAGE = '/* Automatically generated file. DO NOT EDIT. */\n\n'
     PARTTOOL_USAGE = 'If you want to use parttool.py manually, please use the following as an extra argument:'
-    with open(path, 'w') as f:
+    with open(path, 'w', encoding='utf-8') as f:
         f.write(HDR_MESSAGE)
         if subtypes:
             f.write('/*\n\t' + PARTTOOL_USAGE + '\n\t')
             f.write('--extra-partition-subtypes ')
             for line_no in subtypes:
-                f.write(line_no + ' ')
+                f.write(f'"{line_no}" ')
             f.write('\n*/\n\n')
         f.write('#pragma once\n\n')
         for line_no in subtypes:

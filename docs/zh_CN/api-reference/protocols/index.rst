@@ -1,5 +1,6 @@
 应用层协议
 **********
+
 :link_to_translation:`en:[English]`
 
 .. toctree::
@@ -11,7 +12,6 @@
     esp_tls
     esp_http_client
     esp_local_ctrl
-    esp_serial_slave_link
     esp_crt_bundle
     esp_http_server
     esp_https_server

@@ -1,7 +1,7 @@
 /*
- * SPDX-FileCopyrightText: 2020-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
 #pragma once
@@ -34,6 +34,9 @@ typedef union {
 #define I_D_FAULT_ADDR_SHIFT        0x2
 
 #define DRAM_SRAM_START             0x3FC7C000
+
+#define IRAM0_VIOLATE_STATUS_ADDR_OFFSET  0x40000000
+#define DRAM0_VIOLATE_STATUS_ADDR_OFFSET  0x3C000000
 
 //IRAM0
 

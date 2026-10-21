@@ -3,920 +3,147 @@ GPIO & RTC GPIO
 
 :link_to_translation:`zh_CN:[中文]`
 
-Overview
---------
-
-.. only:: esp32
-
-    The {IDF_TARGET_NAME} chip features 34 physical GPIO pins (GPIO0 ~ GPIO19, GPIO21 ~ GPIO23, GPIO25 ~ GPIO27, and GPIO32 ~ GPIO39). Each pin can be used as a general-purpose I/O, or be connected to an internal peripheral signal. Through IO MUX, RTC IO MUX and the GPIO matrix, peripheral input signals can be from any IO pins, and peripheral output signals can be routed to any IO pins. Together these modules provide highly configurable I/O. For more details, see *{IDF_TARGET_NAME} Technical Reference Manual* > *IO MUX and GPIO Matrix (GPIO, IO_MUX)* [`PDF <{IDF_TARGET_TRM_EN_URL}#iomuxgpio>`__].
-
-    The table below provides more information on pin usage, and please note the comments in the table  for GPIOs with restrictions.
-
-    .. list-table::
-       :header-rows: 1
-       :widths: 8 12 12 20
-
-       * - GPIO
-         - Analog Function
-         - RTC GPIO
-         - Comments
-
-       * - GPIO0
-         - ADC2_CH1
-         - RTC_GPIO11
-         - Strapping pin
-
-       * - GPIO1
-         -
-         -
-         - TXD
-
-       * - GPIO2
-         - ADC2_CH2
-         - RTC_GPIO12
-         - Strapping pin
-
-       * - GPIO3
-         -
-         -
-         - RXD
-
-       * - GPIO4
-         - ADC2_CH0
-         - RTC_GPIO10
-         -
-
-       * - GPIO5
-         -
-         -
-         - Strapping pin
-
-       * - GPIO6
-         -
-         -
-         - SPI0/1
-
-       * - GPIO7
-         -
-         -
-         - SPI0/1
-
-       * - GPIO8
-         -
-         -
-         - SPI0/1
-
-       * - GPIO9
-         -
-         -
-         - SPI0/1
-
-       * - GPIO10
-         -
-         -
-         - SPI0/1
-
-       * - GPIO11
-         -
-         -
-         - SPI0/1
-
-       * - GPIO12
-         - ADC2_CH5
-         - RTC_GPIO15
-         - Strapping pin; JTAG
-
-       * - GPIO13
-         - ADC2_CH4
-         - RTC_GPIO14
-         - JTAG
-
-       * - GPIO14
-         - ADC2_CH6
-         - RTC_GPIO16
-         - JTAG
-
-       * - GPIO15
-         - ADC2_CH3
-         - RTC_GPIO13
-         - Strapping pin; JTAG
-
-       * - GPIO16
-         -
-         -
-         - SPI0/1
-
-       * - GPIO17
-         -
-         -
-         - SPI0/1
-
-       * - GPIO18
-         -
-         -
-         -
-
-       * - GPIO19
-         -
-         -
-         -
-
-       * - GPIO21
-         -
-         -
-         -
-
-       * - GPIO22
-         -
-         -
-         -
-
-       * - GPIO23
-         -
-         -
-         -
-
-       * - GPIO25
-         - ADC2_CH8
-         - RTC_GPIO6
-         -
-
-       * - GPIO26
-         - ADC2_CH9
-         - RTC_GPIO7
-         -
-
-       * - GPIO27
-         - ADC2_CH7
-         - RTC_GPIO17
-         -
-
-       * - GPIO32
-         - ADC1_CH4
-         - RTC_GPIO9
-         -
-
-       * - GPIO33
-         - ADC1_CH5
-         - RTC_GPIO8
-         -
-
-       * - GPIO34
-         - ADC1_CH6
-         - RTC_GPIO4
-         - GPI
-
-       * - GPIO35
-         - ADC1_CH7
-         - RTC_GPIO5
-         - GPI
-
-       * - GPIO36
-         - ADC1_CH0
-         - RTC_GPIO0
-         - GPI
-
-       * - GPIO37
-         - ADC1_CH1
-         - RTC_GPIO1
-         - GPI
-
-       * - GPIO38
-         - ADC1_CH2
-         - RTC_GPIO2
-         - GPI
-
-       * - GPIO39
-         - ADC1_CH3
-         - RTC_GPIO3
-         - GPI
-
-    .. note::
-
-        - Strapping pin: GPIO0, GPIO2, GPIO5, GPIO12 (MTDI), and GPIO15 (MTDO) are strapping pins. For more infomation, please refer to `ESP32 datasheet <https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf>`_.
-        - SPI0/1: GPIO6-11 and GPIO16-17 are usually connected to the SPI flash and PSRAM integrated on the module and therefore should not be used for other purposes.
-        - JTAG: GPIO12-15 are usually used for inline debug.
-        - GPI: GPIO34-39 can only be set as input mode and do not have software-enabled pullup or pulldown functions.
-        - TXD & RXD are usually used for flashing and debugging.
-        - ADC2: ADC2 pins cannot be used when Wi-Fi is used. So, if you are having trouble getting the value from an ADC2 GPIO while using Wi-Fi, you may consider using an ADC1 GPIO instead, which should solve your problem. For more details, please refer to `ADC limitations <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/adc.html#adc-limitations>`_.
-
-
-.. only:: esp32s2
-
-    The {IDF_TARGET_NAME} chip features 43 physical GPIO pins (GPIO0 ~ GPIO21 and GPIO26 ~ GPIO46). Each pin can be used as a general-purpose I/O, or be connected to an internal peripheral signal. Through IO MUX, RTC IO MUX and the GPIO matrix, peripheral input signals can be from any IO pins, and peripheral output signals can be routed to any IO pins. Together these modules provide highly configurable I/O. For more details, see *{IDF_TARGET_NAME} Technical Reference Manual* > *IO MUX and GPIO Matrix (GPIO, IO_MUX)* [`PDF <{IDF_TARGET_TRM_EN_URL}#iomuxgpio>`__].
-
-    The table below provides more information on pin usage, and please note the comments in the table for GPIOs with restrictions.
-
-    .. list-table::
-       :header-rows: 1
-       :widths: 8 12 12 20
-
-       * - GPIO
-         - Analog Function
-         - RTC GPIO
-         - Comment
-
-       * - GPIO0
-         -
-         - RTC_GPIO0
-         - Strapping pin
-
-       * - GPIO1
-         - ADC1_CH0
-         - RTC_GPIO1
-         -
-
-       * - GPIO2
-         - ADC1_CH1
-         - RTC_GPIO2
-         -
-
-       * - GPIO3
-         - ADC1_CH2
-         - RTC_GPIO3
-         -
-
-       * - GPIO4
-         - ADC1_CH3
-         - RTC_GPIO4
-         -
-
-       * - GPIO5
-         - ADC1_CH4
-         - RTC_GPIO5
-         -
-
-       * - GPIO6
-         - ADC1_CH5
-         - RTC_GPIO6
-         -
-
-       * - GPIO7
-         - ADC1_CH6
-         - RTC_GPIO7
-         -
-
-       * - GPIO8
-         - ADC1_CH7
-         - RTC_GPIO8
-         -
-
-       * - GPIO9
-         - ADC1_CH8
-         - RTC_GPIO9
-         -
-
-       * - GPIO10
-         - ADC1_CH9
-         - RTC_GPIO10
-         -
-
-       * - GPIO11
-         - ADC2_CH0
-         - RTC_GPIO11
-         -
-
-       * - GPIO12
-         - ADC2_CH1
-         - RTC_GPIO12
-         -
-
-       * - GPIO13
-         - ADC2_CH2
-         - RTC_GPIO13
-         -
-
-       * - GPIO14
-         - ADC2_CH3
-         - RTC_GPIO14
-         -
-
-       * - GPIO15
-         - ADC2_CH4
-         - RTC_GPIO15
-         -
-
-       * - GPIO16
-         - ADC2_CH5
-         - RTC_GPIO16
-         -
-
-       * - GPIO17
-         - ADC2_CH6
-         - RTC_GPIO17
-         -
-
-       * - GPIO18
-         - ADC2_CH7
-         - RTC_GPIO18
-         -
-
-       * - GPIO19
-         - ADC2_CH8
-         - RTC_GPIO19
-         -
-
-       * - GPIO20
-         - ADC2_CH9
-         - RTC_GPIO20
-         -
-
-       * - GPIO21
-         -
-         - RTC_GPIO21
-         -
-
-       * - GPIO26
-         -
-         -
-         - SPI0/1
-
-       * - GPIO27
-         -
-         -
-         - SPI0/1
-
-       * - GPIO28
-         -
-         -
-         - SPI0/1
-
-       * - GPIO29
-         -
-         -
-         - SPI0/1
-
-       * - GPIO30
-         -
-         -
-         - SPI0/1
-
-       * - GPIO31
-         -
-         -
-         - SPI0/1
-
-       * - GPIO32
-         -
-         -
-         - SPI0/1
-
-       * - GPIO33
-         -
-         -
-         -
-
-       * - GPIO34
-         -
-         -
-         -
-
-       * - GPIO35
-         -
-         -
-         -
-
-       * - GPIO36
-         -
-         -
-         -
-
-       * - GPIO37
-         -
-         -
-         -
-
-       * - GPIO38
-         -
-         -
-         -
-
-       * - GPIO39
-         -
-         -
-         - JTAG
-
-       * - GPIO40
-         -
-         -
-         - JTAG
-
-       * - GPIO41
-         -
-         -
-         - JTAG
-
-       * - GPIO42
-         -
-         -
-         - JTAG
-
-       * - GPIO43
-         -
-         -
-         -
-
-       * - GPIO44
-         -
-         -
-         -
-
-       * - GPIO45
-         -
-         -
-         - Strapping pin
-
-       * - GPIO46
-         -
-         -
-         - GPI；Strapping pin
-
-    .. note::
-
-         - Strapping pin: GPIO0, GPIO45 and GPIO46 are strapping pins. For more infomation, please refer to `ESP32-S2 datasheet <https://www.espressif.com/sites/default/files/documentation/esp32-s2_datasheet_en.pdf>`_
-         - SPI0/1: GPIO26-32 are usually used for SPI flash and PSRAM and not recommended for other uses.
-         - JTAG: GPIO39-42 are usually used for inline debug.
-         - GPI: GPIO46 is fixed to pull-down and is input only.
-
-
-.. only:: esp32c3
-
-    The {IDF_TARGET_NAME} chip features 22 physical GPIO pins (GPIO0 ~ GPIO21). Each pin can be used as a general-purpose I/O, or be connected to an internal peripheral signal. Through GPIO matrix and IO MUX, peripheral input signals can be from any IO pins, and peripheral output signals can be routed to any IO pins. Together these modules provide highly configurable I/O. For more details, see *{IDF_TARGET_NAME} Technical Reference Manual* > *IO MUX and GPIO Matrix (GPIO, IO_MUX)* [`PDF <{IDF_TARGET_TRM_EN_URL}#iomuxgpio>`__].
-
-    The table below provides more information on pin usage, and please note the comments in the table for GPIOs with restrictions.
-
-
-    .. list-table::
-       :header-rows: 1
-       :widths: 12 12 22
-
-       * - GPIO
-         - Analog Function
-         - Comment
-
-       * - GPIO0
-         - ADC1_CH0
-         - RTC
-
-       * - GPIO1
-         - ADC1_CH1
-         - RTC
-
-       * - GPIO2
-         - ADC1_CH2
-         - Strapping pin；RTC
-
-       * - GPIO3
-         - ADC1_CH3
-         - RTC
-
-       * - GPIO4
-         - ADC1_CH4
-         - RTC
-
-       * - GPIO5
-         - ADC2_CH0
-         - RTC
-
-       * - GPIO6
-         -
-         -
-
-       * - GPIO7
-         -
-         -
-
-       * - GPIO8
-         -
-         - Strapping pin
-
-       * - GPIO9
-         -
-         - Strapping pin
-
-       * - GPIO10
-         -
-         -
-
-       * - GPIO11
-         -
-         -
-
-       * - GPIO12
-         -
-         - SPI0/1
-
-       * - GPIO13
-         -
-         - SPI0/1
-
-       * - GPIO14
-         -
-         - SPI0/1
-
-       * - GPIO15
-         -
-         - SPI0/1
-
-       * - GPIO16
-         -
-         - SPI0/1
-
-       * - GPIO17
-         -
-         - SPI0/1
-
-       * - GPIO18
-         -
-         - USB-JTAG
-
-       * - GPIO19
-         -
-         - USB-JTAG
-
-       * - GPIO20
-         -
-         -
-
-       * - GPIO21
-         -
-         -
-
-    .. note::
-
-        - Strapping pin: GPIO2, GPIO8 and GPIO9 are strapping pins. For more infomation, please refer to `ESP32-C3 datasheet <https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf>`_.
-        - SPI0/1: GPIO12-17 are usually used for SPI flash and PSRAM and are not recommended for other uses.
-        - USB-JTAG: GPIO 18 and 19 are used by USB-JTAG by default. In order to use them as GPIOs, USB-JTAG will be disabled by the drivers.
-        - RTC: GPIO0-5 can be used when in Deep-sleep mode.
-
-
-.. only:: esp32s3
-
-    The {IDF_TARGET_NAME} chip features 45 physical GPIO pins (GPIO0 ~ GPIO21 and GPIO26 ~ GPIO48). Each pin can be used as a general-purpose I/O, or be connected to an internal peripheral signal. Through GPIO matrix, IO MUX, and RTC IO MUX, peripheral input signals can be from any GPIO pin, and peripheral output signals can be routed to any GPIO pin. Together these modules provide highly configurable I/O. For more details, see *{IDF_TARGET_NAME} Technical Reference Manual* > *IO MUX and GPIO Matrix (GPIO, IO_MUX)* [`PDF <{IDF_TARGET_TRM_EN_URL}#iomuxgpio>`__].
-
-    The table below provides more information on pin usage, and please note the comments in the table for GPIOs with restrictions.
-
-    .. list-table::
-       :header-rows: 1
-       :widths: 8 12 12 20
-
-       * - GPIO
-         - Analog Function
-         - RTC GPIO
-         - Comment
-
-       * - GPIO0
-         -
-         - RTC_GPIO0
-         - Strapping pin
-
-       * - GPIO1
-         - ADC1_CH0
-         - RTC_GPIO1
-         -
-
-       * - GPIO2
-         - ADC1_CH1
-         - RTC_GPIO2
-         -
-
-       * - GPIO3
-         - ADC1_CH2
-         - RTC_GPIO3
-         - Strapping pin
-
-       * - GPIO4
-         - ADC1_CH3
-         - RTC_GPIO4
-         -
-
-       * - GPIO5
-         - ADC1_CH4
-         - RTC_GPIO5
-         -
-
-       * - GPIO6
-         - ADC1_CH5
-         - RTC_GPIO6
-         -
-
-       * - GPIO7
-         - ADC1_CH6
-         - RTC_GPIO7
-         -
-
-       * - GPIO8
-         - ADC1_CH7
-         - RTC_GPIO8
-         -
-
-       * - GPIO9
-         - ADC1_CH8
-         - RTC_GPIO9
-         -
-
-       * - GPIO10
-         - ADC1_CH9
-         - RTC_GPIO10
-         -
-
-       * - GPIO11
-         - ADC2_CH0
-         - RTC_GPIO11
-         -
-
-       * - GPIO12
-         - ADC2_CH1
-         - RTC_GPIO12
-         -
-
-       * - GPIO13
-         - ADC2_CH2
-         - RTC_GPIO13
-         -
-
-       * - GPIO14
-         - ADC2_CH3
-         - RTC_GPIO14
-         -
-
-       * - GPIO15
-         - ADC2_CH4
-         - RTC_GPIO15
-         -
-
-       * - GPIO16
-         - ADC2_CH5
-         - RTC_GPIO16
-         -
-
-       * - GPIO17
-         - ADC2_CH6
-         - RTC_GPIO17
-         -
-
-       * - GPIO18
-         - ADC2_CH7
-         - RTC_GPIO18
-         -
-
-       * - GPIO19
-         - ADC2_CH8
-         - RTC_GPIO19
-         - USB-JTAG
-
-       * - GPIO20
-         - ADC2_CH9
-         - RTC_GPIO20
-         - USB-JTAG
-
-       * - GPIO21
-         -
-         - RTC_GPIO21
-         -
-
-       * - GPIO26
-         -
-         -
-         - SPI0/1
-
-       * - GPIO27
-         -
-         -
-         - SPI0/1
-
-       * - GPIO28
-         -
-         -
-         - SPI0/1
-
-       * - GPIO29
-         -
-         -
-         - SPI0/1
-
-       * - GPIO30
-         -
-         -
-         - SPI0/1
-
-       * - GPIO31
-         -
-         -
-         - SPI0/1
-
-       * - GPIO32
-         -
-         -
-         - SPI0/1
-
-       * - GPIO33
-         -
-         -
-         - SPI0/1
-
-       * - GPIO34
-         -
-         -
-         - SPI0/1
-
-       * - GPIO35
-         -
-         -
-         - SPI0/1
-
-       * - GPIO36
-         -
-         -
-         - SPI0/1
-
-       * - GPIO37
-         -
-         -
-         - SPI0/1
-
-       * - GPIO38
-         -
-         -
-         -
-
-       * - GPIO39
-         -
-         -
-         -
-
-       * - GPIO40
-         -
-         -
-         -
-
-       * - GPIO41
-         -
-         -
-         -
-
-       * - GPIO42
-         -
-         -
-         -
-
-       * - GPIO43
-         -
-         -
-         -
-
-       * - GPIO44
-         -
-         -
-         -
-
-       * - GPIO45
-         -
-         -
-         - Strapping pin
-
-       * - GPIO46
-         -
-         -
-         - Strapping pin
-
-       * - GPIO47
-         -
-         -
-         -
-
-       * - GPIO48
-         -
-         -
-         -
-
-    .. Note::
-
-        - Strapping pin: GPIO0, GPIO3, GPIO45 and GPIO46 are strapping pins. For more infomation, please refer to `ESP32-S3 datasheet <https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf>`_.
-        - SPI0/1: GPIO26-32 are usually used for SPI flash and PSRAM and not recommended for other uses. When using Octal Flash or Octal PSRAM or both, GPIO33~37 are connected to SPIIO4 ~ SPIIO7 and SPIDQS. Therefore, on boards embedded with ESP32-S3R8 / ESP32-S3R8V chip, GPIO33~37 are also not recommended for other uses.
-        - USB-JTAG: GPIO 19 and 20 are used by USB-JTAG by default. In order to use them as GPIOs, USB-JTAG will be disabled by the drivers.
-
-.. only:: esp32c2
-
-    The {IDF_TARGET_NAME} chip features 21 physical GPIO pins (GPIO0 ~ GPIO20). For chip variants with an SiP flash built in, GPIO11 ~ GPIO17 are dedicated to connecting the SiP flash; therefore, only 14 GPIO pins are available.
-
-    Each pin can be used as a general-purpose I/O, or to be connected to an internal peripheral signal. Through GPIO matrix and IO MUX, peripheral input signals can be from any IO pins, and peripheral output signals can be routed to any IO pins. Together these modules provide highly configurable I/O. For more details, see *{IDF_TARGET_NAME} Technical Reference Manual* > *IO MUX and GPIO Matrix (GPIO, IO_MUX)* [`PDF <{IDF_TARGET_TRM_EN_URL}#iomuxgpio>`__].
-
-    The table below provides more information on pin usage, and please note the comments in the table for GPIOs with restrictions.
-
-    .. list-table::
-       :header-rows: 1
-       :widths: 12 12 22
-
-       * - GPIO
-         - Analog Function
-         - Comment
-
-       * - GPIO0
-         - ADC1_CH0
-         - RTC
-
-       * - GPIO1
-         - ADC1_CH1
-         - RTC
-
-       * - GPIO2
-         - ADC1_CH2
-         - RTC
-
-       * - GPIO3
-         - ADC1_CH3
-         - RTC
-
-       * - GPIO4
-         - ADC1_CH4
-         - RTC
-
-       * - GPIO5
-         -
-         - RTC
-
-       * - GPIO6
-         -
-         -
-
-       * - GPIO7
-         -
-         -
-
-       * - GPIO8
-         -
-         - Strapping pin
-
-       * - GPIO9
-         -
-         - Strapping pin
-
-       * - GPIO10
-         -
-         -
-
-       * - GPIO11
-         -
-         -
-
-       * - GPIO12
-         -
-         - SPI0/1
-
-       * - GPIO13
-         -
-         - SPI0/1
-
-       * - GPIO14
-         -
-         - SPI0/1
-
-       * - GPIO15
-         -
-         - SPI0/1
-
-       * - GPIO16
-         -
-         - SPI0/1
-
-       * - GPIO17
-         -
-         - SPI0/1
-
-       * - GPIO18
-         -
-         -
-
-       * - GPIO19
-         -
-         -
-
-       * - GPIO20
-         -
-         -
-
-    .. note::
-
-        - Strapping pin: GPIO8 and GPIO9 are strapping pins. For more infomation, please refer to `ESP8684 datasheet <https://www.espressif.com/sites/default/files/documentation/esp8684_datasheet_en.pdf>`_.
-        - SPI0/1: GPIO12-17 are usually used for SPI flash and not recommended for other uses.
-        - RTC: GPIO0-5 can be used when in Deep-sleep mode.
-
+GPIO Summary
+------------
+
+.. include:: gpio/{IDF_TARGET_PATH_NAME}.inc
+    :start-after: gpio-summary
+    :end-before: ---
 
 .. only:: SOC_RTCIO_INPUT_OUTPUT_SUPPORTED
 
-    There is also separate "RTC GPIO" support, which functions when GPIOs are routed to the "RTC" low-power and analog subsystem. These pin functions can be used when:
+    .. only:: not SOC_LP_PERIPHERALS_SUPPORTED
+
+        There is also separate "RTC GPIO" support, which functions when GPIOs are routed to the "RTC" low-power and analog subsystem. These pin functions can be used when:
+
+    .. only:: SOC_LP_PERIPHERALS_SUPPORTED
+
+        There is also separate "RTC GPIO" support, which functions when GPIOs are routed to the "RTC" low-power, analog subsystem, and Low-Power(LP) peripherals. These pin functions can be used when:
 
     .. list::
 
         - In Deep-sleep mode
-        :SOC_ULP_SUPPORTED: - The :doc:`Ultra Low Power co-processor <../../api-reference/system/ulp>` is running
-        - Analog functions such as ADC/DAC/etc are in use.
+        :SOC_ULP_FSM_SUPPORTED: - The :doc:`Ultra Low Power FSM co-processor <../../api-reference/system/ulp>` is running
+        :SOC_RISCV_COPROC_SUPPORTED: - The :doc:`Ultra Low Power RISC-V co-processor <../../api-reference/system/ulp-risc-v>` is running
+        :SOC_LP_CORE_SUPPORTED: - The :doc:`Ultra Low Power LP-Core co-processor <../../api-reference/system/ulp-lp-core>` is running
+        - Analog functions such as ADC/DAC/etc are in use
+        :SOC_LP_PERIPHERALS_SUPPORTED: - LP peripherals, such as LP_UART, LP_I2C, are in use
+
+IO Configuration
+----------------
+
+An IO can be used in two ways:
+
+- As a simple GPIO input to read the level on the pin, or as a simple GPIO output to output the desired level on the pin.
+- As a peripheral signal input/output.
+
+IDF peripheral drivers always take care of the necessary IO configurations that need to be applied onto the pins, so that they can be used as the peripheral signal inputs or outputs. This means the users usually only need to be responsible for configuring the IOs as simple inputs or outputs. :cpp:func:`gpio_config` is an all-in-one API that can be used to configure the I/O mode, internal pull-up/pull-down resistors, etc. for pins, including the ones reused by the USB PHY.
+
+In some applications, an IO pin can serve dual purposes. For example, the IO, which outputs a LEDC PWM signal, can also act as a GPIO input to generate interrupts or GPIO ETM events. Careful handling on the configuration step is necessary for such dual use of IO pins cases. :cpp:func:`gpio_config` is an API that overwrites all the current configurations, so it must be called to set the pin mode to :cpp:enumerator:`gpio_mode_t::GPIO_MODE_INPUT` before calling the LEDC driver API which connects the output signal to the pin. As an alternative, if no other configuration is needed other than making the pin input enabled, :cpp:func:`gpio_input_enable` can be the one to call at any time to achieve the same purpose.
+
+Check Current Configuration of IOs
+----------------------------------
+
+GPIO driver offers a dump function :cpp:func:`gpio_dump_io_configuration` to show the current configurations of IOs, such as pull-up/pull-down, input/output enable, pin mapping, etc. Below is an example of how to dump the configuration of GPIO4, GPIO18, and GPIO26:
+
+::
+
+    gpio_dump_io_configuration(stdout, (1ULL << 4) | (1ULL << 18) | (1ULL << 26));
+
+The dump will be like this:
+
+::
+
+    ================IO DUMP Start================
+    IO[4] -
+      Pullup: 1, Pulldown: 0, DriveCap: 2
+      InputEn: 1, OutputEn: 0, OpenDrain: 0
+      FuncSel: 1 (GPIO)
+      GPIO Matrix SigIn ID: (simple GPIO input)
+      SleepSelEn: 1
+
+    IO[18] -
+      Pullup: 0, Pulldown: 0, DriveCap: 2
+      InputEn: 0, OutputEn: 1, OpenDrain: 0
+      FuncSel: 1 (GPIO)
+      GPIO Matrix SigOut ID: 256 (simple GPIO output)
+      SleepSelEn: 1
+
+    IO[26] **RESERVED** -
+      Pullup: 1, Pulldown: 0, DriveCap: 2
+      InputEn: 1, OutputEn: 0, OpenDrain: 0
+      FuncSel: 0 (IOMUX)
+      SleepSelEn: 1
+
+    =================IO DUMP End==================
+
+In addition, if you would like to dump the configurations of all IOs, you can use:
+
+::
+
+    gpio_dump_io_configuration(stdout, SOC_GPIO_VALID_GPIO_MASK);
+
+If an IO pin is routed to a peripheral signal through the GPIO matrix, the signal ID printed in the dump information is defined in the :component_file:`soc/{IDF_TARGET_PATH_NAME}/include/soc/gpio_sig_map.h` header file. The word ``**RESERVED**`` indicates the IO is occupied by either SPI flash or PSRAM. It is strongly not recommended to reconfigure them for other application purposes.
+
+Do not rely on the default configurations values in the Technical Reference Manual, because it may be changed in the bootloader or application startup code before app_main.
+
+.. only:: SOC_GPIO_SUPPORT_PIN_GLITCH_FILTER or SOC_GPIO_FLEX_GLITCH_FILTER_NUM
+
+    GPIO Glitch Filter
+    ------------------
+
+    The {IDF_TARGET_NAME} chip features hardware filters to remove unwanted glitch pulses from the input GPIO, which can help reduce false triggering of the interrupt and prevent a noise being routed to the peripheral side.
+
+    .. only:: SOC_GPIO_SUPPORT_PIN_GLITCH_FILTER
+
+        Each GPIO can be configured with a glitch filter, which can be used to filter out pulses shorter than **two** sample clock cycles. The duration of the filter is not configurable. The sample clock is the clock source of the IO_MUX. In the driver, we call this kind of filter as ``pin glitch filter``. You can create the filter handle by calling :cpp:func:`gpio_new_pin_glitch_filter`. All the configurations for a pin glitch filter are listed in the :cpp:type:`gpio_pin_glitch_filter_config_t` structure.
+
+        - :cpp:member:`gpio_pin_glitch_filter_config_t::gpio_num` sets the GPIO number to enable the glitch filter.
+
+    .. only:: SOC_GPIO_FLEX_GLITCH_FILTER_NUM
+
+        {IDF_TARGET_FLEX_GLITCH_FILTER_NUM:default="8"}
+
+        {IDF_TARGET_NAME} provides {IDF_TARGET_FLEX_GLITCH_FILTER_NUM} flexible glitch filters, whose duration is configurable. We refer to this kind of filter as ``flex flitch filter``. Each of them can be applied to any input GPIO. However, applying multiple filters to the same GPIO does not make difference from one. You can create the filter handle by calling :cpp:func:`gpio_new_flex_glitch_filter`. All the configurations for a flexible glitch filter are listed in the :cpp:type:`gpio_flex_glitch_filter_config_t` structure.
+
+        - :cpp:member:`gpio_flex_glitch_filter_config_t::gpio_num` sets the GPIO that will be applied to the flex glitch filter.
+        - :cpp:member:`gpio_flex_glitch_filter_config_t::window_width_ns` and :cpp:member:`gpio_flex_glitch_filter_config_t::window_thres_ns` are the key parameters of the glitch filter. During :cpp:member:`gpio_flex_glitch_filter_config_t::window_width_ns`, any pulse whose width is shorter than :cpp:member:`gpio_flex_glitch_filter_config_t::window_thres_ns` will be discarded. Please note that, you can not set :cpp:member:`gpio_flex_glitch_filter_config_t::window_thres_ns` bigger than :cpp:member:`gpio_flex_glitch_filter_config_t::window_width_ns`.
+
+    .. only:: SOC_GPIO_SUPPORT_PIN_GLITCH_FILTER and SOC_GPIO_FLEX_GLITCH_FILTER_NUM
+
+        Please note, the ``pin glitch filter`` and ``flex glitch filter`` are independent. You can enable both of them for the same GPIO.
+
+    The glitch filter is disabled by default, and can be enabled by calling :cpp:func:`gpio_glitch_filter_enable`. To recycle the filter, you can call :cpp:func:`gpio_del_glitch_filter`. Please note, before deleting the filter, you should disable it first by calling :cpp:func:`gpio_glitch_filter_disable`.
+
+
+.. only:: SOC_GPIO_SUPPORT_PIN_HYS_FILTER
+
+    GPIO Hysteresis Filter
+    ----------------------
+
+    {IDF_TARGET_NAME} support the hardware hysteresis of the input pin, which can reduce the GPIO interrupt shoot by accident due to unstable sampling when the input voltage is near the criteria of logic 0 and 1, especially when the input logic level conversion is slow or the voltage setup time is too long.
+
+    .. only:: SOC_GPIO_SUPPORT_PIN_HYS_CTRL_BY_EFUSE
+
+        Each pin can enable hysteresis function independently. By default, it controlled by eFuse and been closed, but it can also be enabled or disabled by software manually. You can select the hysteresis control mode by configuring :cpp:member:`gpio_config_t::hys_ctrl_mode`. Hysteresis control mode is set along with all the other GPIO configurations in :cpp:func:`gpio_config`.
+
+        .. note::
+
+            When the hysteresis function is controlled by eFuse, this feature can still be controlled independently for each pin, you need to `burn the eFuse <https://docs.espressif.com/projects/esptool/en/latest/esp32/espefuse/index.html>`_ to enable the hysteresis function on specific GPIO additionally.
+
+    .. only:: not SOC_GPIO_SUPPORT_PIN_HYS_CTRL_BY_EFUSE
+
+        Each pin can enable hysteresis function independently. By default, the function is not enabled. You can select the hysteresis control mode by configuring :cpp:member:`gpio_config_t::hys_ctrl_mode`. Hysteresis control mode is set along with all the other GPIO configurations in :cpp:func:`gpio_config`.
+
 
 Application Example
 -------------------
 
-GPIO output and input interrupt example: :example:`peripherals/gpio/generic_gpio`.
+.. list::
+
+    * :example:`peripherals/gpio/generic_gpio` demonstrates how to configure GPIO to generate pulses and use it with interruption.
+    :esp32s2: * :example:`peripherals/gpio/matrix_keyboard` demonstrates how to drive a common matrix keyboard using the dedicated GPIO APIs, including manipulating the level on a group of GPIOs, triggering edge interrupt, and reading level on a group of GPIOs.
+
 
 API Reference - Normal GPIO
 ---------------------------
@@ -931,4 +158,12 @@ API Reference - Normal GPIO
     ------------------------
 
     .. include-build-file:: inc/rtc_io.inc
+    .. include-build-file:: inc/lp_io.inc
     .. include-build-file:: inc/rtc_io_types.inc
+
+.. only:: SOC_GPIO_SUPPORT_PIN_GLITCH_FILTER or SOC_GPIO_FLEX_GLITCH_FILTER_NUM
+
+      API Reference - GPIO Glitch Filter
+      ----------------------------------
+
+      .. include-build-file:: inc/gpio_filter.inc

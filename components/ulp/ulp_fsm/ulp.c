@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2010-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2010-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -28,6 +28,16 @@
 #include "ulp_common.h"
 #include "esp_rom_sys.h"
 
+#include "esp_check.h"
+#include "esp_private/rtc_ctrl.h"
+#include "esp_private/periph_ctrl.h"
+
+#if SOC_RTC_CNTL_NEEDS_ATOMIC_ACCESS
+#define RTC_CNTL_ATOMIC() PERIPH_RCC_ATOMIC()
+#else
+#define RTC_CNTL_ATOMIC()
+#endif
+
 typedef struct {
     uint32_t magic;
     uint16_t text_offset;
@@ -39,6 +49,30 @@ typedef struct {
 #define ULP_BINARY_MAGIC_ESP32 (0x00706c75)
 
 static const char* TAG = "ulp";
+
+esp_err_t ulp_isr_register(intr_handler_t fn, void *arg)
+{
+    ESP_RETURN_ON_FALSE(fn, ESP_ERR_INVALID_ARG, TAG, "ULP ISR is NULL");
+    /* Enable the interrupt bit atomically to avoid race condition with other code accessing RTC_CNTL_INT_ENA_REG */
+    RTC_CNTL_ATOMIC() {
+        REG_SET_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_ULP_CP_INT_ENA_M);
+    }
+#if CONFIG_IDF_TARGET_ESP32
+    return rtc_isr_register(fn, arg, RTC_CNTL_SAR_INT_ST_M, 0);
+#else
+    return rtc_isr_register(fn, arg, RTC_CNTL_ULP_CP_INT_ST_M, 0);
+#endif /* CONFIG_IDF_TARGET_ESP32 */
+}
+
+esp_err_t ulp_isr_deregister(intr_handler_t fn, void *arg)
+{
+    ESP_RETURN_ON_FALSE(fn, ESP_ERR_INVALID_ARG, TAG, "ULP ISR is NULL");
+    /* Disable the interrupt bit atomically to avoid race condition with other code accessing RTC_CNTL_INT_ENA_REG */
+    RTC_CNTL_ATOMIC() {
+        REG_CLR_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_ULP_CP_INT_ENA_M);
+    }
+    return rtc_isr_deregister(fn, arg);
+}
 
 esp_err_t ulp_run(uint32_t entry_point)
 {
@@ -53,10 +87,7 @@ esp_err_t ulp_run(uint32_t entry_point)
     CLEAR_PERI_REG_MASK(SENS_SAR_START_FORCE_REG, SENS_ULP_CP_FORCE_START_TOP_M);
     // set time until wakeup is allowed to the smallest possible
     REG_SET_FIELD(RTC_CNTL_TIMER5_REG, RTC_CNTL_MIN_SLP_VAL, RTC_CNTL_MIN_SLP_VAL_MIN);
-    // make sure voltage is raised when RTC 8MCLK is enabled
-    SET_PERI_REG_MASK(RTC_CNTL_OPTIONS0_REG, RTC_CNTL_BIAS_I2C_FOLW_8M);
-    SET_PERI_REG_MASK(RTC_CNTL_OPTIONS0_REG, RTC_CNTL_BIAS_CORE_FOLW_8M);
-    SET_PERI_REG_MASK(RTC_CNTL_OPTIONS0_REG, RTC_CNTL_BIAS_SLEEP_FOLW_8M);
+
     // enable ULP timer
     SET_PERI_REG_MASK(RTC_CNTL_STATE0_REG, RTC_CNTL_ULP_CP_SLP_TIMER_EN);
 #else
@@ -72,7 +103,7 @@ esp_err_t ulp_run(uint32_t entry_point)
     REG_SET_FIELD(RTC_CNTL_ULP_CP_TIMER_REG, RTC_CNTL_ULP_CP_PC_INIT, entry_point);
     SET_PERI_REG_MASK(RTC_CNTL_COCPU_CTRL_REG, RTC_CNTL_COCPU_SEL);         // Select ULP_TIMER trigger target for ULP.
     // start ULP clock gate.
-    SET_PERI_REG_MASK(RTC_CNTL_ULP_CP_CTRL_REG ,RTC_CNTL_ULP_CP_CLK_FO);
+    SET_PERI_REG_MASK(RTC_CNTL_ULP_CP_CTRL_REG, RTC_CNTL_ULP_CP_CLK_FO);
     // ULP FSM sends the DONE signal.
     CLEAR_PERI_REG_MASK(RTC_CNTL_COCPU_CTRL_REG, RTC_CNTL_COCPU_DONE_FORCE);
 #if CONFIG_IDF_TARGET_ESP32S3
@@ -112,11 +143,11 @@ esp_err_t ulp_load_binary(uint32_t load_addr, const uint8_t* program_binary, siz
     }
 
     size_t total_size = (size_t) header.text_offset + (size_t) header.text_size +
-            (size_t) header.data_size;
+                        (size_t) header.data_size;
 
     ESP_LOGD(TAG, "program_size_bytes: %d total_size: %d offset: %d .text: %d, .data: %d, .bss: %d",
-            program_size_bytes, total_size, header.text_offset,
-            header.text_size, header.data_size, header.bss_size);
+             program_size_bytes, total_size, header.text_offset,
+             header.text_size, header.data_size, header.bss_size);
 
     if (total_size != program_size_bytes) {
         return ESP_ERR_INVALID_SIZE;

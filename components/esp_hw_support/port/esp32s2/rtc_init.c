@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,23 +9,36 @@
 #include "soc/rtc.h"
 #include "soc/rtc_cntl_reg.h"
 #include "soc/dport_reg.h"
-#include "soc/efuse_periph.h"
 #include "soc/gpio_reg.h"
 #include "soc/spi_mem_reg.h"
 #include "soc/extmem_reg.h"
 #include "soc/regi2c_ulp.h"
+#include "hal/efuse_hal.h"
+#include "hal/efuse_ll.h"
 #include "regi2c_ctrl.h"
 #include "esp_hw_log.h"
-#include "esp_efuse.h"
-#include "esp_efuse_table.h"
+#ifndef BOOTLOADER_BUILD
+#include "esp_private/sar_periph_ctrl.h"
+#endif
 
-__attribute__((unused)) static const char *TAG = "rtc_init";
+ESP_HW_LOG_ATTR_TAG(TAG, "rtc_init");
 
 static void set_ocode_by_efuse(int calib_version);
 static void calibrate_ocode(void);
 
 void rtc_init(rtc_config_t cfg)
 {
+    /**
+     * When run rtc_init, it maybe deep sleep reset. Since we power down modem in deep sleep, after wakeup
+     * from deep sleep, these fields are changed and not reset. We will access two BB regs(BBPD_CTRL and
+     * NRXPD_CTRL) in rtc_sleep_pu. If PD modem and no iso, CPU will stuck when access these two BB regs
+     * and finally triggle RTC WDT. So need to clear modem Force PD.
+     *
+     * No worry about the power consumption, Because modem Force PD will be set at the end of this function.
+     */
+    CLEAR_PERI_REG_MASK(RTC_CNTL_DIG_PWC_REG, RTC_CNTL_WIFI_FORCE_PD);
+    CLEAR_PERI_REG_MASK(RTC_CNTL_DIG_ISO_REG, RTC_CNTL_WIFI_FORCE_ISO);
+
     CLEAR_PERI_REG_MASK(RTC_CNTL_ANA_CONF_REG, RTC_CNTL_PVTMON_PU);
     REG_SET_FIELD(RTC_CNTL_TIMER1_REG, RTC_CNTL_PLL_BUF_WAIT, cfg.pll_wait);
     REG_SET_FIELD(RTC_CNTL_TIMER1_REG, RTC_CNTL_CK8M_WAIT, cfg.ck8m_wait);
@@ -34,7 +47,7 @@ void rtc_init(rtc_config_t cfg)
     // set shortest possible sleep time limit
     REG_SET_FIELD(RTC_CNTL_TIMER5_REG, RTC_CNTL_MIN_SLP_VAL, RTC_CNTL_MIN_SLP_VAL_MIN);
 
-    /* This power domian removed
+    /* This power domain removed
     * set rom&ram timer
     * REG_SET_FIELD(RTC_CNTL_TIMER3_REG, RTC_CNTL_ROM_RAM_POWERUP_TIMER, ROM_RAM_POWERUP_CYCLES);
     * REG_SET_FIELD(RTC_CNTL_TIMER3_REG, RTC_CNTL_ROM_RAM_WAIT_TIMER, ROM_RAM_WAIT_CYCLES);
@@ -151,8 +164,7 @@ void rtc_init(rtc_config_t cfg)
 
 #if !CONFIG_IDF_ENV_FPGA
     if (cfg.cali_ocode) {
-        uint32_t rtc_calib_version = 0;
-        esp_efuse_read_field_blob(ESP_EFUSE_BLK_VERSION_MINOR, &rtc_calib_version, ESP_EFUSE_BLK_VERSION_MINOR[0]->bit_count); // IDF-5366
+        uint32_t rtc_calib_version = efuse_ll_get_blk_version_minor();
         if (rtc_calib_version == 2) {
             set_ocode_by_efuse(rtc_calib_version);
         } else {
@@ -163,6 +175,11 @@ void rtc_init(rtc_config_t cfg)
 
     REG_WRITE(RTC_CNTL_INT_ENA_REG, 0);
     REG_WRITE(RTC_CNTL_INT_CLR_REG, UINT32_MAX);
+
+#ifndef BOOTLOADER_BUILD
+    //initialise SAR related peripheral register settings
+    sar_periph_ctrl_init();
+#endif
 }
 
 rtc_vddsdio_config_t rtc_vddsdio_get_config(void)
@@ -214,13 +231,7 @@ void rtc_vddsdio_set_config(rtc_vddsdio_config_t config)
 static void set_ocode_by_efuse(int calib_version)
 {
     assert(calib_version == 2);
-    // use efuse ocode.
-    uint32_t ocode1 = 0;
-    uint32_t ocode2 = 0;
-    uint32_t ocode;
-    esp_efuse_read_block(2, &ocode1, 16*8, 4);
-    esp_efuse_read_block(2, &ocode2, 18*8, 3);
-    ocode = (ocode2 << 4) + ocode1;
+    uint32_t ocode = efuse_ll_get_ocode();
     if (ocode >> 6) {
         ocode = 93 - (ocode ^ (1 << 6));
     } else {
@@ -244,16 +255,9 @@ static void calibrate_ocode(void)
     4. wait o-code calibration done flag(odone_flag & bg_odone_flag) or timeout;
     5. set cpu to old-config.
     */
-    soc_rtc_slow_clk_src_t slow_clk_src = rtc_clk_slow_src_get();
-    rtc_cal_sel_t cal_clk = RTC_CAL_RTC_MUX;
-    if (slow_clk_src == SOC_RTC_SLOW_CLK_SRC_XTAL32K) {
-        cal_clk = RTC_CAL_32K_XTAL;
-    } else if (slow_clk_src == SOC_RTC_SLOW_CLK_SRC_RC_FAST_D256) {
-        cal_clk  = RTC_CAL_8MD256;
-    }
 
     uint64_t max_delay_time_us = 10000;
-    uint32_t slow_clk_period = rtc_clk_cal(cal_clk, 100);
+    uint32_t slow_clk_period = rtc_clk_cal(CLK_CAL_RTC_SLOW, 100);
     uint64_t max_delay_cycle = rtc_time_us_to_slowclk(max_delay_time_us, slow_clk_period);
     uint64_t cycle0 = rtc_time_get();
     uint64_t timeout_cycle = cycle0 + max_delay_cycle;

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,21 +14,20 @@
 #include "esp_task.h"
 
 #include "nimble/nimble_npl.h"
-#include "esp_bt_cfg.h"
+#include "../../../../controller/esp32h2/esp_bt_cfg.h"
+#include "esp_private/esp_modem_clock.h"
 
 #ifdef CONFIG_BT_LE_HCI_INTERFACE_USE_UART
 #include "driver/uart.h"
 #endif
-
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief Bluetooth mode for controller enable/disable
+ * @brief Bluetooth mode for controller enable/disable.
  */
-
 typedef enum {
     ESP_BT_MODE_IDLE       = 0x00,   /*!< Bluetooth is not running */
     ESP_BT_MODE_BLE        = 0x01,   /*!< Run BLE mode */
@@ -37,9 +36,8 @@ typedef enum {
 } esp_bt_mode_t;
 
 /**
- * @brief Bluetooth controller enable/disable/initialised/de-initialised status
+ * @brief Bluetooth controller enable/disable/initialised/de-initialised status.
  */
-
 typedef enum {
     ESP_BT_CONTROLLER_STATUS_IDLE = 0,   /*!< Controller is in idle state */
     ESP_BT_CONTROLLER_STATUS_INITED,     /*!< Controller is in initialising state */
@@ -77,28 +75,54 @@ typedef enum {
  * @brief Bluetooth TX power level(index), it's just a index corresponding to power(dbm).
  */
 typedef enum {
-    ESP_PWR_LVL_N27 = 0,              /*!< Corresponding to -27dbm */
-    ESP_PWR_LVL_N24 = 1,              /*!< Corresponding to -24dbm */
-    ESP_PWR_LVL_N21 = 2,              /*!< Corresponding to -21dbm */
-    ESP_PWR_LVL_N18 = 3,              /*!< Corresponding to -18dbm */
-    ESP_PWR_LVL_N15 = 4,              /*!< Corresponding to -15dbm */
-    ESP_PWR_LVL_N12 = 5,              /*!< Corresponding to -12dbm */
-    ESP_PWR_LVL_N9  = 6,              /*!< Corresponding to  -9dbm */
-    ESP_PWR_LVL_N6  = 7,              /*!< Corresponding to  -6dbm */
-    ESP_PWR_LVL_N3  = 8,              /*!< Corresponding to  -3dbm */
-    ESP_PWR_LVL_N0  = 9,              /*!< Corresponding to   0dbm */
-    ESP_PWR_LVL_P3  = 10,             /*!< Corresponding to  +3dbm */
-    ESP_PWR_LVL_P6  = 11,             /*!< Corresponding to  +6dbm */
-    ESP_PWR_LVL_P9  = 12,             /*!< Corresponding to  +9dbm */
-    ESP_PWR_LVL_P12 = 13,             /*!< Corresponding to  +12dbm */
-    ESP_PWR_LVL_P15 = 14,             /*!< Corresponding to  +15dbm */
-    ESP_PWR_LVL_P18 = 15,             /*!< Corresponding to  +18dbm */
-    ESP_PWR_LVL_INVALID = 0xFF,         /*!< Indicates an invalid value */
+    ESP_PWR_LVL_N24 = 0,              /*!< Corresponding to -24dbm */
+    ESP_PWR_LVL_N21 = 1,              /*!< Corresponding to -21dbm */
+    ESP_PWR_LVL_N18 = 2,              /*!< Corresponding to -18dbm */
+    ESP_PWR_LVL_N15 = 3,              /*!< Corresponding to -15dbm */
+    ESP_PWR_LVL_N12 = 4,              /*!< Corresponding to -12dbm */
+    ESP_PWR_LVL_N9  = 5,              /*!< Corresponding to  -9dbm */
+    ESP_PWR_LVL_N6  = 6,              /*!< Corresponding to  -6dbm */
+    ESP_PWR_LVL_N3  = 7,              /*!< Corresponding to  -3dbm */
+    ESP_PWR_LVL_N0  = 8,              /*!< Corresponding to   0dbm */
+    ESP_PWR_LVL_P3  = 9,              /*!< Corresponding to  +3dbm */
+    ESP_PWR_LVL_P6  = 10,             /*!< Corresponding to  +6dbm */
+    ESP_PWR_LVL_P9  = 11,             /*!< Corresponding to  +9dbm */
+    ESP_PWR_LVL_P12 = 12,             /*!< Corresponding to  +12dbm */
+    ESP_PWR_LVL_P15 = 13,             /*!< Corresponding to  +15dbm */
+    ESP_PWR_LVL_P16 = 14,             /*!< Corresponding to  +18dbm, this enum variable has been deprecated */
+    ESP_PWR_LVL_P17 = 14,             /*!< Corresponding to  +18dbm, this enum variable has been deprecated */
+    ESP_PWR_LVL_P18 = 14,             /*!< Corresponding to  +18dbm */
+    ESP_PWR_LVL_P19 = 15,             /*!< Corresponding to  +20dbm, this enum variable has been deprecated */
+    ESP_PWR_LVL_P20 = 15,             /*!< Corresponding to  +20dbm */
+    ESP_PWR_LVL_INVALID = 0xFF,       /*!< Indicates an invalid value */
 } esp_power_level_t;
 
+/**
+ * @brief The enhanced type of which tx power, could set Advertising/Connection/Default and etc.
+ */
+typedef enum {
+    ESP_BLE_ENHANCED_PWR_TYPE_DEFAULT = 0,
+    ESP_BLE_ENHANCED_PWR_TYPE_ADV,
+    ESP_BLE_ENHANCED_PWR_TYPE_SCAN,
+    ESP_BLE_ENHANCED_PWR_TYPE_INIT,
+    ESP_BLE_ENHANCED_PWR_TYPE_CONN,
+    ESP_BLE_ENHANCED_PWR_TYPE_MAX,
+} esp_ble_enhanced_power_type_t;
+
+/**
+ * @brief Select buffers
+*/
+typedef enum {
+    ESP_BLE_LOG_BUF_HCI         = 0x02,
+    ESP_BLE_LOG_BUF_CONTROLLER  = 0x05,
+} esp_ble_log_buf_t;
+
+/**
+ * @brief Address type and address value.
+ */
 typedef struct {
-    uint8_t type;
-    uint8_t val[6];
+    uint8_t type;     /*!< Type of the Bluetooth address (public, random, etc.) */
+    uint8_t val[6];   /*!< Array containing the 6-byte Bluetooth address value */
 } esp_ble_addr_t;
 
 /**
@@ -118,7 +142,26 @@ esp_err_t esp_ble_tx_power_set(esp_ble_power_type_t power_type, esp_power_level_
  */
 esp_power_level_t esp_ble_tx_power_get(esp_ble_power_type_t power_type);
 
-#define CONFIG_VERSION  0x20220409
+/**
+ * @brief  ENHANCED API for Setting BLE TX power
+ *         Connection Tx power should only be set after connection created.
+ * @param  power_type : The enhanced type of which tx power, could set Advertising/Connection/Default and etc
+ * @param  handle : The handle of Advertising or Connection and the value 0 for other enhanced power types.
+ * @param  power_level: Power level(index) corresponding to absolute value(dbm)
+ * @return              ESP_OK - success, other - failed
+ */
+esp_err_t esp_ble_tx_power_set_enhanced(esp_ble_enhanced_power_type_t power_type, uint16_t handle, esp_power_level_t power_level);
+
+/**
+ * @brief  ENHANCED API of Getting BLE TX power
+ *         Connection Tx power should only be get after connection created.
+ * @param  power_type : The enhanced type of which tx power, could set Advertising/Connection/Default and etc
+ * @param  handle : The handle of Advertising or Connection and the value 0 for other enhanced power types.
+ * @return             >= 0 - Power level, < 0 - Invalid
+ */
+esp_power_level_t esp_ble_tx_power_get_enhanced(esp_ble_enhanced_power_type_t power_type, uint16_t handle);
+
+#define CONFIG_VERSION  0x20260123
 #define CONFIG_MAGIC    0x5A5AA5A5
 
 /**
@@ -126,56 +169,80 @@ esp_power_level_t esp_ble_tx_power_get(esp_ble_power_type_t power_type);
  *        Config mask indicate which functions enabled, this means
  *        some options or parameters of some functions enabled by config mask.
  */
-
 typedef struct {
-    uint32_t config_version;
-    uint16_t ble_ll_resolv_list_size;
-    uint16_t ble_hci_evt_hi_buf_count;
-    uint16_t ble_hci_evt_lo_buf_count;
-    uint8_t ble_ll_sync_list_cnt;
-    uint8_t ble_ll_sync_cnt;
-    uint16_t ble_ll_rsp_dup_list_count;
-    uint16_t ble_ll_adv_dup_list_count;
-    uint8_t ble_ll_tx_pwr_dbm;
-    uint64_t rtc_freq;
-    uint16_t ble_ll_sca;
-    uint8_t ble_ll_scan_phy_number;
-    uint16_t ble_ll_conn_def_auth_pyld_tmo;
-    uint8_t ble_ll_jitter_usecs;
-    uint16_t ble_ll_sched_max_adv_pdu_usecs;
-    uint16_t ble_ll_sched_direct_adv_max_usecs;
-    uint16_t ble_ll_sched_adv_max_usecs;
-    uint16_t ble_scan_rsp_data_max_len;
-    uint8_t ble_ll_cfg_num_hci_cmd_pkts;
-    uint32_t ble_ll_ctrl_proc_timeout_ms;
-    uint16_t nimble_max_connections;
-    uint8_t ble_whitelist_size;
-    uint16_t ble_acl_buf_size;
-    uint16_t ble_acl_buf_count;
-    uint16_t ble_hci_evt_buf_size;
-    uint16_t ble_multi_adv_instances;
-    uint16_t ble_ext_adv_max_size;
-    uint16_t controller_task_stack_size;
-    uint8_t controller_task_prio;
-    uint8_t controller_run_cpu;
-    uint8_t enable_qa_test;
-    uint8_t enable_bqb_test;
-    uint8_t enable_uart_hci;
-    uint8_t ble_hci_uart_port;
-    uint32_t ble_hci_uart_baud;
-    uint8_t ble_hci_uart_data_bits;
-    uint8_t ble_hci_uart_stop_bits;
-    uint8_t ble_hci_uart_flow_ctrl;
-    uint8_t ble_hci_uart_uart_parity;
-    uint8_t enable_tx_cca;
-    uint8_t cca_rssi_thresh;
-    uint8_t cca_drop_mode;
-    int8_t  cca_low_tx_pwr;
-    uint8_t sleep_en;
-    uint8_t coex_phy_coded_tx_rx_time_limit;
-    uint8_t dis_scan_backoff;
-    uint8_t scan_classify_filter_enable;
-    uint32_t config_magic;
+    uint32_t config_version;                     /*!< Version number of the defined structure */
+    uint16_t ble_ll_resolv_list_size;            /*!< Size of the resolvable private address list */
+    uint16_t ble_hci_evt_hi_buf_count;           /*!< Count of high buffers for HCI events */
+    uint16_t ble_hci_evt_lo_buf_count;           /*!< Count of low buffers for HCI events */
+    uint8_t ble_ll_sync_list_cnt;                /*!< Number of synchronization lists */
+    uint8_t ble_ll_sync_cnt;                     /*!< Number of synchronizations */
+    uint16_t ble_ll_rsp_dup_list_count;          /*!< Count of duplicated lists for scan response packets */
+    uint16_t ble_ll_adv_dup_list_count;          /*!< Count of duplicated lists for advertising packets */
+    uint8_t ble_ll_tx_pwr_dbm;                   /*!< Tx power (transmit power) in dBm */
+    uint64_t rtc_freq;                           /*!< Frequency of RTC (Real-Time Clock) */
+    uint16_t ble_ll_sca;                         /*!< Sleep Clock Accuracy (SCA) parameter */
+    uint8_t ble_ll_scan_phy_number;              /*!< Number of PHYs supported for scanning */
+    uint16_t ble_ll_conn_def_auth_pyld_tmo;      /*!< Connection default authentication payload timeout */
+    uint8_t ble_ll_jitter_usecs;                 /*!< Jitter time in microseconds */
+    uint16_t ble_ll_sched_max_adv_pdu_usecs;     /*!< Maximum time in microseconds for advertising PDU scheduling */
+    uint16_t ble_ll_sched_direct_adv_max_usecs;  /*!< Maximum time in microseconds for directed advertising scheduling */
+    uint16_t ble_ll_sched_adv_max_usecs;         /*!< Maximum time in microseconds for advertising scheduling */
+    uint16_t ble_scan_rsp_data_max_len;          /*!< Maximum length of scan response data */
+    uint8_t ble_ll_cfg_num_hci_cmd_pkts;         /*!< Number of HCI command packets that can be queued */
+    uint32_t ble_ll_ctrl_proc_timeout_ms;        /*!< Control processing timeout in milliseconds */
+    uint16_t nimble_max_connections;             /*!< Maximum number of connections supported */
+    uint8_t ble_whitelist_size;                  /*!< Size of the white list */
+    uint16_t ble_acl_buf_size;                   /*!< Buffer size of ACL (Asynchronous Connection-Less) data */
+    uint16_t ble_acl_buf_count;                  /*!< Buffer count of ACL data */
+    uint16_t ble_hci_evt_buf_size;               /*!< Buffer size for HCI event data */
+    uint16_t ble_multi_adv_instances;            /*!< Number of advertising instances */
+    uint16_t ble_ext_adv_max_size;               /*!< Maximum size of extended advertising data */
+    uint16_t controller_task_stack_size;         /*!< Size of Bluetooth controller task stack */
+    uint8_t controller_task_prio;                /*!< Priority of the Bluetooth task */
+    uint8_t controller_run_cpu;                  /*!< CPU number on which the Bluetooth controller task runs */
+    uint8_t enable_qa_test;                      /*!< Enable for QA test */
+    uint8_t enable_bqb_test;                     /*!< Enable for BQB test */
+    uint8_t enable_tx_cca;                       /*!< Enable Clear Channel Assessment (CCA) when transmitting */
+    uint8_t cca_rssi_thresh;                     /*!< RSSI threshold for CCA */
+    uint8_t sleep_en;                            /*!< Enable sleep functionality */
+    uint8_t coex_phy_coded_tx_rx_time_limit;     /*!< Coexistence PHY coded TX and RX time limit */
+    uint8_t dis_scan_backoff;                    /*!< Disable scan backoff */
+    uint8_t ble_scan_classify_filter_enable;     /*!< Enable classification filter for BLE scan */
+    uint8_t cca_drop_mode;                       /*!< CCA drop mode */
+    int8_t cca_low_tx_pwr;                       /*!< Low TX power setting for CCA */
+    uint8_t main_xtal_freq;                      /*!< Main crystal frequency */
+    uint8_t cpu_freq_mhz;                        /*!< CPU frequency in megahertz */
+    uint8_t ignore_wl_for_direct_adv;            /*!< Ignore the white list for directed advertising */
+    uint8_t enable_pcl;                          /*!< Enable power control */
+    uint8_t csa2_select;                         /*!< Select CSA#2*/
+    uint8_t enable_csr;                          /*!< Enable CSR */
+    uint8_t ble_aa_check;                        /*!< True if adds a verification step for the Access Address within the CONNECT_IND PDU; false otherwise. Configurable in menuconfig */
+    uint8_t ble_llcp_disc_flag;                     /*!< Flag indicating whether the Controller disconnects after Instant Passed (0x28) error occurs. Configurable in menuconfig.
+                                                        - The Controller does not disconnect after Instant Passed (0x28) by default. */
+    uint16_t scan_backoff_upperlimitmax;            /*!< The value of upperlimitmax is 2^n, The maximum value is 256 */
+    uint8_t ble_chan_ass_en;                        /*!< Enable / disable BLE channel assessment. Configurable in menuconfig.
+                                                        - 0 - Disable
+                                                        - 1 - Enable (default) */
+    uint8_t ble_data_lenth_zero_aux;                /*!< Enable / disable auxiliary packets when the extended ADV data length is zero. Configurable in menuconfig.
+                                                        - 0 - Disable (default)
+                                                        - 1 - Enable */
+    uint8_t vhci_enabled;                           /*!< VHCI is enabled */
+    uint8_t ptr_check_enabled;                      /*!< Enable boundary check for internal memory. */
+    uint8_t ble_adv_tx_options;                     /*!< The options for Extended advertising sending. */
+    uint8_t skip_unnecessary_checks_en;             /*!< The option to skip non-fatal state checks and perform extra handling for fatal checks. */
+    uint8_t fast_conn_data_tx_en;                   /*!< The option for fast transmission of connection data
+                                                        - 0 - Disable
+                                                        - 1 - Enable (default) */
+    int8_t ch39_txpwr;                              /*!< BLE transmit power (in dBm) used for BLE advertising on channel 39. */
+    uint8_t adv_rsv_cnt;                            /*!< BLE adv state machine reserve count number */
+    uint8_t conn_rsv_cnt;                           /*!< BLE conn state machine reserve count number */
+    uint8_t priority_level_cfg;                     /*!< The option for priority level configuration */
+    uint8_t slv_fst_rx_lat_en;                      /*!< The option for enabling slave fast PDU reception during latency. */
+    uint8_t dl_itvl_phy_sync_en;                    /*!< The option for automatically initiate the data length update when phy update or connect interval update. */
+    uint8_t scan_allow_adi_filter;                  /*!< The option for ext scan to allow PDU with specific adi. */
+    uint8_t enhanced_mem_resv;                      /*!< The option masks the BLE events with all reserved memory. */
+    uint8_t rxbuf_reserved;                          /*!< The option reserve all Rxbuffer memory at initialization. */
+    uint32_t config_magic;                          /*!< Configuration magic value */
 } esp_bt_controller_config_t;
 
 
@@ -212,23 +279,46 @@ typedef struct {
     .controller_run_cpu         = 0,                                                    \
     .enable_qa_test             = RUN_QA_TEST,                                          \
     .enable_bqb_test            = RUN_BQB_TEST,                                         \
-    .enable_uart_hci            = HCI_UART_EN,                                          \
-    .ble_hci_uart_port          = DEFAULT_BT_LE_HCI_UART_PORT,                          \
-    .ble_hci_uart_baud          = DEFAULT_BT_LE_HCI_UART_BAUD,                          \
-    .ble_hci_uart_data_bits     = DEFAULT_BT_LE_HCI_UART_DATA_BITS,                     \
-    .ble_hci_uart_stop_bits     = DEFAULT_BT_LE_HCI_UART_STOP_BITS,                     \
-    .ble_hci_uart_flow_ctrl     = DEFAULT_BT_LE_HCI_UART_FLOW_CTRL,                     \
-    .ble_hci_uart_uart_parity   = DEFAULT_BT_LE_HCI_UART_PARITY,                        \
     .enable_tx_cca              = DEFAULT_BT_LE_TX_CCA_ENABLED,                         \
     .cca_rssi_thresh            = 256 - DEFAULT_BT_LE_CCA_RSSI_THRESH,                  \
-    .cca_drop_mode              = 0,                                                    \
-    .cca_low_tx_pwr             = 0,                                                    \
     .sleep_en                   = NIMBLE_SLEEP_ENABLE,                                  \
     .coex_phy_coded_tx_rx_time_limit = DEFAULT_BT_LE_COEX_PHY_CODED_TX_RX_TLIM_EFF,     \
-    .scan_classify_filter_enable = false,                                               \
+    .dis_scan_backoff           = NIMBLE_DISABLE_SCAN_BACKOFF,                          \
+    .ble_scan_classify_filter_enable         = 1,                                       \
+    .main_xtal_freq             = CONFIG_XTAL_FREQ,                                     \
+    .cpu_freq_mhz               = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,                      \
+    .ignore_wl_for_direct_adv   = 0,                                                    \
+    .enable_pcl                 = DEFAULT_BT_LE_POWER_CONTROL_ENABLED,                  \
+    .csa2_select                = DEFAULT_BT_LE_50_FEATURE_SUPPORT,                     \
+    .enable_csr                 = DEFAULT_BT_LE_SUBRATE_ENABLED,                        \
+    .ble_aa_check               = DEFAULT_BT_LE_CTRL_CHECK_CONNECT_IND_ACCESS_ADDRESS,  \
+    .ble_llcp_disc_flag         = BT_LE_CTRL_LLCP_DISC_FLAG,                            \
+    .scan_backoff_upperlimitmax = BT_CTRL_SCAN_BACKOFF_UPPERLIMITMAX,                   \
+    .ble_chan_ass_en            = DEFAULT_BT_LE_CTRL_CHAN_ASS_EN,                       \
+    .ble_data_lenth_zero_aux    = DEFAULT_BT_LE_CTRL_ADV_DATA_LENGTH_ZERO_AUX,          \
+    .vhci_enabled               = DEFAULT_BT_LE_VHCI_ENABLED,                           \
+    .ptr_check_enabled          = DEFAULT_BT_LE_PTR_CHECK_ENABLED,                      \
+    .ble_adv_tx_options         = DEFAULT_BT_LE_ADV_TX_OPTIONS,                         \
+    .skip_unnecessary_checks_en = 0,                                                    \
+    .fast_conn_data_tx_en       = DEFAULT_BT_LE_CTRL_FAST_CONN_DATA_TX_EN,              \
+    .ch39_txpwr                 = BLE_CH39_TX_PWR_DBM_N,                                \
+    .adv_rsv_cnt                = BLE_LL_ADV_SM_RESERVE_CNT_N,                          \
+    .conn_rsv_cnt               = BLE_LL_CONN_SM_RESERVE_CNT_N,                         \
+    .priority_level_cfg         = BT_LL_CTRL_PRIO_LVL_CFG,                              \
+    .slv_fst_rx_lat_en          = DEFAULT_BT_LE_CTRL_SLV_FAST_RX_CONN_DATA_EN,          \
+    .dl_itvl_phy_sync_en        = DEFAULT_BT_LE_CTRL_DL_ITVL_PHY_SYNC_EN,               \
+    .scan_allow_adi_filter      = DEFAULT_BT_SCAN_ALLOW_ENH_ADI_FILTER,                 \
+    .enhanced_mem_resv          = DEFAULT_BT_LE_CTRL_ENH_MEM_RESV_ADV,                  \
+    .rxbuf_reserved             = DEFAULT_BT_LE_CTRL_RXBUF_MEM_RESV,                    \
     .config_magic = CONFIG_MAGIC,                                                       \
-};
+}
 
+/**
+ * @brief       Initialize BT controller to allocate task and other resource.
+ *              This function should be called only once, before any other BT functions are called.
+ * @param  cfg: Initial configuration of BT controller.
+ * @return      ESP_OK - success, other - failed
+ */
 esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg);
 
 /**
@@ -236,11 +326,45 @@ esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg);
  * @return status value
  */
 esp_bt_controller_status_t esp_bt_controller_get_status(void);
+
+/**
+ * @brief  Get BLE TX power
+ *         Connection Tx power should only be get after connection created.
+ * @param  power_type : The type of which tx power, could set Advertising/Connection/Default and etc
+ * @return             >= 0 - Power level, < 0 - Invalid
+ */
 esp_power_level_t esp_ble_tx_power_get(esp_ble_power_type_t power_type);
+
+/**
+ * @brief  De-initialize BT controller to free resource and delete task.
+ *         You should stop advertising and scanning, as well as
+ *         disconnect all existing connections before de-initializing BT controller.
+ *
+ * This function should be called only once, after any other BT functions are called.
+ * This function is not whole completed, esp_bt_controller_init cannot called after this function.
+ * @return  ESP_OK - success, other - failed
+ */
 esp_err_t esp_bt_controller_deinit(void);
+
+/**
+ * @brief Enable BT controller.
+ *               Due to a known issue, you cannot call esp_bt_controller_enable() a second time
+ *               to change the controller mode dynamically. To change controller mode, call
+ *               esp_bt_controller_disable() and then call esp_bt_controller_enable() with the new mode.
+ * @param mode : the mode(BLE/BT/BTDM) to enable. For compatible of API, retain this argument.
+ * @return       ESP_OK - success, other - failed
+ */
 esp_err_t esp_bt_controller_enable(esp_bt_mode_t mode);
+
+/**
+ * @brief  Disable BT controller
+ * @return       ESP_OK - success, other - failed
+ */
 esp_err_t esp_bt_controller_disable(void);
 
+/** @brief esp_vhci_host_callback
+ *  used for vhci call host function to notify what host need to do
+ */
 typedef struct esp_vhci_host_callback {
     void (*notify_host_send_available)(void);               /*!< callback used to notify that the host can send packet to controller */
     int (*notify_host_recv)(uint8_t *data, uint16_t len);   /*!< callback used to notify that the controller has a packet to send to the host*/
@@ -328,8 +452,31 @@ esp_err_t esp_bt_controller_mem_release(esp_bt_mode_t mode);
  */
 esp_err_t esp_bt_mem_release(esp_bt_mode_t mode);
 
-/* Returns random static address or -1 if not present */
+/**
+ * @brief Returns random static address or -1 if not present.
+ * @return ESP_OK - success, other - failed
+ */
 extern int esp_ble_hw_get_static_addr(esp_ble_addr_t *addr);
+
+#if CONFIG_BT_LE_CONTROLLER_LOG_ENABLED
+/**
+ * @brief dump all log information cached in buffers.
+ * @param output : true for log dump, false will take no effect
+ */
+void esp_ble_controller_log_dump_all(bool output);
+#endif // CONFIG_BT_LE_CONTROLLER_LOG_ENABLED
+
+modem_clock_lpclk_src_t esp_bt_get_lpclk_src(void);
+
+void esp_bt_set_lpclk_src(modem_clock_lpclk_src_t clk_src);
+
+uint32_t esp_bt_get_lpclk_freq(void);
+
+void esp_bt_set_lpclk_freq(uint32_t clk_freq);
+
+#if CONFIG_BT_LE_MEM_CHECK_ENABLED
+void ble_memory_count_limit_set(uint16_t count_limit);
+#endif // CONFIG_BT_LE_MEM_CHECK_ENABLED
 
 #ifdef __cplusplus
 }

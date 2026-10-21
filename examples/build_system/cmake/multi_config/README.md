@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-P4 | ESP32-S2 | ESP32-S3 | ESP32-S31 |
+| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | -------- | -------- | --------- |
 
 # Multiple Build Configurations Example
 
@@ -28,44 +28,60 @@ For each configuration, a few configuration options are set:
 
 ### Development build
 
-In this example, Development configuration is specified in `sdkconfig.defaults`, so it is the default one. You can build the project as usual:
+To build the development configuration (specified in `sdkconfig.defaults`), specify it using --preset argument:
 
 ```
-idf.py build
+idf.py --preset default build
 ```
 
 To flash the project and see the output, run:
 
 ```
-idf.py -p PORT flash monitor
+idf.py --preset default -p PORT flash monitor
 ```
 
 (To exit the serial monitor, type ``Ctrl-]``.)
 
 ### Production build
 
-To build one of the Production configurations, specify a different build directory and `SDKCONFIG_DEFAULTS` file. For example, to build `prod1` configuration:
+To build one of the Production configurations, specify the name using idf.py --preset argument:
 
 ```
-idf.py -B build_prod1 -D SDKCONFIG_DEFAULTS="sdkconfig.prod_common;sdkconfig.prod1" build
+idf.py --preset prod1 build
 ```
-
-* `-B build_prod1` sets the build directory to `build_prod1`
-* `-D SDKCONFIG_DEFAULTS="sdkconfig.prod_common;sdkconfig.prod1"` selects `sdkconfig.prod_common` and `sdkconfig.prod1` files to be used for creating app configuration (sdkconfig), instead of the usual `sdkconfig.defaults`. See the section below on how these two default configuration files are combined.
 
 To flash the project and see the output, run:
 
 ```
-idf.py -B build_prod1 -p PORT flash monitor
-```
-
-Note that it is not necessary to repeat `-D SDKCONFIG_DEFAULTS=...` option once the build directory has been created and `sdkconfig` file generated. For example, to build the project again, run:
-
-```
-idf.py -B build_prod1 build
+idf.py --preset prod1 -p PORT flash monitor
 ```
 
 To build and run the app with `prod2` configuration, repeat the steps above, replacing `prod1` with `prod2`.
+
+### Specifying the preset for multiple commands
+
+To avoid having to specify `--preset` argument every time you run `idf.py`, you can set `IDF_PRESET` environment variable:
+
+For UNIX-like systems (Linux, macOS):
+```shell
+export IDF_PRESET=prod1
+```
+
+For Windows (PowerShell):
+```powershell
+$ENV:IDF_PRESET='prod1'
+```
+
+For Windows (cmd.exe):
+```shell
+set IDF_PRESET=prod1
+```
+
+Then subsequent commands will work with `prod1` configuration:
+```shell
+idf.py build
+idf.py flash monitor
+```
 
 ### Combining multiple files in `SDKCONFIG_DEFAULTS`
 

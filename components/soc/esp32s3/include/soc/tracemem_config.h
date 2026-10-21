@@ -1,7 +1,7 @@
 /*
- * SPDX-FileCopyrightText: 2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 #pragma once
 
@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 #define TRACEMEM_MUX_BLK0_NUM                   22
-#define TRACEMEM_MUX_BLK1_NUM                   23
+#define TRACEMEM_MUX_BLK1_NUM                   26
 
 #if (TRACEMEM_MUX_BLK0_NUM < 6) || (TRACEMEM_MUX_BLK0_NUM > 29)
 #error Invalid TRAX block 0 num!

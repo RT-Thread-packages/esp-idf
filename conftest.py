@@ -1,113 +1,460 @@
-# SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
-
 # pylint: disable=W0621  # redefined-outer-name
-
-# This file is a pytest root configuration file and provide the following functionalities:
-# 1. Defines a few fixtures that could be used under the whole project.
-# 2. Defines a few hook functions.
 #
 # IDF is using [pytest](https://github.com/pytest-dev/pytest) and
-# [pytest-embedded plugin](https://github.com/espressif/pytest-embedded) as its example test framework.
+# [pytest-embedded plugin](https://github.com/espressif/pytest-embedded) as its test framework.
 #
-# This is an experimental feature, and if you found any bug or have any question, please report to
-# https://github.com/espressif/pytest-embedded/issues
+# if you found any bug or have any question,
+# please report to https://github.com/espressif/pytest-embedded/issues
+# or discuss at https://github.com/espressif/pytest-embedded/discussions
+import os
+import subprocess
+import sys
+
+if os.path.join(os.path.dirname(__file__), 'tools', 'ci') not in sys.path:
+    sys.path.append(os.path.join(os.path.dirname(__file__), 'tools', 'ci'))
+
+if os.path.join(os.path.dirname(__file__), 'tools', 'ci', 'python_packages') not in sys.path:
+    sys.path.append(os.path.join(os.path.dirname(__file__), 'tools', 'ci', 'python_packages'))
+
+import json
 import logging
 import os
-import sys
-import xml.etree.ElementTree as ET
-from datetime import datetime
-from fnmatch import fnmatch
-from typing import Callable, List, Optional, Tuple
+import re
+import signal
+import time
+import typing as t
+from copy import deepcopy
+from urllib.parse import quote
 
+import common_test_methods  # noqa: F401
+import gitlab_api
+import pexpect
 import pytest
-from _pytest.config import Config, ExitCode
+from _pytest.config import Config
 from _pytest.fixtures import FixtureRequest
-from _pytest.main import Session
-from _pytest.nodes import Item
-from _pytest.python import Function
-from _pytest.reports import TestReport
-from _pytest.runner import CallInfo
-from _pytest.terminal import TerminalReporter
-from pytest_embedded.plugin import multi_dut_argument, multi_dut_fixture
-from pytest_embedded.utils import find_by_suffix
+from idf_ci import PytestCase
+from idf_ci.idf_pytest import IDF_CI_PYTEST_CASE_KEY
+from idf_ci_utils import IDF_PATH
+from idf_ci_utils import idf_relpath
+from idf_pytest.constants import DEFAULT_LOGDIR
+from idf_pytest.plugin import IDF_LOCAL_PLUGIN_KEY
+from idf_pytest.plugin import IdfLocalPlugin
+from idf_pytest.plugin import requires_elf_or_map
+from idf_pytest.utils import format_case_id
+from pytest_embedded.plugin import _request_param_or_config_option_or_default
+from pytest_embedded.plugin import multi_dut_fixture
+from pytest_embedded.utils import to_bytes
+from pytest_embedded.utils import to_str
 from pytest_embedded_idf.dut import IdfDut
-
-try:
-    import common_test_methods  # noqa: F401
-except ImportError:
-    sys.path.append(os.path.join(os.path.dirname(__file__), 'tools', 'ci', 'python_packages'))
-    import common_test_methods  # noqa: F401
-
-
-SUPPORTED_TARGETS = ['esp32', 'esp32s2', 'esp32c3', 'esp32s3', 'esp32c2']
-PREVIEW_TARGETS = ['linux', 'esp32h2']
-DEFAULT_SDKCONFIG = 'default'
-
-
-##################
-# Help Functions #
-##################
-def is_target_marker(marker: str) -> bool:
-    if marker.startswith('esp32') or marker.startswith('esp8') or marker == 'linux':
-        return True
-
-    return False
-
-
-def format_case_id(target: Optional[str], config: Optional[str], case: str) -> str:
-    return f'{target}.{config}.{case}'
-
-
-def item_marker_names(item: Item) -> List[str]:
-    return [marker.name for marker in item.iter_markers()]
-
-
-def get_target_marker(markexpr: str) -> str:
-    candidates = set()
-    # we use `-m "esp32 and generic"` in our CI to filter the test cases
-    for marker in markexpr.split('and'):
-        marker = marker.strip()
-        if is_target_marker(marker):
-            candidates.add(marker)
-
-    if len(candidates) > 1:
-        raise ValueError(
-            f'Specified more than one target markers: {candidates}. Please specify no more than one.'
-        )
-    elif len(candidates) == 1:
-        return candidates.pop()
-    else:
-        raise ValueError(
-            'Please specify one target marker via "--target [TARGET]" or via "-m [TARGET]"'
-        )
+from pytest_embedded_idf.unity_tester import CaseTester
+from pytest_embedded_jtag._telnetlib.telnetlib import Telnet  # python 3.13 removed telnetlib, use this instead
 
 
 ############
 # Fixtures #
 ############
-@pytest.fixture(scope='session', autouse=True)
-def session_tempdir() -> str:
-    _tmpdir = os.path.join(
-        os.path.dirname(__file__),
-        'pytest_embedded_log',
-        datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
+@pytest.fixture(scope='session')
+def idf_path() -> str:
+    return os.path.dirname(__file__)
+
+
+@pytest.fixture(scope='session')
+def session_root_logdir(idf_path: str) -> str:
+    """Session scoped log dir for pytest-embedded"""
+    return idf_path
+
+
+@pytest.fixture
+def case_tester(unity_tester: CaseTester) -> CaseTester:
+    return unity_tester
+
+
+@pytest.fixture
+def test_func_name(request: FixtureRequest) -> str:
+    return request.node.function.__name__  # type: ignore
+
+
+@pytest.fixture
+def test_case_name(request: FixtureRequest, target: str, config: str) -> str:
+    is_qemu = request._pyfuncitem.get_closest_marker('qemu') is not None
+    if hasattr(request._pyfuncitem, 'callspec'):
+        params = deepcopy(request._pyfuncitem.callspec.params)  # type: ignore
+    else:
+        params = {}
+
+    filtered_params = {}
+    for k, v in params.items():
+        if k not in request.session._fixturemanager._arg2fixturedefs:  # type: ignore
+            filtered_params[k] = v  # not fixture ones
+
+    return format_case_id(target, config, request.node.originalname, is_qemu=is_qemu, params=filtered_params)  # type: ignore
+
+
+@pytest.fixture(scope='session')
+def pipeline_id(request: FixtureRequest) -> str | None:
+    return request.config.getoption('pipeline_id', None) or os.getenv('PARENT_PIPELINE_ID', None)  # type: ignore
+
+
+def get_pipeline_commit_sha_by_pipeline_id(pipeline_id: str) -> str | None:
+    gl = gitlab_api.Gitlab(os.getenv('CI_PROJECT_ID', 'espressif/esp-idf'))
+    pipeline = gl.project.pipelines.get(pipeline_id)
+    if not pipeline:
+        return None
+
+    commit = gl.project.commits.get(pipeline.sha)
+    if not commit or not commit.parent_ids:
+        return None
+
+    if len(commit.parent_ids) == 1:
+        return commit.parent_ids[0]  # type: ignore
+
+    for parent_id in commit.parent_ids:
+        parent_commit = gl.project.commits.get(parent_id)
+        if parent_commit.parent_ids and len(parent_commit.parent_ids) == 1:
+            return parent_id  # type: ignore
+
+    return None
+
+
+class AppDownloader:
+    def __init__(
+        self,
+        commit_sha: str,
+        pipeline_id: str | None = None,
+    ) -> None:
+        self.commit_sha = commit_sha
+        self.pipeline_id = pipeline_id
+
+    def download_app(self, app_dir: str, build_dir: str, artifact_type: str | None = None) -> None:
+        args = [
+            'idf-ci',
+            'gitlab',
+            'download-artifacts',
+            '--commit-sha',
+            self.commit_sha,
+        ]
+        if artifact_type:
+            args.extend(['--type', artifact_type])
+
+        if self.pipeline_id:
+            args.extend(['--pipeline-id', self.pipeline_id])
+
+        args.extend(
+            [
+                app_dir,
+                '--build-dir',
+                build_dir,
+            ]
+        )
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            cwd=IDF_PATH,
+        )
+        logging.info(result.stdout)
+        if result.stderr:
+            logging.info(result.stderr)
+
+
+class OpenOCD:
+    def __init__(self, dut: 'IdfDut'):
+        self.MAX_RETRIES = 3
+        self.RETRY_DELAY = 1
+        self.TELNET_PORT = 4444
+        self.dut = dut
+        self.telnet: Telnet | None = None
+        self.log_file = os.path.join(self.dut.logdir, 'ocd.txt')
+        self.proc: pexpect.spawn | None = None
+
+    def __enter__(self) -> 'OpenOCD':
+        return self
+
+    def __exit__(self, exception_type: t.Any, exception_value: t.Any, exception_traceback: t.Any) -> None:
+        self.kill()
+
+    def run(self) -> t.Optional['OpenOCD']:
+        desc_path = os.path.join(self.dut.app.binary_path, 'project_description.json')
+
+        try:
+            with open(desc_path) as f:
+                project_desc = json.load(f)
+        except FileNotFoundError:
+            logging.error('Project description file not found at %s', desc_path)
+            raise
+
+        openocd_scripts = os.getenv('OPENOCD_SCRIPTS')
+        if not openocd_scripts:
+            raise RuntimeError('OPENOCD_SCRIPTS environment variable is not set.')
+
+        debug_args = project_desc.get('debug_arguments_openocd')
+        if not debug_args:
+            raise KeyError("'debug_arguments_openocd' key is missing in project_description.json")
+
+        # For debug purposes, make the value '4'
+        ocd_env = os.environ.copy()
+        ocd_env['LIBUSB_DEBUG'] = '1'
+
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                self.proc = pexpect.spawn(
+                    command='openocd',
+                    args=['-s', openocd_scripts] + debug_args.split(),
+                    timeout=5,
+                    encoding='utf-8',
+                    codec_errors='ignore',
+                    env=ocd_env,
+                )
+                if self.proc and self.proc.isalive():
+                    self.proc.expect_exact('Info : Listening on port 3333 for gdb connections', timeout=5)
+                    self.connect_telnet()
+                    self.write(f'log_output {self.log_file}')
+                    return self
+            except (pexpect.exceptions.EOF, pexpect.exceptions.TIMEOUT, ConnectionRefusedError) as e:
+                logging.error(
+                    'OpenOCD connection attempt %d/%d failed. Error: %s', attempt, self.MAX_RETRIES, type(e).__name__
+                )
+                self.kill()
+            time.sleep(self.RETRY_DELAY)
+
+        raise RuntimeError('Failed to run OpenOCD after %d attempts.', self.MAX_RETRIES)
+
+    def connect_telnet(self) -> None:
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                self.telnet = Telnet('127.0.0.1', self.TELNET_PORT, 5)
+                break
+            except ConnectionRefusedError as e:
+                logging.error('Error telnet connection: %s in attempt:%d', e, attempt)
+                time.sleep(1)
+        else:
+            raise ConnectionRefusedError
+
+    def write(self, s: str, timeout: int = 30) -> t.Any:
+        if self.telnet is None:
+            logging.error('Telnet connection is not established.')
+            return ''
+        resp = self.telnet.read_very_eager()
+        self.telnet.write(to_bytes(s, '\n'))
+        resp += self.telnet.read_until(b'>', timeout=timeout)
+        if not resp.endswith(b'>'):
+            return ''
+        return to_str(resp)
+
+    def apptrace_wait_stop(self, timeout: int = 30) -> None:
+        stopped = False
+        end_before = time.time() + timeout
+        while not stopped:
+            cmd_out = self.write('esp apptrace status')
+            for line in cmd_out.splitlines():
+                if line.startswith('Tracing is STOPPED.'):
+                    stopped = True
+                    break
+            if not stopped and time.time() > end_before:
+                raise pexpect.TIMEOUT('Failed to wait for apptrace stop!')
+            time.sleep(1)
+
+    def gcov_dump(self, on_the_fly: bool = True) -> t.Any:
+        cmd = 'esp gcov'
+        if not on_the_fly:
+            cmd += ' dump'
+        cmd_out = self.write(cmd)
+        if 'Targets connected.' not in cmd_out:
+            raise pexpect.TIMEOUT('Failed to start gcov dump!')
+        if 'Targets disconnected.' not in cmd_out:
+            raise pexpect.TIMEOUT('Failed to stop gcov dump!')
+        return cmd_out
+
+    def kill(self) -> None:
+        # Check if the process is still running
+        if self.proc and self.proc.isalive():
+            self.proc.terminate()
+            self.proc.kill(signal.SIGKILL)
+
+
+@pytest.fixture
+def openocd_dut(dut: IdfDut) -> OpenOCD:
+    if isinstance(dut, tuple):
+        raise ValueError('Multi-DUT support is not implemented yet')
+    return OpenOCD(dut)
+
+
+@pytest.fixture(scope='session')
+def app_downloader(
+    pipeline_id: str | None,
+) -> AppDownloader | None:
+    if commit_sha := os.getenv('PIPELINE_COMMIT_SHA'):
+        logging.debug('pipeline commit sha from CI env is %s', commit_sha)
+        return AppDownloader(commit_sha, None)
+
+    if not pipeline_id:
+        return None
+
+    commit_sha = get_pipeline_commit_sha_by_pipeline_id(pipeline_id)
+    if not commit_sha:
+        raise ValueError(
+            'commit sha cannot be found for pipeline id %s. Please check the pipeline id. '
+            'If you think this is a bug, please report it to CI team',
+        )
+    logging.debug('pipeline commit sha of pipeline %s is %s', pipeline_id, commit_sha)
+
+    return AppDownloader(commit_sha, pipeline_id)
+
+
+@pytest.fixture
+@multi_dut_fixture
+def build_dir(
+    request: FixtureRequest,
+    app_path: str,
+    target: str | None,
+    config: str | None,
+    app_downloader: AppDownloader | None,
+) -> str:
+    """
+    Check local build dir with the following priority:
+
+    1. build_<target>_<config>
+    2. build_<target>
+    3. build_<config>
+    4. build
+
+    Returns:
+        valid build directory
+    """
+    # download from minio on CI
+    case: PytestCase = request.node.stash[IDF_CI_PYTEST_CASE_KEY]
+    if 'skip_app_downloader' in case.all_markers:
+        logging.debug('skip_app_downloader marker found, skip downloading app')
+        downloader = None
+    else:
+        downloader = app_downloader
+
+    if downloader:
+        app_dir = idf_relpath(app_path)
+        build_dir = f'build_{target}_{config}'
+        # somehow hardcoded...
+        if requires_elf_or_map(case):
+            downloader.download_app(app_dir, build_dir)
+        else:
+            downloader.download_app(app_dir, build_dir, 'flash')
+        check_dirs = [f'build_{target}_{config}']
+    else:
+        check_dirs = []
+        build_dir_arg = request.config.getoption('build_dir', None)
+        if build_dir_arg:
+            check_dirs.append(build_dir_arg)
+        if target is not None and config is not None:
+            check_dirs.append(f'build_{target}_{config}')
+        if target is not None:
+            check_dirs.append(f'build_{target}')
+        if config is not None:
+            check_dirs.append(f'build_{config}')
+        check_dirs.append('build')
+
+    for check_dir in check_dirs:
+        binary_path = os.path.join(app_path, check_dir)
+        if os.path.isdir(binary_path):
+            logging.info(f'found valid binary path: {binary_path}')
+            return check_dir
+
+        logging.warning('checking binary path: %s... missing... try another place', binary_path)
+
+    raise ValueError(
+        f'no build dir valid. Please build the binary via "idf.py -B {check_dirs[0]} build" and run pytest again'
     )
-    os.makedirs(_tmpdir, exist_ok=True)
-    return _tmpdir
 
 
-@pytest.fixture()
-def log_minimum_free_heap_size(dut: IdfDut, config: str) -> Callable[..., None]:
+@pytest.fixture(autouse=True)
+@multi_dut_fixture
+def junit_properties(test_case_name: str, record_xml_attribute: t.Callable[[str, object], None]) -> None:
+    """
+    This fixture is autoused and will modify the junit report test case name to <target>.<config>.<case_name>
+    """
+    record_xml_attribute('name', test_case_name)
+
+
+@pytest.fixture(autouse=True)
+@multi_dut_fixture
+def ci_job_url(record_xml_attribute: t.Callable[[str, object], None]) -> None:
+    if ci_job_url := os.getenv('CI_JOB_URL'):
+        record_xml_attribute('ci_job_url', ci_job_url)
+
+
+@pytest.fixture(autouse=True)
+def set_test_case_name(request: FixtureRequest, test_case_name: str) -> None:
+    request.node.funcargs['test_case_name'] = test_case_name
+
+
+@pytest.fixture(autouse=True)
+def set_dut_log_url(record_xml_attribute: t.Callable[[str, object], None], _pexpect_logfile: str) -> t.Generator:
+    # Record the "dut_log_url" attribute in the XML report once test execution finished
+    yield
+
+    def _attach_log_url_to_xml_attribute(log_file_path: str) -> str:
+        if not isinstance(log_file_path, str):
+            return 'No log URL found'
+
+        ci_pages_url = os.getenv('CI_PAGES_URL')
+        logdir_pattern = re.compile(rf'({DEFAULT_LOGDIR}/.*)')
+        match = logdir_pattern.search(log_file_path)
+
+        if not match:
+            return 'No log URL found'
+
+        if not ci_pages_url:
+            return log_file_path
+
+        job_id = os.getenv('CI_JOB_ID', '0')
+        modified_ci_pages_url = ci_pages_url.replace('esp-idf', '-/esp-idf')
+        log_url = f'{modified_ci_pages_url}/-/jobs/{job_id}/artifacts/{match.group(1)}'
+
+        return log_url
+
+    xml_attribute = []
+    if isinstance(_pexpect_logfile, str):
+        xml_attribute.append(_attach_log_url_to_xml_attribute(_pexpect_logfile))
+    if isinstance(_pexpect_logfile, tuple):
+        for i, log_file in enumerate(_pexpect_logfile):
+            xml_attribute.append(_attach_log_url_to_xml_attribute(log_file))
+    record_xml_attribute('dut_log_url', ';'.join(xml_attribute))
+
+
+######################
+# Log Util Functions #
+######################
+@pytest.fixture
+def log_performance(record_property: t.Callable[[str, object], None]) -> t.Callable[[str, str], None]:
+    """
+    log performance item with pre-defined format to the console
+    and record it under the ``properties`` tag in the junit report if available.
+    """
+
+    def real_func(item: str, value: str) -> None:
+        """
+        :param item: performance item name
+        :param value: performance value
+        """
+        logging.info('[Performance][%s]: %s', item, value)
+        record_property(item, value)
+
+    return real_func
+
+
+@pytest.fixture
+def log_minimum_free_heap_size(dut: IdfDut, config: str, idf_path: str) -> t.Callable[..., None]:
     def real_func() -> None:
         res = dut.expect(r'Minimum free heap size: (\d+) bytes')
         logging.info(
             '\n------ heap size info ------\n'
+            '[app_path] {}\n'
             '[app_name] {}\n'
             '[config_name] {}\n'
             '[target] {}\n'
             '[minimum_free_heap_size] {} Bytes\n'
             '------ heap size end ------'.format(
+                dut.app.app_path.replace(idf_path, '').lstrip('/\\'),
                 os.path.basename(dut.app.app_path),
                 config,
                 dut.target,
@@ -118,305 +465,90 @@ def log_minimum_free_heap_size(dut: IdfDut, config: str) -> Callable[..., None]:
     return real_func
 
 
-@pytest.fixture
-@multi_dut_argument
-def config(request: FixtureRequest) -> str:
-    return getattr(request, 'param', None) or DEFAULT_SDKCONFIG
+@pytest.fixture(scope='session')
+def dev_password(request: FixtureRequest) -> str:
+    return _request_param_or_config_option_or_default(request, 'dev_password', '')  # type: ignore
 
 
-@pytest.fixture
-def test_func_name(request: FixtureRequest) -> str:
-    return request.node.function.__name__  # type: ignore
-
-
-@pytest.fixture
-def test_case_name(request: FixtureRequest, target: str, config: str) -> str:
-    return format_case_id(target, config, request.node.originalname)
-
-
-@pytest.fixture
-@multi_dut_fixture
-def build_dir(app_path: str, target: Optional[str], config: Optional[str]) -> str:
-    """
-    Check local build dir with the following priority:
-
-    1. build_<target>_<config>
-    2. build_<target>
-    3. build_<config>
-    4. build
-
-    Args:
-        app_path: app path
-        target: target
-        config: config
-
-    Returns:
-        valid build directory
-    """
-
-    check_dirs = []
-    if target is not None and config is not None:
-        check_dirs.append(f'build_{target}_{config}')
-    if target is not None:
-        check_dirs.append(f'build_{target}')
-    if config is not None:
-        check_dirs.append(f'build_{config}')
-    check_dirs.append('build')
-
-    for check_dir in check_dirs:
-        binary_path = os.path.join(app_path, check_dir)
-        if os.path.isdir(binary_path):
-            logging.info(f'find valid binary path: {binary_path}')
-            return check_dir
-
-        logging.warning(
-            'checking binary path: %s... missing... try another place', binary_path
-        )
-
-    recommend_place = check_dirs[0]
-    logging.error(
-        f'no build dir valid. Please build the binary via "idf.py -B {recommend_place} build" and run pytest again'
-    )
-    sys.exit(1)
-
-
-@pytest.fixture(autouse=True)
-@multi_dut_fixture
-def junit_properties(
-    test_case_name: str, record_xml_attribute: Callable[[str, object], None]
-) -> None:
-    """
-    This fixture is autoused and will modify the junit report test case name to <target>.<config>.<case_name>
-    """
-    record_xml_attribute('name', test_case_name)
+@pytest.fixture(scope='session')
+def dev_user(request: FixtureRequest) -> str:
+    return _request_param_or_config_option_or_default(request, 'dev_user', '')  # type: ignore
 
 
 ##################
 # Hook functions #
 ##################
 def pytest_addoption(parser: pytest.Parser) -> None:
-    base_group = parser.getgroup('idf')
-    base_group.addoption(
-        '--sdkconfig',
-        help='sdkconfig postfix, like sdkconfig.ci.<config>. (Default: None, which would build all found apps)',
+    idf_group = parser.getgroup('idf')
+    idf_group.addoption(
+        '--dev-user',
+        help='user name associated with some specific device/service used during the test execution',
     )
-    base_group.addoption(
-        '--known-failure-cases-file', help='known failure cases file path'
+    idf_group.addoption(
+        '--dev-passwd',
+        help='password associated with some specific device/service used during the test execution',
     )
-
-
-_idf_pytest_embedded_key = pytest.StashKey['IdfPytestEmbedded']
+    idf_group.addoption(
+        '--pipeline-id',
+        help='For users without s3 access. main pipeline id, not the child pipeline id. '
+        'Specify this option to download the artifacts from the minio server for debugging purpose.',
+    )
 
 
 def pytest_configure(config: Config) -> None:
-    # cli option "--target"
-    target = config.getoption('target') or ''
+    from idf_pytest.constants import PREVIEW_TARGETS
+    from idf_pytest.constants import SUPPORTED_TARGETS
+    from pytest_embedded_idf.utils import preview_targets
+    from pytest_embedded_idf.utils import supported_targets
 
-    help_commands = ['--help', '--fixtures', '--markers', '--version']
-    for cmd in help_commands:
-        if cmd in config.invocation_params.args:
-            target = 'unneeded'
-            break
+    supported_targets.set(SUPPORTED_TARGETS)
+    preview_targets.set(PREVIEW_TARGETS)
 
-    if not target:  # also could specify through markexpr via "-m"
-        target = get_target_marker(config.getoption('markexpr') or '')
-
-    config.stash[_idf_pytest_embedded_key] = IdfPytestEmbedded(
-        target=target,
-        sdkconfig=config.getoption('sdkconfig'),
-        known_failure_cases_file=config.getoption('known_failure_cases_file'),
-    )
-    config.pluginmanager.register(config.stash[_idf_pytest_embedded_key])
+    config.stash[IDF_LOCAL_PLUGIN_KEY] = IdfLocalPlugin()
+    config.pluginmanager.register(config.stash[IDF_LOCAL_PLUGIN_KEY])
 
 
 def pytest_unconfigure(config: Config) -> None:
-    _pytest_embedded = config.stash.get(_idf_pytest_embedded_key, None)
-    if _pytest_embedded:
-        del config.stash[_idf_pytest_embedded_key]
-        config.pluginmanager.unregister(_pytest_embedded)
+    idf_local_plugin = config.stash.get(IDF_LOCAL_PLUGIN_KEY, None)
+    if idf_local_plugin:
+        del config.stash[IDF_LOCAL_PLUGIN_KEY]
+        config.pluginmanager.unregister(idf_local_plugin)
 
 
-class IdfPytestEmbedded:
-    def __init__(
-        self,
-        target: Optional[str] = None,
-        sdkconfig: Optional[str] = None,
-        known_failure_cases_file: Optional[str] = None,
-    ):
-        # CLI options to filter the test cases
-        self.target = target
-        self.sdkconfig = sdkconfig
-        self.known_failure_patterns = self._parse_known_failure_cases_file(
-            known_failure_cases_file
-        )
+dut_artifacts_url = []
 
-        self._failed_cases: List[
-            Tuple[str, bool, bool]
-        ] = []  # (test_case_name, is_known_failure_cases, is_xfail)
 
-    @property
-    def failed_cases(self) -> List[str]:
-        return [
-            case
-            for case, is_known, is_xfail in self._failed_cases
-            if not is_known and not is_xfail
-        ]
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):  # type: ignore
+    outcome = yield
+    report = outcome.get_result()
+    report.sections = []
+    if report.failed:
+        _dut = item.funcargs.get('dut')
+        if not _dut:
+            return
 
-    @property
-    def known_failure_cases(self) -> List[str]:
-        return [case for case, is_known, _ in self._failed_cases if is_known]
+        job_id = os.getenv('CI_JOB_ID', 0)
+        url = os.getenv('CI_PAGES_URL', '').replace('esp-idf', '-/esp-idf')
+        template = f'{url}/-/jobs/{job_id}/artifacts/{DEFAULT_LOGDIR}/{{}}'
+        logs_files = []
 
-    @property
-    def xfail_cases(self) -> List[str]:
-        return [case for case, _, is_xfail in self._failed_cases if is_xfail]
+        def get_path(x: str) -> str:
+            return x.split(f'{DEFAULT_LOGDIR}/', 1)[1]
 
-    @staticmethod
-    def _parse_known_failure_cases_file(
-        known_failure_cases_file: Optional[str] = None,
-    ) -> List[str]:
-        if not known_failure_cases_file or not os.path.isfile(known_failure_cases_file):
-            return []
-
-        patterns = []
-        with open(known_failure_cases_file) as fr:
-            for line in fr.readlines():
-                if not line:
-                    continue
-                if not line.strip():
-                    continue
-                without_comments = line.split('#')[0].strip()
-                if without_comments:
-                    patterns.append(without_comments)
-
-        return patterns
-
-    @pytest.hookimpl(tryfirst=True)
-    def pytest_sessionstart(self, session: Session) -> None:
-        if self.target:
-            self.target = self.target.lower()
-            session.config.option.target = self.target
-
-    @pytest.hookimpl(tryfirst=True)
-    def pytest_collection_modifyitems(self, items: List[Function]) -> None:
-        # sort by file path and callspec.config
-        # implement like this since this is a limitation of pytest, couldn't get fixture values while collecting
-        # https://github.com/pytest-dev/pytest/discussions/9689
-        def _get_param_config(_item: Function) -> str:
-            if hasattr(_item, 'callspec'):
-                return _item.callspec.params.get('config', DEFAULT_SDKCONFIG)  # type: ignore
-            return DEFAULT_SDKCONFIG
-
-        items.sort(key=lambda x: (os.path.dirname(x.path), _get_param_config(x)))
-
-        # add markers for special markers
-        for item in items:
-            if 'supported_targets' in item.keywords:
-                for _target in SUPPORTED_TARGETS:
-                    item.add_marker(_target)
-            if 'preview_targets' in item.keywords:
-                for _target in PREVIEW_TARGETS:
-                    item.add_marker(_target)
-            if 'all_targets' in item.keywords:
-                for _target in [*SUPPORTED_TARGETS, *PREVIEW_TARGETS]:
-                    item.add_marker(_target)
-
-        # add 'xtal_40mhz' tag as a default tag for esp32c2 target
-        for item in items:
-            if 'esp32c2' in item_marker_names(item) and 'xtal_26mhz' not in item_marker_names(item):
-                item.add_marker('xtal_40mhz')
-
-        # filter all the test cases with "nightly_run" marker
-        if os.getenv('INCLUDE_NIGHTLY_RUN') == '1':
-            # Do not filter nightly_run cases
-            pass
-        elif os.getenv('NIGHTLY_RUN') == '1':
-            items[:] = [
-                item for item in items if 'nightly_run' in item_marker_names(item)
-            ]
+        if isinstance(_dut, list):
+            logs_files.extend([template.format(get_path(d.logfile)) for d in _dut])
+            dut_artifacts_url.append(f'{_dut[0].test_case_name}:')
         else:
-            items[:] = [
-                item for item in items if 'nightly_run' not in item_marker_names(item)
-            ]
+            logs_files.append(template.format(get_path(_dut.logfile)))
+            dut_artifacts_url.append(f'{_dut.test_case_name}:')
 
-        # filter all the test cases with "--target"
-        if self.target:
-            items[:] = [
-                item for item in items if self.target in item_marker_names(item)
-            ]
+        for file in logs_files:
+            dut_artifacts_url.append('    - {}'.format(quote(file, safe=':/')))
 
-        # filter all the test cases with cli option "config"
-        if self.sdkconfig:
-            items[:] = [
-                item for item in items if _get_param_config(item) == self.sdkconfig
-            ]
 
-    def pytest_runtest_makereport(
-        self, item: Function, call: CallInfo[None]
-    ) -> Optional[TestReport]:
-        if call.when == 'setup':
-            return None
-
-        report = TestReport.from_item_and_call(item, call)
-        if report.outcome == 'failed':
-            test_case_name = item.funcargs.get('test_case_name', '')
-            is_known_failure = self._is_known_failure(test_case_name)
-            is_xfail = report.keywords.get('xfail', False)
-            self._failed_cases.append((test_case_name, is_known_failure, is_xfail))
-
-        return report
-
-    def _is_known_failure(self, case_id: str) -> bool:
-        for pattern in self.known_failure_patterns:
-            if case_id == pattern:
-                return True
-            if fnmatch(case_id, pattern):
-                return True
-        return False
-
-    @pytest.hookimpl(trylast=True)
-    def pytest_runtest_teardown(self, item: Function) -> None:
-        """
-        Format the test case generated junit reports
-        """
-        tempdir = item.funcargs.get('test_case_tempdir')
-        if not tempdir:
-            return
-
-        junits = find_by_suffix('.xml', tempdir)
-        if not junits:
-            return
-
-        target = item.funcargs['target']
-        config = item.funcargs['config']
-        for junit in junits:
-            xml = ET.parse(junit)
-            testcases = xml.findall('.//testcase')
-            for case in testcases:
-                case.attrib['name'] = format_case_id(
-                    target, config, case.attrib['name']
-                )
-                if 'file' in case.attrib:
-                    case.attrib['file'] = case.attrib['file'].replace(
-                        '/IDF/', ''
-                    )  # our unity test framework
-            xml.write(junit)
-
-    def pytest_sessionfinish(self, session: Session, exitstatus: int) -> None:
-        if exitstatus != 0:
-            if exitstatus == ExitCode.NO_TESTS_COLLECTED:
-                session.exitstatus = 0
-            elif self.known_failure_cases and not self.failed_cases:
-                session.exitstatus = 0
-
-    def pytest_terminal_summary(self, terminalreporter: TerminalReporter) -> None:
-        if self.known_failure_cases:
-            terminalreporter.section('Known failure cases', bold=True, yellow=True)
-            terminalreporter.line('\n'.join(self.known_failure_cases))
-
-        if self.xfail_cases:
-            terminalreporter.section('xfail cases', bold=True, yellow=True)
-            terminalreporter.line('\n'.join(self.xfail_cases))
-
-        if self.failed_cases:
-            terminalreporter.section('Failed cases', bold=True, red=True)
-            terminalreporter.line('\n'.join(self.failed_cases))
+def pytest_terminal_summary(terminalreporter, exitstatus, config):  # type: ignore
+    if dut_artifacts_url:
+        terminalreporter.ensure_newline()
+        terminalreporter.section('Failed Test Artifacts URL', sep='-', red=True, bold=True)
+        terminalreporter.line('\n'.join(dut_artifacts_url))

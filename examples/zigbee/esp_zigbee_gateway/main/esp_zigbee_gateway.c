@@ -1,150 +1,182 @@
 /*
- * Copyright (c) 2021 Espressif Systems (Shanghai) CO LTD
- * All rights reserved.
+ * SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
  *
+ * SPDX-License-Identifier: LicenseRef-Included
  *
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
+ * Zigbee Gateway Example
  *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
+ * This example code is in the Public Domain (or CC0 licensed, at your option.)
  *
- * 2. Redistributions in binary form, except as embedded into a Espressif Systems
- *    integrated circuit in a product or a software update for such product,
- *    must reproduce the above copyright notice, this list of conditions and
- *    the following disclaimer in the documentation and/or other materials
- *    provided with the distribution.
- *
- * 3. Neither the name of the copyright holder nor the names of its contributors
- *    may be used to endorse or promote products derived from this software without
- *    specific prior written permission.
- *
- * 4. Any software provided in binary form under this license must not be reverse
- *    engineered, decompiled, modified and/or disassembled.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Unless required by applicable law or agreed to in writing, this
+ * software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+ * CONDITIONS OF ANY KIND, either express or implied.
  */
-
-#include "esp_log.h"
+#include <fcntl.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/usb_serial_jtag.h"
+#include "esp_coexist.h"
+#include "esp_check.h"
+#include "esp_log.h"
+#include "esp_netif.h"
+#include "esp_vfs_dev.h"
+#include "esp_vfs_eventfd.h"
+#include "esp_wifi.h"
+#include "nvs_flash.h"
+#include "protocol_examples_common.h"
 #include "esp_zigbee_gateway.h"
-
-#if (!defined ZB_MACSPLIT_HOST && defined ZB_MACSPLIT_DEVICE)
-#error Only Zigbee gateway hostdevice should be defined
-#endif
+#include "zb_config_platform.h"
 
 static const char *TAG = "ESP_ZB_GATEWAY";
 
-/********************* Define functions **************************/
-static void bdb_start_top_level_commissioning_cb(zb_uint8_t mode_mask)
+/* Note: Please select the correct console output port based on the development board in menuconfig */
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+esp_err_t esp_zb_gateway_console_init(void)
 {
-    if (!bdb_start_top_level_commissioning(mode_mask)) {
-        ESP_LOGE(TAG, "In BDB commissioning, an error occurred (for example: the device has already been running)");
-    }
+    esp_err_t ret = ESP_OK;
+    /* Disable buffering on stdin */
+    setvbuf(stdin, NULL, _IONBF, 0);
+
+    /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
+    usb_serial_jtag_vfs_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+    /* Move the caret to the beginning of the next line on '\n' */
+    usb_serial_jtag_vfs_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+
+    /* Enable non-blocking mode on stdin and stdout */
+    fcntl(fileno(stdout), F_SETFL, O_NONBLOCK);
+    fcntl(fileno(stdin), F_SETFL, O_NONBLOCK);
+
+    usb_serial_jtag_driver_config_t usb_serial_jtag_config = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+    ret = usb_serial_jtag_driver_install(&usb_serial_jtag_config);
+    usb_serial_jtag_vfs_use_driver();
+    uart_vfs_dev_register();
+    return ret;
+}
+#endif
+
+static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
+{
+    ESP_RETURN_ON_FALSE(esp_zb_bdb_start_top_level_commissioning(mode_mask) == ESP_OK, , TAG, "Failed to start Zigbee bdb commissioning");
 }
 
-void zboss_signal_handler(zb_bufid_t bufid)
+void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
 {
-    zb_zdo_app_signal_hdr_t *p_sg_p       = NULL;
-    zb_zdo_app_signal_type_t  sig         = zb_get_app_signal(bufid, &p_sg_p);
-    zb_ret_t                  status      = ZB_GET_APP_SIGNAL_STATUS(bufid);
-    zb_zdo_signal_device_annce_params_t *dev_annce_params = NULL;
-    zb_zdo_signal_macsplit_dev_boot_params_t *rcp_version = NULL;
-    zb_uint32_t    gateway_version;
+    uint32_t *p_sg_p       = signal_struct->p_app_signal;
+    esp_err_t err_status = signal_struct->esp_err_status;
+    esp_zb_app_signal_type_t sig_type = *p_sg_p;
+    esp_zb_zdo_signal_device_annce_params_t *dev_annce_params = NULL;
 
-    switch (sig) {
-    case ZB_ZDO_SIGNAL_SKIP_STARTUP:
-        ESP_LOGI(TAG, "Zigbee stack initialized");
-        bdb_start_top_level_commissioning(ZB_BDB_INITIALIZATION);
+    switch (sig_type) {
+    case ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP:
+#if CONFIG_EXAMPLE_CONNECT_WIFI
+#if CONFIG_ESP_COEX_SW_COEXIST_ENABLE
+        esp_coex_wifi_i154_enable();
+#endif /* CONFIG_ESP_COEX_SW_COEXIST_ENABLE */
+        ESP_RETURN_ON_FALSE(example_connect() == ESP_OK, , TAG, "Failed to connect to Wi-Fi");
+        ESP_RETURN_ON_FALSE(esp_wifi_set_ps(WIFI_PS_MIN_MODEM) == ESP_OK, , TAG, "Failed to set Wi-Fi minimum modem power save type");
+#endif /* CONFIG_EXAMPLE_CONNECT_WIFI */
+        ESP_LOGI(TAG, "Initialize Zigbee stack");
+        esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_INITIALIZATION);
         break;
-
-    case ZB_MACSPLIT_DEVICE_BOOT:
-        ESP_LOGI(TAG, "Zigbee rcp device booted");
-        gateway_version = zb_esp_macsplit_get_version();
-        rcp_version = ZB_ZDO_SIGNAL_GET_PARAMS(p_sg_p, zb_zdo_signal_macsplit_dev_boot_params_t);
-        ESP_LOGI(TAG, "Zigbee rcp device version: %d.%d.%d", (rcp_version->dev_version >> 24 & 0x000000FF), (rcp_version->dev_version >> 16 & 0x000000FF), (rcp_version->dev_version & 0x000000FF));
-        ESP_LOGI(TAG, "Zigbee gateway version: %d.%d.%d", (gateway_version >> 24 & 0x000000FF), (gateway_version >> 16 & 0x000000FF), (gateway_version & 0x000000FF));
-        if (gateway_version != rcp_version->dev_version) {
-            ESP_LOGE(TAG, "rcp has different Zigbee stack version with Zigbee gateway! Please check the rcp software or other issues");
-        }
-        break;
-
-    case ZB_BDB_SIGNAL_DEVICE_FIRST_START:
-        if (status == RET_OK) {
-            ESP_LOGI(TAG, "Start network formation");
-            bdb_start_top_level_commissioning(ZB_BDB_NETWORK_FORMATION);
+    case ESP_ZB_BDB_SIGNAL_DEVICE_FIRST_START:
+    case ESP_ZB_BDB_SIGNAL_DEVICE_REBOOT:
+        if (err_status == ESP_OK) {
+            ESP_LOGI(TAG, "Device started up in %s factory-reset mode", esp_zb_bdb_is_factory_new() ? "" : "non");
+            if (esp_zb_bdb_is_factory_new()) {
+                ESP_LOGI(TAG, "Start network formation");
+                esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_FORMATION);
+            } else {
+                esp_zb_bdb_open_network(180);
+                ESP_LOGI(TAG, "Device rebooted");
+            }
         } else {
-            ESP_LOGE(TAG, "Failed to initialize Zigbee stack (status: %d)", status);
+            ESP_LOGE(TAG, "Failed to initialize Zigbee stack (status: %s)", esp_err_to_name(err_status));
         }
         break;
-
-    case ZB_BDB_SIGNAL_FORMATION:
-        if (status == RET_OK) {
-            zb_ieee_addr_t ieee_address;
-            zb_get_long_address(ieee_address);
-            ESP_LOGI(TAG, "Formed network successfully (ieee extended address: %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x, PAN ID: 0x%04hx)",
+    case ESP_ZB_BDB_SIGNAL_FORMATION:
+        if (err_status == ESP_OK) {
+            esp_zb_ieee_addr_t ieee_address;
+            esp_zb_get_long_address(ieee_address);
+            ESP_LOGI(TAG, "Formed network successfully (Extended PAN ID: %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x, PAN ID: 0x%04hx, Channel:%d, Short Address: 0x%04hx)",
                      ieee_address[7], ieee_address[6], ieee_address[5], ieee_address[4],
                      ieee_address[3], ieee_address[2], ieee_address[1], ieee_address[0],
-                     ZB_PIBCACHE_PAN_ID());
-            bdb_start_top_level_commissioning(ZB_BDB_NETWORK_STEERING);
+                     esp_zb_get_pan_id(), esp_zb_get_current_channel(), esp_zb_get_short_address());
+            esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING);
         } else {
-            ESP_LOGI(TAG, "Restart network formation (status: %d)", status);
-            ZB_SCHEDULE_APP_ALARM((zb_callback_t)bdb_start_top_level_commissioning_cb, ZB_BDB_NETWORK_FORMATION, ZB_TIME_ONE_SECOND);
+            ESP_LOGI(TAG, "Restart network formation (status: %s)", esp_err_to_name(err_status));
+            esp_zb_scheduler_alarm((esp_zb_callback_t)bdb_start_top_level_commissioning_cb, ESP_ZB_BDB_MODE_NETWORK_FORMATION, 1000);
         }
         break;
-
-    case ZB_BDB_SIGNAL_STEERING:
-        if (status == RET_OK) {
+    case ESP_ZB_BDB_SIGNAL_STEERING:
+        if (err_status == ESP_OK) {
             ESP_LOGI(TAG, "Network steering started");
         }
         break;
-
-    case ZB_ZDO_SIGNAL_DEVICE_ANNCE:
-        dev_annce_params = ZB_ZDO_SIGNAL_GET_PARAMS(p_sg_p, zb_zdo_signal_device_annce_params_t);
+    case ESP_ZB_ZDO_SIGNAL_DEVICE_ANNCE:
+        dev_annce_params = (esp_zb_zdo_signal_device_annce_params_t *)esp_zb_app_signal_get_params(p_sg_p);
         ESP_LOGI(TAG, "New device commissioned or rejoined (short: 0x%04hx)", dev_annce_params->device_short_addr);
         break;
-
-    default:
-        ESP_LOGI(TAG, "status: %d", status);
+    case ESP_ZB_NWK_SIGNAL_PERMIT_JOIN_STATUS:
+        if (err_status == ESP_OK) {
+            if (*(uint8_t *)esp_zb_app_signal_get_params(p_sg_p)) {
+                ESP_LOGI(TAG, "Network(0x%04hx) is open for %d seconds", esp_zb_get_pan_id(), *(uint8_t *)esp_zb_app_signal_get_params(p_sg_p));
+            } else {
+                ESP_LOGW(TAG, "Network(0x%04hx) closed, devices joining not allowed.", esp_zb_get_pan_id());
+            }
+        }
         break;
-    }
-    /* All callbacks should either reuse or free passed buffers. If bufid == 0, the buffer is invalid (not passed) */
-    if (bufid) {
-        zb_buf_free(bufid);
+    case ESP_ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY:
+        ESP_LOGI(TAG, "Production configuration is %s", err_status == ESP_OK ? "ready" : "not present");
+        esp_zb_set_node_descriptor_manufacturer_code(ESP_MANUFACTURER_CODE);
+        break;
+    default:
+        ESP_LOGI(TAG, "ZDO signal: %s (0x%x), status: %s", esp_zb_zdo_signal_to_string(sig_type), sig_type,
+                 esp_err_to_name(err_status));
+        break;
     }
 }
 
-static void zboss_task(void *pvParameters)
+static void esp_zb_task(void *pvParameters)
 {
-    ZB_INIT("zigbee gateway");
-    zb_set_network_coordinator_role(IEEE_CHANNEL_MASK);
-    zb_set_nvram_erase_at_start(ERASE_PERSISTENT_CONFIG);
-    zb_set_max_children(MAX_CHILDREN);
-    /* initiate Zigbee Stack start without zb_send_no_autostart_signal auto-start */
-    ESP_ERROR_CHECK(zboss_start_no_autostart());
-    while (1) {
-        zboss_main_loop_iteration();
-    }
+    /* initialize Zigbee stack */
+    esp_zb_cfg_t zb_nwk_cfg = ESP_ZB_ZC_CONFIG();
+    esp_zb_init(&zb_nwk_cfg);
+    esp_zb_set_primary_network_channel_set(ESP_ZB_PRIMARY_CHANNEL_MASK);
+    esp_zb_ep_list_t *ep_list = esp_zb_ep_list_create();
+    esp_zb_cluster_list_t *cluster_list = esp_zb_zcl_cluster_list_create();
+    esp_zb_endpoint_config_t endpoint_config = {
+        .endpoint = ESP_ZB_GATEWAY_ENDPOINT,
+        .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+        .app_device_id = ESP_ZB_HA_REMOTE_CONTROL_DEVICE_ID,
+        .app_device_version = 0,
+    };
+
+    esp_zb_attribute_list_t *basic_cluser = esp_zb_basic_cluster_create(NULL);
+    esp_zb_basic_cluster_add_attr(basic_cluser, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, ESP_MANUFACTURER_NAME);
+    esp_zb_basic_cluster_add_attr(basic_cluser, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, ESP_MODEL_IDENTIFIER);
+    esp_zb_cluster_list_add_basic_cluster(cluster_list, basic_cluser, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_cluster_list_add_identify_cluster(cluster_list, esp_zb_identify_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_ep_list_add_gateway_ep(ep_list, cluster_list, endpoint_config);
+    esp_zb_device_register(ep_list);
+    ESP_ERROR_CHECK(esp_zb_start(false));
+    esp_zb_stack_main_loop();
+    vTaskDelete(NULL);
 }
 
 void app_main(void)
 {
-    zb_esp_platform_config_t config = {
-        .radio_config = ZB_ESP_DEFAULT_RADIO_CONFIG(),
-        .host_config = ZB_ESP_DEFAULT_HOST_CONFIG(),
+    esp_zb_platform_config_t config = {
+        .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
+        .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
     };
-    /* load Zigbee gateway platform config to initialization */
-    ESP_ERROR_CHECK(zb_esp_platform_config(&config));
-    xTaskCreate(zboss_task, "zboss_main", 4096, NULL, 5, NULL);
+
+    ESP_ERROR_CHECK(esp_zb_platform_config(&config));
+    ESP_ERROR_CHECK(nvs_flash_init());
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+    ESP_ERROR_CHECK(esp_zb_gateway_console_init());
+#endif
+    xTaskCreate(esp_zb_task, "Zigbee_main", 8192, NULL, 5, NULL);
 }

@@ -1,14 +1,15 @@
 Miscellaneous System APIs
 =========================
+
 :link_to_translation:`zh_CN:[中文]`
 
 {IDF_TARGET_BASE_MAC_BLOCK: default="BLK1", esp32="BLK0"}
-{IDF_TARGET_CPU_RESET_DES: default="both CPUs are reset", esp32c3="the CPU is reset", esp32c2="the CPU is reset"}
+{IDF_TARGET_CPU_RESET_DES: default="the CPU is reset", esp32="both CPUs are reset", esp32s3="both CPUs are reset", esp32p4="both CPUs are reset", esp32h4="both CPUs are reset"}
 
 Software Reset
 --------------
 
-To perform software reset of the chip, the :cpp:func:`esp_restart` function is provided. When the function is called, execution of the program stops, {IDF_TARGET_CPU_RESET_DES}, and the application is loaded by the bootloader and starts execution again.
+To perform software reset of the chip, the :cpp:func:`esp_restart` function is provided. When the function is called, execution of the program stops, {IDF_TARGET_CPU_RESET_DES}, the application is loaded by the bootloader and starts execution again.
 
 Additionally, the :cpp:func:`esp_register_shutdown_handler` function can register a routine that will be automatically called before a restart (that is triggered by :cpp:func:`esp_restart`) occurs. This is similar to the functionality of ``atexit`` POSIX function.
 
@@ -23,7 +24,7 @@ Heap Memory
 Two heap-memory-related functions are provided:
 
 * :cpp:func:`esp_get_free_heap_size` returns the current size of free heap memory.
-* :cpp:func:`esp_get_minimum_free_heap_size` returns the minimum size of free heap memory that has ever been available (i.e., the smallest size of free heap memory in the applications lifetime).
+* :cpp:func:`esp_get_minimum_free_heap_size` returns the minimum size of free heap memory that has ever been available (i.e., the smallest size of free heap memory in the application's lifetime).
 
 Note that ESP-IDF supports multiple heaps with different capabilities. The functions mentioned in this section return the size of heap memory that can be allocated using the ``malloc`` family of functions. For further information about heap memory, see :doc:`Heap Memory Allocation <mem_alloc>`.
 
@@ -36,9 +37,24 @@ These APIs allow querying and customizing MAC addresses for different supported 
 
 To fetch the MAC address for a specific network interface (e.g., Wi-Fi, Bluetooth, Ethernet), call the function :cpp:func:`esp_read_mac`.
 
-In ESP-IDF, the MAC addresses for the various network interfaces are calculated from a single *base MAC address*. By default, the Espressif base MAC address is used. This base MAC address is pre-programmed into the {IDF_TARGET_NAME} eFuse in the factory during production.
+In ESP-IDF, the MAC addresses for the various network interfaces are calculated from a single **base MAC address**. By default, the Espressif base MAC address is used. This base MAC address is pre-programmed into the {IDF_TARGET_NAME} eFuse in the factory during production.
 
-.. only:: not esp32s2
+.. only:: esp32p4
+
+    .. list-table::
+        :widths: 20 80
+        :header-rows: 1
+
+        * - Interface
+          - MAC Address (1 universally administered, default)
+        * - Ethernet
+          - base_mac
+
+    .. note::
+
+        On ESP32-P4, :ref:`CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES` is fixed to one universally administered MAC address.
+
+.. only:: (not esp32s2) and (not esp32p4) and (not esp32h2) and (not esp32h21) and (not esp32h4) and (not esp32s31)
 
     .. list-table::
         :widths: 20 40 40
@@ -63,6 +79,49 @@ In ESP-IDF, the MAC addresses for the various network interfaces are calculated 
     .. note::
 
         The :ref:`configuration <CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES>` configures the number of universally administered MAC addresses that are provided by Espressif.
+
+.. only:: esp32s31
+
+    .. list-table::
+        :widths: 20 40 40
+        :header-rows: 1
+
+        * - Interface
+          - MAC Address (2 universally administered, default)
+          - MAC Address (4 universally administered)
+        * - Wi-Fi Station
+          - base_mac
+          - base_mac
+        * - Wi-Fi SoftAP
+          - :ref:`Local MAC <local-mac-addresses>` (derived from Wi-Fi Station MAC)
+          - base_mac, +1 to the last octet
+        * - Bluetooth
+          - base_mac, +1 to the last octet
+          - base_mac, +2 to the last octet
+        * - Ethernet
+          - :ref:`Local MAC <local-mac-addresses>` (derived from Bluetooth MAC)
+          - base_mac, +3 to the last octet
+
+    .. note::
+
+        {IDF_TARGET_NAME} only provides two universally administered MAC addresses in eFuse, so :ref:`CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES` defaults to two. The "Four" option may only be used when a customer-provided custom base MAC range is used (see :ref:`Custom Base MAC <MAC-Address-Allocation>`), where four universally administered MAC addresses are allocated per device. Using "Four" with the default Espressif eFuse base MAC leads to SoftAP and Ethernet consuming global MAC slots (base+1/+3) that are not allocated on this chip and may collide with the Bluetooth MAC.
+
+.. only:: esp32h2 or esp32h21 or esp32h4
+
+    .. list-table::
+        :widths: 20 80
+        :header-rows: 1
+
+        * - Interface
+          - MAC Address (1 universally administered, default)
+        * - IEEE 802.15.4
+          - EUI-64 derived from base_mac and MAC_EXT (base_mac[0:2] ‖ MAC_EXT ‖ base_mac[3:5], MAC_EXT defaults to ff:fe)
+        * - Bluetooth
+          - base_mac
+
+    .. note::
+
+        {IDF_TARGET_NAME} provides a single universally administered MAC address in eFuse (MAC_FACTORY) plus the MAC_EXT field used to build the IEEE 802.15.4 EUI-64. :ref:`CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES` is fixed to one. Bluetooth reuses the base MAC as-is — the BT offset is not applied because {IDF_TARGET_NAME} has no Wi-Fi, so no second universal MAC slot is required.
 
 .. only:: esp32s2
 
@@ -89,12 +148,19 @@ In ESP-IDF, the MAC addresses for the various network interfaces are calculated 
 
 .. only:: not SOC_EMAC_SUPPORTED
 
-    .. note:: Although {IDF_TARGET_NAME} has no integrated Ethernet MAC, it is still possible to calculate an Ethernet MAC address. However, this MAC address can only be used with an external ethernet interface such as an SPI-Ethernet device. See :doc:`/api-reference/network/esp_eth`.
+    .. note::
+
+      Although {IDF_TARGET_NAME} has no integrated Ethernet MAC, it is still possible to calculate an Ethernet MAC address. However, this MAC address can only be used with an external ethernet interface such as an SPI-Ethernet device. See :doc:`/api-reference/network/esp_eth`.
+
+Custom Interface MAC
+^^^^^^^^^^^^^^^^^^^^
+
+Sometimes you may need to define custom MAC addresses that are not generated from the base MAC address. To set a custom interface MAC address, use the :cpp:func:`esp_iface_mac_addr_set` function. This function allows you to overwrite the MAC addresses of interfaces set (or not yet set) by the base MAC address. Once a MAC address has been set for a particular interface, it will not be affected when the base MAC address is changed.
 
 Custom Base MAC
 ^^^^^^^^^^^^^^^
 
-The default base MAC is pre-programmed by Espressif in eFuse {IDF_TARGET_BASE_MAC_BLOCK}. To set a custom base MAC instead, call the function :cpp:func:`esp_base_mac_addr_set` before initializing any network interfaces or calling the :cpp:func:`esp_read_mac` function. The custom MAC address can be stored in any supported storage device (e.g., flash, NVS).
+The default base MAC is pre-programmed by Espressif in eFuse {IDF_TARGET_BASE_MAC_BLOCK}. To set a custom base MAC instead, call the function :cpp:func:`esp_iface_mac_addr_set` with the ``ESP_MAC_BASE`` argument (or :cpp:func:`esp_base_mac_addr_set`) before initializing any network interfaces or calling the :cpp:func:`esp_read_mac` function. The custom MAC address can be stored in any supported storage device (e.g., flash, NVS).
 
 The custom base MAC addresses should be allocated such that derived MAC addresses will not overlap. Based on the table above, users can configure the option :ref:`CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES` to set the number of valid universal MAC addresses that can be derived from the custom base MAC.
 
@@ -106,7 +172,7 @@ The custom base MAC addresses should be allocated such that derived MAC addresse
 Custom MAC Address in eFuse
 @@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-When reading custom MAC addresses from eFuse, ESP-IDF provides a helper function :cpp:func:`esp_efuse_mac_get_custom`. This loads the MAC address from eFuse BLK3. This function assumes that the custom base MAC address is stored in the following format:
+When reading custom MAC addresses from eFuse, ESP-IDF provides a helper function :cpp:func:`esp_efuse_mac_get_custom`. Users can also use :cpp:func:`esp_read_mac` with the ``ESP_MAC_EFUSE_CUSTOM`` argument. This loads the MAC address from eFuse BLK3. The :cpp:func:`esp_efuse_mac_get_custom` function assumes that the custom base MAC address is stored in the following format:
 
 .. only:: esp32
 
@@ -125,11 +191,11 @@ When reading custom MAC addresses from eFuse, ESP-IDF provides a helper function
         * - Reserved
           - 128
           - 183:56
-          - 
+          -
         * - MAC address
           - 48
           - 55:8
-          - 
+          -
         * - MAC address CRC
           - 8
           - 7:0
@@ -154,15 +220,18 @@ When reading custom MAC addresses from eFuse, ESP-IDF provides a helper function
 
     .. note::
 
-        The eFuse BLK3 uses RS-coding during a burn operation, which means that all eFuse fields in this block must be burnt at the same time.
+        The eFuse BLK3 uses RS-coding during burning, which means that all eFuse fields in this block must be burnt at the same time.
 
-Once MAC address has been obtained using :cpp:func:`esp_efuse_mac_get_custom`, call :cpp:func:`esp_base_mac_addr_set` to set this MAC address as base MAC address.
+Once custom eFuse MAC address has been obtained (using :cpp:func:`esp_efuse_mac_get_custom` or :cpp:func:`esp_read_mac`), you need to set it as the base MAC address. There are two ways to do it:
+
+1. Use an old API: call :cpp:func:`esp_base_mac_addr_set`.
+2. Use a new API: call :cpp:func:`esp_iface_mac_addr_set` with the ``ESP_MAC_BASE`` argument.
 
 
 .. _local-mac-addresses:
 
-Local vs Universal MAC Addresses
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Local Versus Universal MAC Addresses
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 {IDF_TARGET_NAME} comes pre-programmed with enough valid Espressif universally administered MAC addresses for all internal interfaces. The table above shows how to calculate and derive the MAC address for a specific interface according to the base MAC address.
 
@@ -202,6 +271,18 @@ To get the version at build time, additional version macros are provided. They c
       #endif
 
 
+Debug Helpers
+-------------
+
+The debug helper APIs in ``esp_debug_helpers.h`` provide utilities for run-time debugging and stack backtrace output.
+
+- :cpp:func:`esp_backtrace_print` prints the current stack backtrace.
+- :cpp:func:`esp_backtrace_print_all_tasks` prints backtraces for all tasks.
+- :cpp:func:`esp_backtrace_get_start` and :cpp:func:`esp_backtrace_get_next_frame` allow manual iteration over backtrace frames.
+
+These APIs are useful when diagnosing crashes, watchdog timeouts, or unexpected control flow.
+
+
 .. _app-version:
 
 App Version
@@ -213,6 +294,11 @@ To set the version in your project manually, you need to set the ``PROJECT_VER``
 
 If the :ref:`CONFIG_APP_PROJECT_VER_FROM_CONFIG` option is set, the value of :ref:`CONFIG_APP_PROJECT_VER` will be used. Otherwise, if the ``PROJECT_VER`` variable is not set in the project, it will be retrieved either from the ``$(PROJECT_PATH)/version.txt`` file (if present) or using git command ``git describe``. If neither is available, ``PROJECT_VER`` will be set to "1". Application can make use of this by calling :cpp:func:`esp_app_get_description` or :cpp:func:`esp_ota_get_partition_description` functions.
 
+Application Examples
+--------------------
+
+- :example:`system/base_mac_address` demonstrates how to retrieve, set, and derive the base MAC address for each network interface on {IDF_TARGET_NAME} from non-volatile memory, using either the eFuse blocks or external storage.
+
 API Reference
 -------------
 
@@ -221,4 +307,5 @@ API Reference
 .. include-build-file:: inc/esp_mac.inc
 .. include-build-file:: inc/esp_chip_info.inc
 .. include-build-file:: inc/esp_cpu.inc
+.. include-build-file:: inc/esp_debug_helpers.inc
 .. include-build-file:: inc/esp_app_desc.inc

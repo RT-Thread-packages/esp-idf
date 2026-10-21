@@ -1,6 +1,7 @@
 *********
 Resources
 *********
+
 :link_to_translation:`zh_CN:[中文]`
 
 .. toctree::
@@ -8,7 +9,11 @@ Resources
     :maxdepth: 2
 
     third-party-tools/platformio
+    third-party-tools/clion
+    third-party-tools/wokwi
+    third-party-tools/visualgdb
 
+For inquiries related to these third-party tools, we recommend seeking assistance from the respective tool's support channels or user communities.
 
 Useful Links
 ############
@@ -26,5 +31,3 @@ Useful Links
 * If you're interested in contributing to ESP-IDF, please check the :doc:`contribute/index`.
 
 * For additional {IDF_TARGET_NAME} product related information, please refer to `documentation <https://espressif.com/en/support/download/documents>`_ section of `Espressif <https://espressif.com/en/support/download/documents>`__ site.
-
-* `Download <https://readthedocs.com/projects/espressif-esp-idf/downloads/>`_ latest and previous versions of this documentation in PDF and HTML format.

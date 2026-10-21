@@ -16,8 +16,13 @@ DEBUG_SHELL=${DEBUG_SHELL:-"0"}
 # Compiler flags to thoroughly check the IDF code in some CI jobs
 # (Depends on default options '-Wno-error=XXX' used in the IDF build system)
 
-PEDANTIC_FLAGS="-DIDF_CI_BUILD -Werror -Werror=deprecated-declarations -Werror=unused-variable -Werror=unused-but-set-variable -Werror=unused-function"
-export PEDANTIC_CFLAGS="${PEDANTIC_FLAGS} -Wstrict-prototypes"
+if [ "$IDF_TOOLCHAIN" != "clang" ]; then
+    PEDANTIC_FLAGS="-Werror -Werror=deprecated-declarations -Werror=unused-variable -Werror=unused-but-set-variable -Werror=unused-function"
+    export PEDANTIC_CFLAGS="${PEDANTIC_FLAGS} -Wstrict-prototypes"
+else
+    export PEDANTIC_CFLAGS="-Werror"
+fi
+
 export PEDANTIC_CXXFLAGS="${PEDANTIC_FLAGS}"
 
 # ccache related settings.
@@ -28,8 +33,23 @@ if [ "$CI_CCACHE_DISABLE" = 1 ]; then
     echo "INFO: ccache disabled globally using CI_CCACHE_DISABLE=0"
 fi
 
+# https://ccache.dev/manual/latest.html#_configuring_ccache
 # Set ccache base directory to the project checkout path, to cancel out differences between runners
-export CCACHE_BASEDIR="${CI_PROJECT_DIR}"
+export CCACHE_BASEDIR="${IDF_PATH}"
+export CCACHE_COMPILERCHECK="${CCACHE_COMPILERCHECK:-content}"
+
+# host mapping volume to share ccache fbetween runner concurrent jobs
+export CCACHE_SLOPPINESS="time_macros,file_macro,include_file_mtime,include_file_ctime"
+
+# Keep per-job statistics in the checkout directory while sharing the cache itself.
+export CCACHE_STATSLOG="${CCACHE_STATSLOG:-${IDF_PATH}/.ccache-stats.log}"
+
+# CCACHE_RECACHE Used when invalidating the current cache.
+# could be enabled by MR label "ccache:recache"
+if [ -n "${CI_MERGE_REQUEST_LABELS}" ] && echo "${CI_MERGE_REQUEST_LABELS}" | grep -q "ccache::recache"; then
+    export CCACHE_RECACHE="1"
+    echo "INFO: ccache recache enabled"
+fi
 
 # 'CI_CCACHE_DISABLE_NOHASHDIR' variable can be used at project level to revert to hash_dir=true, in
 # case we start seeing failures due to false cache hits.
@@ -44,3 +64,5 @@ if [ "${CI_CCACHE_DISABLE_SECONDARY}" != "1" ] && [ -n "${REDIS_CACHE}" ]; then
     export CCACHE_SECONDARY_STORAGE="redis://${REDIS_CACHE}"
     echo "INFO: Using CCACHE_SECONDARY_STORAGE=${CCACHE_SECONDARY_STORAGE}"
 fi
+
+export LDGEN_CHECK_MAPPING="1"

@@ -3,920 +3,147 @@ GPIO & RTC GPIO
 
 :link_to_translation:`en:[English]`
 
-概述
---------
-
-.. only:: esp32
-
-    {IDF_TARGET_NAME} 芯片具有 34 个物理 GPIO 管脚（GPIO0 ~ GPIO19、GPIO21 ~ GPIO23、GPIO25 ~ GPIO27 和 GPIO32 ~ GPIO39）。每个管脚都可用作一个通用 IO，或连接一个内部的外设信号。通过 IO MUX、RTC IO MUX 和 GPIO 交换矩阵，可配置外设模块的输入信号来源于任何的 IO 管脚，并且外设模块的输出信号也可连接到任意 IO 管脚。这些模块共同组成了芯片的 IO 控制。更多详细信息，请参阅 *{IDF_TARGET_NAME} 技术参考手册* > *IO MUX 和 GPIO 矩阵（GPIO、IO_MUX）* [`PDF <{IDF_TARGET_TRM_CN_URL}#iomuxgpio>`__]。
-
-    下表提供了各管脚的详细信息，部分 GPIO 具有特殊的使用限制，具体可参考表中的注释列。
-
-    .. list-table::
-       :header-rows: 1
-       :widths: 8 12 12 20
-
-       * - GPIO
-         - 模拟功能
-         - RTC GPIO
-         - 注释
-
-       * - GPIO0
-         - ADC2_CH1
-         - RTC_GPIO11
-         - Strapping 管脚
-
-       * - GPIO1
-         -
-         -
-         - TXD
-
-       * - GPIO2
-         - ADC2_CH2
-         - RTC_GPIO12
-         - Strapping 管脚
-
-       * - GPIO3
-         -
-         -
-         - RXD
-
-       * - GPIO4
-         - ADC2_CH0
-         - RTC_GPIO10
-         -
-
-       * - GPIO5
-         -
-         -
-         - Strapping 管脚
-
-       * - GPIO6
-         -
-         -
-         - SPI0/1
-
-       * - GPIO7
-         -
-         -
-         - SPI0/1
-
-       * - GPIO8
-         -
-         -
-         - SPI0/1
-
-       * - GPIO9
-         -
-         -
-         - SPI0/1
-
-       * - GPIO10
-         -
-         -
-         - SPI0/1
-
-       * - GPIO11
-         -
-         -
-         - SPI0/1
-
-       * - GPIO12
-         - ADC2_CH5
-         - RTC_GPIO15
-         - Strapping 管脚；JTAG
-
-       * - GPIO13
-         - ADC2_CH4
-         - RTC_GPIO14
-         - JTAG
-
-       * - GPIO14
-         - ADC2_CH6
-         - RTC_GPIO16
-         - JTAG
-
-       * - GPIO15
-         - ADC2_CH3
-         - RTC_GPIO13
-         - Strapping 管脚；JTAG
-
-       * - GPIO16
-         -
-         -
-         - SPI0/1
-
-       * - GPIO17
-         -
-         -
-         - SPI0/1
-
-       * - GPIO18
-         -
-         -
-         -
-
-       * - GPIO19
-         -
-         -
-         -
-
-       * - GPIO21
-         -
-         -
-         -
-
-       * - GPIO22
-         -
-         -
-         -
-
-       * - GPIO23
-         -
-         -
-         -
-
-       * - GPIO25
-         - ADC2_CH8
-         - RTC_GPIO6
-         -
-
-       * - GPIO26
-         - ADC2_CH9
-         - RTC_GPIO7
-         -
-
-       * - GPIO27
-         - ADC2_CH7
-         - RTC_GPIO17
-         -
-
-       * - GPIO32
-         - ADC1_CH4
-         - RTC_GPIO9
-         -
-
-       * - GPIO33
-         - ADC1_CH5
-         - RTC_GPIO8
-         -
-
-       * - GPIO34
-         - ADC1_CH6
-         - RTC_GPIO4
-         - GPI
-
-       * - GPIO35
-         - ADC1_CH7
-         - RTC_GPIO5
-         - GPI
-
-       * - GPIO36
-         - ADC1_CH0
-         - RTC_GPIO0
-         - GPI
-
-       * - GPIO37
-         - ADC1_CH1
-         - RTC_GPIO1
-         - GPI
-
-       * - GPIO38
-         - ADC1_CH2
-         - RTC_GPIO2
-         - GPI
-
-       * - GPIO39
-         - ADC1_CH3
-         - RTC_GPIO3
-         - GPI
-
-    .. note::
-
-        - Strapping 管脚：GPIO0、GPIO2、GPIO5、GPIO12 (MTDI) 和 GPIO15 (MTDO) 是 Strapping 管脚。更多信息请参考 `ESP32 技术规格书 <https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_cn.pdf>`_。
-        - SPI0/1：GPIO6-11 和 GPIO16-17 通常连接到模组内集成的 SPI flash 和 PSRAM，因此不能用于其他用途。
-        - JTAG：GPIO12-15 通常用于在线调试。
-        - GPI：GPIO34-39 只能设置为输入模式，不具备软件使能的上拉或下拉功能。
-        - TXD & RXD 通常用于烧录和调试。
-        - ADC2：使用 Wi-Fi 时不能使用 ADC2 管脚。因此，如果您在使用 Wi-Fi 时无法从 ADC2 GPIO 获取值，可以考虑使用 ADC1 GPIO 来解决该问题。更多详情请参考 `ADC 限制 <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/adc.html#adc-limitations>`_。
-
-
-.. only:: esp32s2
-
-    {IDF_TARGET_NAME} 芯片具有 43 个物理 GPIO 管脚（GPIO0 ~ GPIO21 和 GPIO26 ~ GPIO46）。每个管脚都可用作一个通用 IO，或连接一个内部的外设信号。通过 IO MUX、RTC IO MUX 和 GPIO 交换矩阵，可配置外设模块的输入信号来源于任何的 IO 管脚，并且外设模块的输出信号也可连接到任意 IO 管脚。这些模块共同组成了芯片的 IO 控制。更多详细信息，请参阅 *{IDF_TARGET_NAME} 技术参考手册* > *IO MUX 和 GPIO 矩阵（GPIO、IO_MUX）* [`PDF <{IDF_TARGET_TRM_CN_URL}#iomuxgpio>`__]。
-
-    下表提供了各管脚的详细信息，部分 GPIO 具有特殊的使用限制，具体可参考表中的注释列。
-
-    .. list-table::
-       :header-rows: 1
-       :widths: 8 12 12 20
-
-       * - GPIO
-         - 模拟功能
-         - RTC GPIO
-         - 注释
-
-       * - GPIO0
-         -
-         - RTC_GPIO0
-         - Strapping 管脚
-
-       * - GPIO1
-         - ADC1_CH0
-         - RTC_GPIO1
-         -
-
-       * - GPIO2
-         - ADC1_CH1
-         - RTC_GPIO2
-         -
-
-       * - GPIO3
-         - ADC1_CH2
-         - RTC_GPIO3
-         -
-
-       * - GPIO4
-         - ADC1_CH3
-         - RTC_GPIO4
-         -
-
-       * - GPIO5
-         - ADC1_CH4
-         - RTC_GPIO5
-         -
-
-       * - GPIO6
-         - ADC1_CH5
-         - RTC_GPIO6
-         -
-
-       * - GPIO7
-         - ADC1_CH6
-         - RTC_GPIO7
-         -
-
-       * - GPIO8
-         - ADC1_CH7
-         - RTC_GPIO8
-         -
-
-       * - GPIO9
-         - ADC1_CH8
-         - RTC_GPIO9
-         -
-
-       * - GPIO10
-         - ADC1_CH9
-         - RTC_GPIO10
-         -
-
-       * - GPIO11
-         - ADC2_CH0
-         - RTC_GPIO11
-         -
-
-       * - GPIO12
-         - ADC2_CH1
-         - RTC_GPIO12
-         -
-
-       * - GPIO13
-         - ADC2_CH2
-         - RTC_GPIO13
-         -
-
-       * - GPIO14
-         - ADC2_CH3
-         - RTC_GPIO14
-         -
-
-       * - GPIO15
-         - ADC2_CH4
-         - RTC_GPIO15
-         -
-
-       * - GPIO16
-         - ADC2_CH5
-         - RTC_GPIO16
-         -
-
-       * - GPIO17
-         - ADC2_CH6
-         - RTC_GPIO17
-         -
-
-       * - GPIO18
-         - ADC2_CH7
-         - RTC_GPIO18
-         -
-
-       * - GPIO19
-         - ADC2_CH8
-         - RTC_GPIO19
-         -
-
-       * - GPIO20
-         - ADC2_CH9
-         - RTC_GPIO20
-         -
-
-       * - GPIO21
-         -
-         - RTC_GPIO21
-         -
-
-       * - GPIO26
-         -
-         -
-         - SPI0/1
-
-       * - GPIO27
-         -
-         -
-         - SPI0/1
-
-       * - GPIO28
-         -
-         -
-         - SPI0/1
-
-       * - GPIO29
-         -
-         -
-         - SPI0/1
-
-       * - GPIO30
-         -
-         -
-         - SPI0/1
-
-       * - GPIO31
-         -
-         -
-         - SPI0/1
-
-       * - GPIO32
-         -
-         -
-         - SPI0/1
-
-       * - GPIO33
-         -
-         -
-         -
-
-       * - GPIO34
-         -
-         -
-         -
-
-       * - GPIO35
-         -
-         -
-         -
-
-       * - GPIO36
-         -
-         -
-         -
-
-       * - GPIO37
-         -
-         -
-         -
-
-       * - GPIO38
-         -
-         -
-         -
-
-       * - GPIO39
-         -
-         -
-         - JTAG
-
-       * - GPIO40
-         -
-         -
-         - JTAG
-
-       * - GPIO41
-         -
-         -
-         - JTAG
-
-       * - GPIO42
-         -
-         -
-         - JTAG
-
-       * - GPIO43
-         -
-         -
-         -
-
-       * - GPIO44
-         -
-         -
-         -
-
-       * - GPIO45
-         -
-         -
-         - Strapping 管脚
-
-       * - GPIO46
-         -
-         -
-         - GPI；Strapping 管脚
-
-    .. note::
-
-        - Strapping 管脚：GPIO0、GPIO45、和 GPIO46 是 Strapping 管脚。更多信息请参考 `ESP32-S2 技术规格书 <https://www.espressif.com/sites/default/files/documentation/esp32-s2_datasheet_cn.pdf>`_。
-        - SPI0/1：GPIO26-32 通常用于 SPI flash 和 PSRAM，不推荐用于其他用途。
-        - JTAG：GPIO39-42 通常用于在线调试。
-        - GPI：GPIO46 固定为下拉，只能设置为输入模式。
-
-
-.. only:: esp32c3
-
-    {IDF_TARGET_NAME} 芯片具有 22 个物理 GPIO 管脚（GPIO0 ~ GPIO21）。每个管脚都可用作一个通用 IO，或连接一个内部的外设信号。通过 GPIO 交换矩阵和 IO MUX，可配置外设模块的输入信号来源于任何的 IO 管脚，并且外设模块的输出信号也可连接到任意 IO 管脚。这些模块共同组成了芯片的 IO 控制。更多详细信息，请参阅 *{IDF_TARGET_NAME} 技术参考手册* > *IO MUX 和 GPIO 矩阵（GPIO、IO_MUX）* [`PDF <{IDF_TARGET_TRM_CN_URL}#iomuxgpio>`__]。
-
-    下表提供了各管脚的详细信息，部分 GPIO 具有特殊的使用限制，具体可参考表中的注释列。
-
-
-    .. list-table::
-       :header-rows: 1
-       :widths: 12 12 22
-
-       * - GPIO
-         - 模拟功能
-         - 注释
-
-       * - GPIO0
-         - ADC1_CH0
-         - RTC
-
-       * - GPIO1
-         - ADC1_CH1
-         - RTC
-
-       * - GPIO2
-         - ADC1_CH2
-         - Strapping 管脚；RTC
-
-       * - GPIO3
-         - ADC1_CH3
-         - RTC
-
-       * - GPIO4
-         - ADC1_CH4
-         - RTC
-
-       * - GPIO5
-         - ADC2_CH0
-         - RTC
-
-       * - GPIO6
-         -
-         -
-
-       * - GPIO7
-         -
-         -
-
-       * - GPIO8
-         -
-         - Strapping 管脚
-
-       * - GPIO9
-         -
-         - Strapping 管脚
-
-       * - GPIO10
-         -
-         -
-
-       * - GPIO11
-         -
-         -
-
-       * - GPIO12
-         -
-         - SPI0/1
-
-       * - GPIO13
-         -
-         - SPI0/1
-
-       * - GPIO14
-         -
-         - SPI0/1
-
-       * - GPIO15
-         -
-         - SPI0/1
-
-       * - GPIO16
-         -
-         - SPI0/1
-
-       * - GPIO17
-         -
-         - SPI0/1
-
-       * - GPIO18
-         -
-         - USB-JTAG
-
-       * - GPIO19
-         -
-         - USB-JTAG
-
-       * - GPIO20
-         -
-         -
-
-       * - GPIO21
-         -
-         -
-
-    .. note::
-
-        - Strapping 管脚：GPIO2、GPIO8、和 GPIO9 是 Strapping 管脚。更多信息请参考 `ESP32-C3 技术规格书 <https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_cn.pdf>`_。
-        - SPI0/1：GPIO12-17 通常用于 SPI flash 和 PSRAM，不推荐用于其他用途。
-        - USB-JTAG：GPIO18 和 GPIO19 默认用于 USB-JTAG。用做 GPIO 时驱动程序将禁用 USB-JTAG。
-        - RTC：GPIO0-5 可以在 Deep-sleep 模式时使用。
-
-
-.. only:: esp32s3
-
-    {IDF_TARGET_NAME} 芯片具有 45 个物理 GPIO 管脚（GPIO0 ~ GPIO21 和 GPIO26 ~ GPIO48）。每个管脚都可用作一个通用 IO，或连接一个内部外设信号。通过 GPIO 交换矩阵、IO MUX 和 RTC IO MUX，可配置外设模块的输入信号来源于任何的 GPIO 管脚，并且外设模块的输出信号也可连接到任意 GPIO 管脚。这些模块共同组成了芯片的输入输出控制。更多详细信息，请参阅 *{IDF_TARGET_NAME} 技术参考手册* > *IO MUX 和 GPIO 矩阵（GPIO、IO_MUX）* [`PDF <{IDF_TARGET_TRM_CN_URL}#iomuxgpio>`__]。
-
-    下表提供了各管脚的详细信息，部分 GPIO 具有特殊的使用限制，具体可参考表中的注释列。
-
-    .. list-table::
-       :header-rows: 1
-       :widths: 8 12 12 20
-
-       * - GPIO
-         - 模拟功能
-         - RTC GPIO
-         - 注释
-
-       * - GPIO0
-         -
-         - RTC_GPIO0
-         - Strapping 管脚
-
-       * - GPIO1
-         - ADC1_CH0
-         - RTC_GPIO1
-         -
-
-       * - GPIO2
-         - ADC1_CH1
-         - RTC_GPIO2
-         -
-
-       * - GPIO3
-         - ADC1_CH2
-         - RTC_GPIO3
-         - Strapping 管脚
-
-       * - GPIO4
-         - ADC1_CH3
-         - RTC_GPIO4
-         -
-
-       * - GPIO5
-         - ADC1_CH4
-         - RTC_GPIO5
-         -
-
-       * - GPIO6
-         - ADC1_CH5
-         - RTC_GPIO6
-         -
-
-       * - GPIO7
-         - ADC1_CH6
-         - RTC_GPIO7
-         -
-
-       * - GPIO8
-         - ADC1_CH7
-         - RTC_GPIO8
-         -
-
-       * - GPIO9
-         - ADC1_CH8
-         - RTC_GPIO9
-         -
-
-       * - GPIO10
-         - ADC1_CH9
-         - RTC_GPIO10
-         -
-
-       * - GPIO11
-         - ADC2_CH0
-         - RTC_GPIO11
-         -
-
-       * - GPIO12
-         - ADC2_CH1
-         - RTC_GPIO12
-         -
-
-       * - GPIO13
-         - ADC2_CH2
-         - RTC_GPIO13
-         -
-
-       * - GPIO14
-         - ADC2_CH3
-         - RTC_GPIO14
-         -
-
-       * - GPIO15
-         - ADC2_CH4
-         - RTC_GPIO15
-         -
-
-       * - GPIO16
-         - ADC2_CH5
-         - RTC_GPIO16
-         -
-
-       * - GPIO17
-         - ADC2_CH6
-         - RTC_GPIO17
-         -
-
-       * - GPIO18
-         - ADC2_CH7
-         - RTC_GPIO18
-         -
-
-       * - GPIO19
-         - ADC2_CH8
-         - RTC_GPIO19
-         - USB-JTAG
-
-       * - GPIO20
-         - ADC2_CH9
-         - RTC_GPIO20
-         - USB-JTAG
-
-       * - GPIO21
-         -
-         - RTC_GPIO21
-         -
-
-       * - GPIO26
-         -
-         -
-         - SPI0/1
-
-       * - GPIO27
-         -
-         -
-         - SPI0/1
-
-       * - GPIO28
-         -
-         -
-         - SPI0/1
-
-       * - GPIO29
-         -
-         -
-         - SPI0/1
-
-       * - GPIO30
-         -
-         -
-         - SPI0/1
-
-       * - GPIO31
-         -
-         -
-         - SPI0/1
-
-       * - GPIO32
-         -
-         -
-         - SPI0/1
-
-       * - GPIO33
-         -
-         -
-         - SPI0/1
-
-       * - GPIO34
-         -
-         -
-         - SPI0/1
-
-       * - GPIO35
-         -
-         -
-         - SPI0/1
-
-       * - GPIO36
-         -
-         -
-         - SPI0/1
-
-       * - GPIO37
-         -
-         -
-         - SPI0/1
-
-       * - GPIO38
-         -
-         -
-         -
-
-       * - GPIO39
-         -
-         -
-         -
-
-       * - GPIO40
-         -
-         -
-         -
-
-       * - GPIO41
-         -
-         -
-         -
-
-       * - GPIO42
-         -
-         -
-         -
-
-       * - GPIO43
-         -
-         -
-         -
-
-       * - GPIO44
-         -
-         -
-         -
-
-       * - GPIO45
-         -
-         -
-         - Strapping 管脚
-
-       * - GPIO46
-         -
-         -
-         - Strapping 管脚
-
-       * - GPIO47
-         -
-         -
-         -
-
-       * - GPIO48
-         -
-         -
-         -
-
-    .. Note::
-
-        - Strapping 管脚：GPIO2、GPIO3、GPIO45 和 GPIO46 是 Strapping 管脚。更多信息请参考 `ESP32-S3 技术规格书 <https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_cn.pdf>`_。
-        - SPI0/1：GPIO26-32 通常用于 SPI flash 和 PSRAM，不推荐用于其他用途。当使用八线 flash 或八线 PSRAM 或同时使用两者时，GPIO33~37 会连接到 SPIIO4 ~ SPIIO7 和 SPIDQS。因此，对于内嵌 ESP32-S3R8 或 ESP32-S3R8V 芯片的开发板，GPIO33~37 也不推荐用于其他用途。
-        - USB-JTAG：GPIO19 和 GPIO20 默认用于 USB-JTAG。用做 GPIO 时驱动程序将禁用 USB-JTAG。
-
-.. only:: esp32c2
-
-    {IDF_TARGET_NAME} 芯片具有 21 个物理 GPIO 管脚（GPIO0 ~ GPIO20）。对于内置 SiP flash 的芯片型号，GPIO11 ~ GPIO17 专门用于连接 SiP flash。因此，对于这类芯片只有 14 个 GPIO 管脚可用。
-
-    每个管脚都可用作一个通用 IO，或连接一个内部的外设 信号。通过 GPIO 交换矩阵和 IO MUX，可配置外设模块的输入信号来源于任何的 IO 管脚，并且外设模块的输 出信号也可连接到任意 IO 管脚。这些模块共同组成了芯片的 IO 控制。更多详细信息，请参阅 *{IDF_TARGET_NAME} 技术参考手册* > *IO MUX 和 GPIO 矩阵（GPIO、IO_MUX）* [`PDF <{IDF_TARGET_TRM_CN_URL}#iomuxgpio>`__]。
-
-    下表提供了各管脚的详细信息，部分 GPIO 具有特殊的使用限制，具体可参考表中的注释列。
-
-    .. list-table::
-       :header-rows: 1
-       :widths: 12 12 22
-
-       * - GPIO
-         - 模拟功能
-         - 注释
-
-       * - GPIO0
-         - ADC1_CH0
-         - RTC
-
-       * - GPIO1
-         - ADC1_CH1
-         - RTC
-
-       * - GPIO2
-         - ADC1_CH2
-         - RTC
-
-       * - GPIO3
-         - ADC1_CH3
-         - RTC
-
-       * - GPIO4
-         - ADC1_CH4
-         - RTC
-
-       * - GPIO5
-         -
-         - RTC
-
-       * - GPIO6
-         -
-         -
-
-       * - GPIO7
-         -
-         -
-
-       * - GPIO8
-         -
-         - Strapping 管脚
-
-       * - GPIO9
-         -
-         - Strapping 管脚
-
-       * - GPIO10
-         -
-         -
-
-       * - GPIO11
-         -
-         -
-
-       * - GPIO12
-         -
-         - SPI0/1
-
-       * - GPIO13
-         -
-         - SPI0/1
-
-       * - GPIO14
-         -
-         - SPI0/1
-
-       * - GPIO15
-         -
-         - SPI0/1
-
-       * - GPIO16
-         -
-         - SPI0/1
-
-       * - GPIO17
-         -
-         - SPI0/1
-
-       * - GPIO18
-         -
-         -
-
-       * - GPIO19
-         -
-         -
-
-       * - GPIO20
-         -
-         -
-
-    .. note::
-
-        - Strapping 管脚：GPIO8 和 GPIO9 是 Strapping 管脚。更多信息请参考 `ESP8684 技术规格书 <https://www.espressif.com/sites/default/files/documentation/esp8684_datasheet_cn.pdf>`_。
-        - SPI0/1：GPIO12-17 通常用于 SPI flash，不推荐用于其他用途。
-        - RTC：GPIO0-5 可以在 Deep-sleep 模式时使用。
-
+GPIO 汇总
+---------
+
+.. include:: gpio/{IDF_TARGET_PATH_NAME}.inc
+    :start-after: gpio-summary
+    :end-before: ---
 
 .. only:: SOC_RTCIO_INPUT_OUTPUT_SUPPORTED
 
-    当 GPIO 连接到 "RTC" 低功耗和模拟子系统时，{IDF_TARGET_NAME} 芯片还单独支持 "RTC GPIO"。可在以下情况时使用这些管脚功能：
+    .. only:: not SOC_LP_PERIPHERALS_SUPPORTED
+
+        当 GPIO 连接到 RTC 低功耗和模拟子系统时，{IDF_TARGET_NAME} 芯片还单独支持 RTC GPIO。可在以下情况时使用这些管脚功能：
+
+        .. only:: SOC_LP_PERIPHERALS_SUPPORTED
+
+        当 GPIO 连接到 RTC 低功耗、模拟子系统、低功耗外设时，{IDF_TARGET_NAME} 芯片还单独支持 RTC GPIO。可在以下情况时使用这些管脚功能：
 
     .. list::
 
         - 处于 Deep-sleep 模式时
-        :SOC_ULP_SUPPORTED: - :doc:`超低功耗协处理器 (ULP) <../../api-reference/system/ulp>` 运行时
+        :SOC_ULP_FSM_SUPPORTED: - :doc:`超低功耗协处理器 (ULP-FSM) <../../api-reference/system/ulp>` 运行时
+        :SOC_RISCV_COPROC_SUPPORTED: - :doc:`超低功耗协处理器 (ULP-RISC-V) <../../api-reference/system/ulp-risc-v>` 运行时
+        :SOC_LP_CORE_SUPPORTED: - :doc:`超低功耗协处理器 (ULP-LP-Core) <../../api-reference/system/ulp-lp-core>` 运行时
         - 使用 ADC/DAC 等模拟功能时
+        :SOC_LP_PERIPHERALS_SUPPORTED: - 使用低功耗外设时，例如： LP_UART ， LP_I2C 等
+
+IO 管脚配置
+-----------
+
+IO 可以有两种使用方式：
+
+- 作为简单的 GPIO 输入读取引脚上的电平，或作为简单的 GPIO 输出以输出所需的电平。
+- 作为外设信号的输入/输出。
+
+IDF 外设驱动内部会处理需要应用到引脚上的必要 IO 配置，以便它们可以用作外设信号的输入或输出。这意味着用户通常自己只需负责将 IO 配置为简单的输入或输出。:cpp:func:`gpio_config` 是一个一体化的 API，可用于配置 I/O 模式、内部上拉/下拉电阻等管脚设置，包括那些被 USB PHY 复用的引脚。
+
+在一些应用中，IO 管脚可以同时发挥双重作用。例如，输出 LEDC PWM 信号的 IO 也可以作为 GPIO 输入生成中断或 GPIO ETM 事件。这种双重用途的 IO 管脚在配置时需要特别注意。由于 :cpp:func:`gpio_config` 是一个会覆盖所有当前配置的 API ，因此必须先调用它将管脚模式设置为 :cpp:enumerator:`gpio_mode_t::GPIO_MODE_INPUT`，然后才能调用 LEDC 驱动 API 将输出信号连接到引脚上。作为替代方案，如果除了使管脚输入启用之外不需要其他额外配置，可以随时调用 :cpp:func:`gpio_input_enable` 以实现相同的目的。
+
+获取 IO 管脚实时配置状态
+------------------------
+
+GPIO 驱动提供了一个函数 :cpp:func:`gpio_dump_io_configuration` 用来输出指定管脚的实时配置状态，包括上下拉、输入输出使能、管脚映射等。例如，以下命令可用于输出 GPIO4，GPIO18 与 GPIO26 的配置状态：
+
+::
+
+    gpio_dump_io_configuration(stdout, (1ULL << 4) | (1ULL << 18) | (1ULL << 26));
+
+其输出信息如下：
+
+::
+
+    ================IO DUMP Start================
+    IO[4] -
+      Pullup: 1, Pulldown: 0, DriveCap: 2
+      InputEn: 1, OutputEn: 0, OpenDrain: 0
+      FuncSel: 1 (GPIO)
+      GPIO Matrix SigIn ID: (simple GPIO input)
+      SleepSelEn: 1
+
+    IO[18] -
+      Pullup: 0, Pulldown: 0, DriveCap: 2
+      InputEn: 0, OutputEn: 1, OpenDrain: 0
+      FuncSel: 1 (GPIO)
+      GPIO Matrix SigOut ID: 256 (simple GPIO output)
+      SleepSelEn: 1
+
+    IO[26] **RESERVED** -
+      Pullup: 1, Pulldown: 0, DriveCap: 2
+      InputEn: 1, OutputEn: 0, OpenDrain: 0
+      FuncSel: 0 (IOMUX)
+      SleepSelEn: 1
+
+    =================IO DUMP End==================
+
+如果你想要查看所有管脚的配置状态，可以使用命令
+
+::
+
+    gpio_dump_io_configuration(stdout, SOC_GPIO_VALID_GPIO_MASK);
+
+如果 IO 管脚通过 GPIO 交换矩阵连接到内部外设信号，输出信息打印中的外设信号 ID 定义可以在 :component_file:`soc/{IDF_TARGET_PATH_NAME}/include/soc/gpio_sig_map.h` 头文件中查看。``**RESERVED**`` 字样则表示此 IO 用于连接 SPI flash 或 PSRAM，强烈建议不要重新配置这些管脚用于其他功能。
+
+请不要依赖技术参考手册中记录的 GPIO 默认配置状态，因为特殊用途的 GPIO 可能会在 app_main 之前被引导加载程序或应用程序启动阶段的代码更改。
+
+.. only:: SOC_GPIO_SUPPORT_PIN_GLITCH_FILTER or SOC_GPIO_FLEX_GLITCH_FILTER_NUM
+
+    GPIO 毛刺过滤器
+    ---------------
+
+    {IDF_TARGET_NAME} 内置硬件的过滤器可以过滤掉 GPIO 输入端口上的毛刺信号，在一定程度上避免错误触发中断或者是错把噪声当成有效的外设信号。
+
+    .. only:: SOC_GPIO_SUPPORT_PIN_GLITCH_FILTER
+
+        每个 GPIO 都可以使用独立的毛刺过滤器，该过滤器可以将那些脉冲宽度窄于 **2** 个采样时钟的信号剔除掉，该宽度无法配置。GPIO 对输入信号的采样时钟通常是 IO_MUX 的时钟源。在驱动中，此类过滤器称为 ``管脚毛刺过滤器``。可以调用 :cpp:func:`gpio_new_pin_glitch_filter` 函数创建一个过滤器句柄。过滤器的相关配置保存在 :cpp:type:`gpio_pin_glitch_filter_config_t` 结构体中。
+
+        - :cpp:member:`gpio_pin_glitch_filter_config_t::gpio_num` 设置启用毛刺过滤器的 GPIO 编号。
+
+    .. only:: SOC_GPIO_FLEX_GLITCH_FILTER_NUM
+
+        {IDF_TARGET_FLEX_GLITCH_FILTER_NUM:default="8"}
+
+        {IDF_TARGET_NAME} 提供了 {IDF_TARGET_FLEX_GLITCH_FILTER_NUM} 个灵活的毛刺过滤器，被过滤信号的脉冲宽度可以由软件进行配置。此类过滤器则称为 ``灵活毛刺过滤器``。每个过滤器都可以应用于任意 GPIO 输入，然而，将多个过滤器应用于同一 GPIO 上效果并不会叠加。可以调用 :cpp:func:`gpio_new_flex_glitch_filter` 函数来创建一个过滤器句柄。过滤器的相关配置保存在 :cpp:type:`gpio_flex_glitch_filter_config_t` 结构体中。
+
+        - :cpp:member:`gpio_flex_glitch_filter_config_t::gpio_num` 设置启用毛刺过滤器的 GPIO 编号。
+        - :cpp:member:`gpio_flex_glitch_filter_config_t::window_width_ns` 和 :cpp:member:`gpio_flex_glitch_filter_config_t::window_thres_ns` 是毛刺过滤器的关键参数。在:cpp:member:`gpio_flex_glitch_filter_config_t::window_width_ns` 时间内，任何脉冲信号，如果它的宽度小于 :cpp:member:`gpio_flex_glitch_filter_config_t::window_thres_ns` ，那么该脉冲信号就会被滤除掉。:cpp:member:`gpio_flex_glitch_filter_config_t::window_thres_ns` 的值不能大于 :cpp:member:`gpio_flex_glitch_filter_config_t::window_width_ns`。
+
+    .. only:: SOC_GPIO_SUPPORT_PIN_GLITCH_FILTER and SOC_GPIO_FLEX_GLITCH_FILTER_NUM
+
+        请注意，``管脚毛刺过滤器`` 和 ``灵活毛刺过滤器`` 是各自独立的，支持为同一 GPIO 同时启用这两种过滤器。
+
+    毛刺过滤器默认关闭，可调用 :cpp:func:`gpio_glitch_filter_enable` 使能过滤器。如需回收这个过滤器，可以调用 :cpp:func:`gpio_del_glitch_filter` 函数。在回收句柄前，请确保过滤器处于关闭状态，否则需调用 :cpp:func:`gpio_glitch_filter_disable`。
+
+
+.. only:: SOC_GPIO_SUPPORT_PIN_HYS_FILTER
+
+    GPIO 迟滞过滤器
+    ---------------
+
+    {IDF_TARGET_NAME} 支持输入引脚的硬件迟滞，这可以减少由于输入电压在逻辑 0、1 临界值附近时采样不稳定造成的 GPIO 中断误触，尤其是当输入逻辑电平转换较慢，电平建立时间较长时。
+
+    .. only:: SOC_GPIO_SUPPORT_PIN_HYS_CTRL_BY_EFUSE
+
+        每个引脚可以独立启用迟滞功能。默认情况下，它由 eFuse 控制，且处于关闭状态，但也可以由软件控制启用或禁用。你可以通过配置 :cpp:member:`gpio_config_t::hys_ctrl_mode` 来选择迟滞控制模式。迟滞控制模式会和其余 GPIO 配置一起在 :cpp:func:`gpio_config` 中生效。
+
+        .. note::
+
+            当迟滞功能由 eFuse 控制时，仍然可以独立的控制每个引脚的该功能，你需要 `烧断 eFuse <https://docs.espressif.com/projects/esptool/en/latest/esp32/espefuse/index.html>`_ ，以在特定 GPIO 上启用迟滞功能。
+
+    .. only:: not SOC_GPIO_SUPPORT_PIN_HYS_CTRL_BY_EFUSE
+
+        每个引脚可以独立启用迟滞功能。默认情况下，它处于关闭状态。你可以通过配置 :cpp:member:`gpio_config_t::hys_ctrl_mode` 来选择启用与否。迟滞控制模式会和其余 GPIO 配置一起在 :cpp:func:`gpio_config` 中生效。
+
 
 应用示例
 -------------------
 
-GPIO 输出和输入中断示例：:example:`peripherals/gpio/generic_gpio`。
+.. list::
+
+    * :example:`peripherals/gpio/generic_gpio` 演示了如何配置 GPIO 以生成脉冲，触发中断。
+    :esp32s2: * :example:`peripherals/gpio/matrix_keyboard` 演示了如何使用专用 GPIO API 驱动常见的矩阵键盘，包括控制一组 GPIO 的电平、触发边沿中断以及读取一组 GPIO 的电平。
+
 
 API 参考 - 普通 GPIO
 ---------------------------
@@ -931,4 +158,12 @@ API 参考 - 普通 GPIO
     ------------------------
 
     .. include-build-file:: inc/rtc_io.inc
+    .. include-build-file:: inc/lp_io.inc
     .. include-build-file:: inc/rtc_io_types.inc
+
+.. only:: SOC_GPIO_SUPPORT_PIN_GLITCH_FILTER or SOC_GPIO_FLEX_GLITCH_FILTER_NUM
+
+      API 参考 - GPIO 毛刺过滤器
+      --------------------------
+
+      .. include-build-file:: inc/gpio_filter.inc

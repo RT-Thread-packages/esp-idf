@@ -1,12 +1,14 @@
-// Copyright (C) 2018-2020 Alibaba Group Holding Limited
 /*
- * SPDX-FileCopyrightText: 2020-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2020 Alibaba Group Holding Limited
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * SPDX-FileContributor: 2020-2022 Espressif Systems (Shanghai) CO LTD
  */
 
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include "esp_log.h"
 #include "esp_random.h"
@@ -247,7 +249,7 @@ static void genie_model_retry_timer_cb(void *args)
     /* start new timer */
     if (!genie_dlist_is_empty(p_head)) {
         util_timer_start(&g_vnd_msg_timer, nearest);
-        ESP_LOGD(TAG, "restart retry timer, timeout: %d", nearest);
+        ESP_LOGD(TAG, "restart retry timer, timeout: %" PRIu32, nearest);
     } else {
         util_timer_stop(&g_vnd_msg_timer);
         ESP_LOGD(TAG, "list empty, stop timer");
@@ -385,7 +387,6 @@ esp_err_t genie_model_msg_send(genie_model_msg_t *p_model_msg)
     ctx.net_idx  = bt_mesh_model_get_netkey_id(p_model_msg->p_elem);
     ctx.addr     = GENIE_RECV_ADDR;
     ctx.send_ttl = BLE_MESH_TTL_DEFAULT;
-    ctx.send_rel = 0;
 
     ESP_LOGI(TAG, "vendor message send: tid: 0x%02x, retry: %02d, len: %02d, opcode: 0x%02x, data: 0x%s", p_model_msg->tid, p_model_msg->retry, p_model_msg->len, p_model_msg->opid, util_hex2str(p_model_msg->data, p_model_msg->len));
     ESP_LOGD(TAG, "vendor message send: element: %p, app_idx: %d, net_idx: %d, tid: 0x%02x, retry: %02d, len: %02d, opcode: 0x%02x, data: 0x%s",
@@ -631,5 +632,5 @@ void genie_model_dispatch(uint32_t opcode, esp_ble_mesh_model_t *model,
             return;
         }
     }
-    ESP_LOGW(TAG, "not find callback function for opcode: 0x%02x", opcode);
+    ESP_LOGW(TAG, "not find callback function for opcode: 0x%02" PRIu32, opcode);
 }

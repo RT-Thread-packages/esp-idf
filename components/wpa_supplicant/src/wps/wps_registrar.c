@@ -852,7 +852,6 @@ static void wps_registrar_remove_pin(struct wps_registrar *reg,
 		addr = pin->enrollee_addr;
 	wps_registrar_remove_authorized_mac(reg, addr);
 	wps_remove_pin(pin);
-	wps_registrar_selected_registrar_changed(reg, 0);
 }
 
 
@@ -1210,7 +1209,9 @@ void wps_registrar_probe_req_rx(struct wps_registrar *reg, const u8 *addr,
 		struct os_reltime now, dur;
 		os_get_reltime(&now);
 		os_reltime_sub(&now, &reg->pbc_ignore_start, &dur);
-		if (dur.sec >= 0 && dur.sec < 5) {
+#ifdef ESP_SUPPLICANT
+		if (dur.sec < 5) {
+#endif /* ESP_SUPPLICANT */
 			wpa_printf(MSG_DEBUG, "WPS: Ignore PBC activation "
 				   "based on Probe Request from the Enrollee "
 				   "that just completed PBC provisioning");
@@ -1229,6 +1230,19 @@ void wps_registrar_probe_req_rx(struct wps_registrar *reg, const u8 *addr,
 	}
 }
 
+#ifdef ESP_SUPPLICANT
+bool esp_wps_registrar_check_pbc_overlap(struct wps_context *wps)
+{
+
+    if (wps_registrar_pbc_overlap(wps->registrar, NULL, NULL)) {
+        wps->registrar->force_pbc_overlap = 1;
+        wps_pbc_overlap_event(wps);
+        return true;
+    }
+
+    return false;
+}
+#endif /* ESP_SUPPLICANT */
 
 int wps_cb_new_psk(struct wps_registrar *reg, const u8 *mac_addr,
 		   const u8 *p2p_dev_addr, const u8 *psk, size_t psk_len)
@@ -3485,6 +3499,7 @@ static void wps_registrar_set_selected_timeout(void *eloop_ctx,
 	reg->pbc = 0;
 	wps_registrar_expire_pins(reg);
 	wps_registrar_selected_registrar_changed(reg, 0);
+	wps_selected_registrar_timeout_event(reg->wps);
 }
 
 

@@ -13,7 +13,6 @@
 #include "eap.h"
 #include "eap_common.h"
 #include "eap_config.h"
-#include "esp_wpa2.h"
 
 /* RFC 4137 - EAP Peer state machine */
 
@@ -312,6 +311,7 @@ struct eap_sm {
 	size_t eapKeyDataLen;
 	struct wpabuf *lastRespData;
 	const struct eap_method *m;
+	bool eap_process_started;
 };
 
 typedef enum {

@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 |
-| ----------------- | ----- |
+| Supported Targets | ESP32 | ESP32-S31 |
+| ----------------- | ----- | --------- |
 
 # ESP-IDF BT-DISCOVERY Example
 
@@ -11,7 +11,7 @@ This is the example of using APIs to perform inquiry to search for a target devi
 
 ### Hardware Required
 
-This example is designed to run on commonly available ESP32 development board, e.g. ESP32-DevKitC.
+This example is designed to run on commonly available ESP32 and ESP32-S31 development boards, e.g. ESP32-DevKitC and so on.
 
 ### Configure the project
 
@@ -31,7 +31,7 @@ To exit the serial monitor, type `Ctrl-]`.
 
 See the [Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/get-started/index.html) for full steps to configure and use ESP-IDF to build projects.
 
-# TUTORIAL
+## Tutorial
 
 ## Includes
 
@@ -50,7 +50,7 @@ See the [Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/l
 #include "esp_gap_bt_api.h"
 ```
 
-These `includes` are required for the FreeRTOS and underlaying system components to run, including the logging functionality and a library to store data in non-volatile flash memory. We are interested in `bt.h`, `esp_bt_main.h`, `esp_bt_device.h` and `esp_gap_bt_api.h`, which expose the Classic Bluetooth APIs required to implement this example.
+These `includes` are required for the FreeRTOS and underlying system components to run, including the logging functionality and a library to store data in non-volatile flash memory. We are interested in `bt.h`, `esp_bt_main.h`, `esp_bt_device.h` and `esp_gap_bt_api.h`, which expose the Classic Bluetooth APIs required to implement this example.
 
 * `bt.h`: configures the Bluetooth controller and VHCI from the host side.
 * `esp_bt_main.h`: initializes and enables the Bluedroid stack.
@@ -59,7 +59,7 @@ These `includes` are required for the FreeRTOS and underlaying system components
 
 ## Main Entry Point
 
-The program’s entry point is the `app_main()` function.
+The program's entry point is the `app_main()` function.
 
 ### Non-volatile Storage Library Initialization
 
@@ -93,7 +93,7 @@ The main function also initializes the Bluetooth controller by first creating th
 ```c
 esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
 if ((ret = esp_bt_controller_init(&bt_cfg)) != ESP_OK) {
-    ESP_LOGE(GAP_TAG, "%s initialize controller failed: %s\n", __func__, esp_err_to_name(ret));
+    ESP_LOGE(GAP_TAG, "%s initialize controller failed: %s", __func__, esp_err_to_name(ret));
     return;
 }
 ```
@@ -102,7 +102,7 @@ Next, the controller is enabled in Classic Bluetooth Mode.
 
 ```c
 if ((ret = esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT)) != ESP_OK) {
-    ESP_LOGE(GAP_TAG, "%s enable controller failed: %s\n", __func__, esp_err_to_name(ret));
+    ESP_LOGE(GAP_TAG, "%s enable controller failed: %s", __func__, esp_err_to_name(ret));
     return;
 }
 ```
@@ -118,13 +118,14 @@ There are four Bluetooth modes supported:
 After the initialization of the Bluetooth controller, the Bluedroid stack, which includes the common definitions and APIs for both Bluetooth Classic and BLE, is initialized and enabled by using:
 
 ```c
-if ((ret = esp_bluedroid_init()) != ESP_OK) {
-    ESP_LOGE(GAP_TAG, "%s initialize bluedroid failed: %s\n", __func__, esp_err_to_name(ret));
+esp_bluedroid_config_t bluedroid_cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
+if ((ret = esp_bluedroid_init_with_cfg(&bluedroid_cfg)) != ESP_OK) {
+    ESP_LOGE(GAP_TAG, "%s initialize bluedroid failed: %s", __func__, esp_err_to_name(ret));
     return;
 }
 
 if ((ret = esp_bluedroid_enable()) != ESP_OK) {
-    ESP_LOGE(GAP_TAG, "%s enable bluedroid failed: %s\n", __func__, esp_err_to_name(ret));
+    ESP_LOGE(GAP_TAG, "%s enable bluedroid failed: %s", __func__, esp_err_to_name(ret));
     return;
 }
 ```
@@ -151,7 +152,7 @@ The application function then sets the device name and sets it as discoverable a
 
 ```c
 char *dev_name = "ESP_GAP_INQRUIY";
-esp_bt_dev_set_device_name(dev_name);
+esp_bt_gap_set_device_name(dev_name);
 
 /* set discoverable and connectable mode, wait to be connected */
 esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
@@ -160,7 +161,7 @@ esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
 The application function then initialises the information and status of application layer and starts to discover nearby Bluetooth devices.
 
 ```c
-/* inititialize device information and status */
+/* initialize device information and status */
 bt_app_gap_init();
 
 /* start to discover nearby Bluetooth devices */
@@ -219,7 +220,7 @@ for (int i = 0; i < param->disc_res.num_prop; i++) {
 Pay attention that some Bluetooth devices may put their name in EIR data. We can get the device name from EIR data.
 
 ```c
-if (p_dev->eir && p_dev->bdname_len == 0) {
+if (p_dev->bdname_len == 0) {
     get_name_from_eir(p_dev->eir, p_dev->bdname, &p_dev->bdname_len);
 }
 ```

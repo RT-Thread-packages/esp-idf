@@ -98,11 +98,11 @@ void btu_init_core(void)
 #endif
 
 #if BLE_INCLUDED == TRUE
-#if (defined(GATT_INCLUDED) && GATT_INCLUDED == true)
-    gatt_init();
-#endif
 #if (defined(SMP_INCLUDED) && SMP_INCLUDED == TRUE)
     SMP_Init();
+#endif
+#if (defined(GATT_INCLUDED) && GATT_INCLUDED == true)
+    gatt_init();
 #endif
     btm_ble_init();
 #endif
@@ -148,10 +148,10 @@ void btu_free_core(void)
 **                  NOTE: Must be called before creating any tasks
 **                      (RPC, BTU, HCIT, APPL, etc.)
 **
-** Returns          void
+** Returns          true for success, otherwise false
 **
 ******************************************************************************/
-void BTU_StartUp(void)
+bool BTU_StartUp(void)
 {
 #if BTU_DYNAMIC_MEMORY
     btu_cb_ptr = (tBTU_CB *)osi_malloc(sizeof(tBTU_CB));
@@ -194,11 +194,12 @@ void BTU_StartUp(void)
         goto error_exit;
     }
 
-    return;
+    return true;
 
 error_exit:;
     LOG_ERROR("%s Unable to allocate resources for bt_workqueue", __func__);
     BTU_ShutDown();
+    return false;
 }
 
 /*****************************************************************************
@@ -253,17 +254,6 @@ UINT16 BTU_BleAclPktSize(void)
     return 0;
 #endif
 }
-
-#if SCAN_QUEUE_CONGEST_CHECK
-bool BTU_check_queue_is_congest(void)
-{
-    if (osi_thread_queue_wait_size(btu_thread, 0) >= BT_QUEUE_CONGEST_SIZE) {
-        return true;
-    }
-
-    return false;
-}
-#endif
 
 int get_btu_work_queue_size(void)
 {

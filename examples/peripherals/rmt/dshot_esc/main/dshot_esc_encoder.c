@@ -45,14 +45,15 @@ static void make_dshot_frame(dshot_esc_frame_t *frame, uint16_t throttle, bool t
     frame->val = ((val & 0xFF) << 8) | ((val & 0xFF00) >> 8);
 }
 
+RMT_ENCODER_FUNC_ATTR
 static size_t rmt_encode_dshot_esc(rmt_encoder_t *encoder, rmt_channel_handle_t channel,
                                    const void *primary_data, size_t data_size, rmt_encode_state_t *ret_state)
 {
     rmt_dshot_esc_encoder_t *dshot_encoder = __containerof(encoder, rmt_dshot_esc_encoder_t, base);
     rmt_encoder_handle_t bytes_encoder = dshot_encoder->bytes_encoder;
     rmt_encoder_handle_t copy_encoder = dshot_encoder->copy_encoder;
-    rmt_encode_state_t session_state = 0;
-    rmt_encode_state_t state = 0;
+    rmt_encode_state_t session_state = RMT_ENCODING_RESET;
+    rmt_encode_state_t state = RMT_ENCODING_RESET;
     size_t encoded_symbols = 0;
 
     // convert user data into dshot frame
@@ -76,7 +77,7 @@ static size_t rmt_encode_dshot_esc(rmt_encoder_t *encoder, rmt_channel_handle_t 
                                                 sizeof(rmt_symbol_word_t), &session_state);
         if (session_state & RMT_ENCODING_COMPLETE) {
             state |= RMT_ENCODING_COMPLETE;
-            dshot_encoder->state = 0; // switch to next state when current encoding session finished
+            dshot_encoder->state = RMT_ENCODING_RESET; // switch to next state when current encoding session finished
         }
         if (session_state & RMT_ENCODING_MEM_FULL) {
             state |= RMT_ENCODING_MEM_FULL;
@@ -97,12 +98,13 @@ static esp_err_t rmt_del_dshot_encoder(rmt_encoder_t *encoder)
     return ESP_OK;
 }
 
+RMT_ENCODER_FUNC_ATTR
 static esp_err_t rmt_dshot_encoder_reset(rmt_encoder_t *encoder)
 {
     rmt_dshot_esc_encoder_t *dshot_encoder = __containerof(encoder, rmt_dshot_esc_encoder_t, base);
     rmt_encoder_reset(dshot_encoder->bytes_encoder);
     rmt_encoder_reset(dshot_encoder->copy_encoder);
-    dshot_encoder->state = 0;
+    dshot_encoder->state = RMT_ENCODING_RESET;
     return ESP_OK;
 }
 
@@ -111,7 +113,7 @@ esp_err_t rmt_new_dshot_esc_encoder(const dshot_esc_encoder_config_t *config, rm
     esp_err_t ret = ESP_OK;
     rmt_dshot_esc_encoder_t *dshot_encoder = NULL;
     ESP_GOTO_ON_FALSE(config && ret_encoder, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
-    dshot_encoder = calloc(1, sizeof(rmt_dshot_esc_encoder_t));
+    dshot_encoder = rmt_alloc_encoder_mem(sizeof(rmt_dshot_esc_encoder_t));
     ESP_GOTO_ON_FALSE(dshot_encoder, ESP_ERR_NO_MEM, err, TAG, "no mem for musical score encoder");
     dshot_encoder->base.encode = rmt_encode_dshot_esc;
     dshot_encoder->base.del = rmt_del_dshot_encoder;

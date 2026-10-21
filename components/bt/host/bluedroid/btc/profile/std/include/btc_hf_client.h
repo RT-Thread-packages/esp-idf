@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -49,9 +49,11 @@ typedef enum {
     BTC_HF_CLIENT_SEND_DTMF_EVT,
     BTC_HF_CLIENT_REQUEST_LAST_VOICE_TAG_NUMBER_EVT,
     BTC_HF_CLIENT_REGISTER_DATA_CALLBACK_EVT,
+    BTC_HF_CLIENT_REGISTER_AUDIO_DATA_CALLBACK_EVT,
     BTC_HF_CLIENT_SEND_NREC_EVT,
     BTC_HF_CLIENT_SEND_XAPL_EVT,
     BTC_HF_CLIENT_SEND_IPHONEACCEV_EVT,
+    BTC_HF_CLIENT_REQUEST_PKT_STAT_EVT,
 } btc_hf_client_act_t;
 
 /* btc_hf_client_args_t */
@@ -101,10 +103,15 @@ typedef union {
     } send_dtmf;
 
     // BTC_HF_CLIENT_REGISTER_DATA_CALLBACK_EVT
-    struct reg_data_callback {
+    struct hf_client_reg_data_callback {
         esp_hf_client_incoming_data_cb_t recv;
         esp_hf_client_outgoing_data_cb_t send;
     } reg_data_cb;
+
+    // BTC_HF_CLIENT_REGISTER_AUDIO_DATA_CALLBACK_EVT
+    struct hf_client_reg_audio_data_callback {
+        esp_hf_client_audio_data_cb_t callback;
+    } reg_audio_data_cb;
 
     //BTC_HF_CLIENT_SEND_XAPL_EVT
     struct send_xapl_args {
@@ -117,6 +124,12 @@ typedef union {
         uint32_t bat_level;
         bool docked;
     } send_iphoneaccev;
+
+    // BTC_HF_CLIENT_REQUEST_PKT_STAT_EVT
+    struct hf_client_req_pkt_stat_sync_handle {
+        UINT16            sync_conn_handle;
+    } pkt_sync_hd;
+
 } btc_hf_client_args_t;
 
 /************************************************************************************
@@ -127,6 +140,7 @@ typedef struct
 {
     bool                               initialized;
     UINT16                             handle;
+    UINT16                             sync_conn_hdl;
     bt_bdaddr_t                        connected_bda;
     esp_hf_client_connection_state_t   state;
     esp_hf_vr_state_t                  vr_state;
@@ -140,6 +154,7 @@ typedef struct
     btc_hf_client_cb_t                  btc_hf_client_cb;
     esp_hf_client_incoming_data_cb_t    btc_hf_client_incoming_data_cb;
     esp_hf_client_outgoing_data_cb_t    btc_hf_client_outgoing_data_cb;
+    esp_hf_client_audio_data_cb_t       btc_hf_client_audio_data_cb;
 }hf_client_local_param_t;
 
 #if HFP_DYNAMIC_MEMORY == TRUE
@@ -148,16 +163,20 @@ extern hf_client_local_param_t *hf_client_local_param_ptr;
 #endif
 
 /*******************************************************************************
-**  BTC HF AG API
+**  BTC HF CLIENT API
 ********************************************************************************/
 
 void btc_hf_client_call_handler(btc_msg_t *msg);
 
 void btc_hf_client_cb_handler(btc_msg_t *msg);
 
+void btc_hf_client_audio_data_cb_to_app(uint8_t *buf, uint8_t *data, uint16_t len, bool is_bad_frame);
+
 void btc_hf_client_incoming_data_cb_to_app(const uint8_t *data, uint32_t len);
 
 uint32_t btc_hf_client_outgoing_data_cb_to_app(uint8_t *data, uint32_t len);
+
+void btc_hf_client_get_profile_status(esp_hf_client_profile_status_t *param);
 #endif  ///BTC_HF_CLIENT_INCLUDED == TRUE
 
 #endif /* __BTC_HF_CLIENT_H__ */

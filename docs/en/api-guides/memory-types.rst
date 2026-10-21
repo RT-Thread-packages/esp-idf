@@ -24,6 +24,10 @@ Non-constant static data (.data) and zero-initialized data (.bss) is placed by t
 
    The available size of the internal DRAM region is reduced by 64 KB (by shifting start address to ``0x3FFC0000``) if Bluetooth stack is used. Length of this region is also reduced by 16 KB or 32 KB if trace memory is used. Due to some memory fragmentation issues caused by ROM, it is also not possible to use all available DRAM for static allocations - however the remaining DRAM is still available as heap at runtime.
 
+   .. note::
+
+    There is 520 KB of available SRAM (320 KB of DRAM and 200 KB of IRAM) on the ESP32. However, due to a technical limitation, the maximum statically allocated DRAM usage is 160 KB. The remaining 160 KB (for a total of 320 KB of DRAM) can only be allocated at runtime as heap.
+
 .. only:: not esp32
 
    .. note::
@@ -38,7 +42,7 @@ Constant data may also be placed into DRAM, for example if it is used in an non-
 
 The macro ``__NOINIT_ATTR`` can be used as attribute to place data into ``.noinit`` section. The values placed into this section will not be initialized at startup and should keep its value after software restart.
 
-.. only:: esp32
+.. only:: SOC_SPIRAM_SUPPORTED
 
     By applying the ``EXT_RAM_NOINIT_ATTR`` macro, non-initialized value could also be placed in external RAM. To do this, the :ref:`CONFIG_SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY` needs to be enabled. See :ref:`external_ram_config_noinit`. If the :ref:`CONFIG_SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY` is not enabled, ``EXT_RAM_NOINIT_ATTR`` will behave just as ``__NOINIT_ATTR``, it will make data to be placed into ``.noinit`` segment in internal RAM.
 
@@ -54,7 +58,7 @@ IRAM (Instruction RAM)
 
 .. only:: esp32
 
-    ESP-IDF allocates part of the Internal SRAM0 region for instruction RAM. The region is defined in *{IDF_TARGET_NAME} Technical Reference Manual* > *System and Memory* > *Embedded Memory* [`PDF <{IDF_TARGET_TRM_EN_URL}#sysmem>`__]. Except for the first 64 KB block which is used for PRO and APP MMU caches, the rest of this memory range (i.e. from ``0x40080000`` to ``0x400A0000``) is used to store parts of the application which need to run from RAM.
+    ESP-IDF allocates part of the Internal SRAM0 region for instruction RAM. The region is defined in *{IDF_TARGET_NAME} Technical Reference Manual* > *System and Memory* > *Embedded Memory* [`PDF <{IDF_TARGET_TRM_EN_URL}#sysmem>`__]. Except for the first 64 KB block which is used for PRO and APP MMU caches, the rest of this memory range (i.e., from ``0x40080000`` to ``0x400A0000``) is used to store parts of the application which need to run from RAM.
 
 .. only:: esp32s2
 
@@ -67,7 +71,7 @@ IRAM (Instruction RAM)
         Any internal SRAM which is not used for Instruction RAM will be made available as :ref:`dram` for static data and dynamic allocation (heap).
 
 
-When to place code in IRAM
+When to Place Code in IRAM
 ================================
 
 Cases when parts of the application should be placed into IRAM:
@@ -79,25 +83,25 @@ Cases when parts of the application should be placed into IRAM:
 
 .. _how-to-place-code-in-iram:
 
-How to place code in IRAM
+How to Place Code in IRAM
 =========================
 
 Some code is automatically placed into the IRAM region using the linker script.
 
 If some specific application code needs to be placed into IRAM, it can be done by using the :doc:`linker-script-generation` feature and adding a linker script fragment file to your component that targets at the entire source files or functions with the ``noflash`` placement. See the :doc:`linker-script-generation` docs for more information.
 
-Alternatively, it's possible to specify IRAM placement in the source code using the ``IRAM_ATTR`` macro::
+Alternatively, it is possible to specify IRAM placement in the source code using the ``IRAM_ATTR`` macro::
 
-	#include "esp_attr.h"
+    #include "esp_attr.h"
 
-	void IRAM_ATTR gpio_isr_handler(void* arg)
-	{
-		// ...
-	}
+    void IRAM_ATTR gpio_isr_handler(void* arg)
+    {
+        // ...
+    }
 
 There are some possible issues with placement in IRAM, that may cause problems with IRAM-safe interrupt handlers:
 
-* Strings or constants inside an ``IRAM_ATTR`` function may not be placed in RAM automatically. It's possible to use ``DRAM_ATTR`` attributes to mark these, or using the linker script method will cause these to be automatically placed correctly.
+* Strings or constants inside an ``IRAM_ATTR`` function may not be placed in RAM automatically. It is possible to use ``DRAM_ATTR`` attributes to mark these, or using the linker script method will cause these to be automatically placed correctly.
 
   .. code-block:: c
 
@@ -111,12 +115,12 @@ Note that knowing which data should be marked with ``DRAM_ATTR`` can be hard, th
 
 * GCC optimizations that automatically generate jump tables or switch/case lookup tables place these tables in flash. IDF by default builds all files with ``-fno-jump-tables -fno-tree-switch-conversion`` flags to avoid this.
 
-Jump table optimizations can be re-enabled for individual source files that don't need to be placed in IRAM. For instructions on how to add the ``-fno-jump-tables -fno-tree-switch-conversion`` options when compiling individual source files, see :ref:`component_build_control`.
+Jump table optimizations can be re-enabled for individual source files that do not need to be placed in IRAM. For instructions on how to add the ``-fno-jump-tables -fno-tree-switch-conversion`` options when compiling individual source files, see :ref:`component_build_control`.
 
 
 .. _irom:
 
-IROM (code executed from flash)
+IROM (Code Executed from flash)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If a function is not explicitly placed into :ref:`iram` or RTC memory, it is placed into flash. As IRAM is limited, most of an application's binary code must be placed into IROM instead.
@@ -130,7 +134,7 @@ During :doc:`startup`, the bootloader (which runs from IRAM) configures the MMU 
 
 .. _drom:
 
-DROM (data stored in flash)
+DROM (Data Stored in flash)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. highlight:: c
@@ -143,10 +147,12 @@ The ``DRAM_ATTR`` attribute can be used to force constants from DROM into the :r
 
 .. only:: SOC_RTC_SLOW_MEM_SUPPORTED
 
-    RTC Slow memory
+    RTC Slow Memory
     ^^^^^^^^^^^^^^^
 
-    Global and static variables used by code which runs from RTC memory must be placed into RTC Slow memory. For example :doc:`deep sleep <deep-sleep-stub>` variables can be placed here instead of RTC FAST memory, or code and variables accessed by the :doc:`/api-reference/system/ulp`.
+    .. only:: ESP_ROM_SUPPORT_DEEP_SLEEP_WAKEUP_STUB
+
+        Global and static variables used by code which runs from RTC memory must be placed into RTC Slow memory. For example :doc:`deep sleep <deep-sleep-stub>` variables can be placed here instead of RTC FAST memory, or code and variables accessed by the :doc:`/api-reference/system/ulp`.
 
     The attribute macro named ``RTC_NOINIT_ATTR`` can be used to place data into this type of memory. The values placed into this section keep their value after waking from deep sleep.
 
@@ -157,28 +163,44 @@ The ``DRAM_ATTR`` attribute can be used to force constants from DROM into the :r
 
 .. only:: SOC_RTC_FAST_MEM_SUPPORTED
 
-    RTC FAST memory
+    RTC FAST Memory
     ^^^^^^^^^^^^^^^
 
-    The same region of RTC FAST memory can be accessed as both instruction and data memory. Code which has to run after wake-up from deep sleep mode has to be placed into RTC memory. Please check detailed description in :doc:`deep sleep <deep-sleep-stub>` documentation.
+    .. only:: esp32c6 or esp32h2
+
+        .. note::
+
+            On {IDF_TARGET_NAME} what was previously referred to as RTC memory has been renamed LP (low power) memory. You might see both terms being used interchangeably in IDF code, docs and the technical reference manual.
+
+    .. only:: ESP_ROM_SUPPORT_DEEP_SLEEP_WAKEUP_STUB
+
+        The same region of RTC FAST memory can be accessed as both instruction and data memory. Code which has to run after wake-up from deep sleep mode has to be placed into RTC memory. Please check detailed description in :doc:`deep sleep <deep-sleep-stub>` documentation.
 
     .. only:: esp32
 
-        RTC FAST memory can only be accessed by the PRO CPU.
+        In single core mode (:ref:`CONFIG_FREERTOS_UNICORE`), remaining RTC FAST memory is added to the heap, unless the option :ref:`CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP` is disabled. This memory can be used interchangeably with :ref:`DRAM`, but is slightly slower to access and not DMA-capable.
 
-        In single core mode, remaining RTC FAST memory is added to the heap unless the option :ref:`CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP` is disabled. This memory can be used interchangeably with :ref:`DRAM`, but is slightly slower to access and not DMA capable.
+        This option is not available in dual core mode, because on {IDF_TARGET_NAME}, RTC FAST memory can only be accessed by the PRO CPU.
 
     .. only:: not esp32
 
         Remaining RTC FAST memory is added to the heap unless the option :ref:`CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP` is disabled. This memory can be used interchangeably with :ref:`DRAM`, but is slightly slower to access.
 
 
-DMA Capable Requirement
+.. only:: SOC_MEM_SPM_SUPPORTED
+
+    SPM (Scratchpad Memory)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    SPM (Scratchpad Memory) is a dedicated on-chip memory located near the processor core, offering deterministic access timing. SPM does not rely on hardware caching mechanisms; instead, its access is explicitly managed by software, ensuring predictable and stable latency. The access latency of SPM is configuration dependent. When parity check is enabled, the latency is 4 clock cycles and memory bandwidth is reduced. When parity check is disabled, the latency is 1 clock cycle. This type of memory is typically used to store critical code and data that are sensitive to access timing, making it suitable for real-time systems or embedded applications with strict performance and response time requirements.
+
+
+DMA-Capable Requirement
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. highlight:: c
 
-Most peripheral DMA controllers (e.g. SPI, sdmmc, etc.) have requirements that sending/receiving buffers should be placed in DRAM and word-aligned. We suggest to place DMA buffers in static variables rather than in the stack. Use macro ``DMA_ATTR`` to declare global/local static variables like::
+Most peripheral DMA controllers (e.g., SPI, sdmmc, etc.) have requirements that sending/receiving buffers should be placed in DRAM and word-aligned. We suggest to place DMA buffers in static variables rather than in the stack. Use macro ``DMA_ATTR`` to declare global/local static variables like::
 
     DMA_ATTR uint8_t buffer[]="I want to send something";
 
@@ -209,7 +231,7 @@ Or::
 
 It is also possible to allocate DMA-capable memory buffers dynamically by using the :ref:`MALLOC_CAP_DMA <dma-capable-memory>` capabilities flag.
 
-DMA Buffer in the stack
+DMA Buffer in the Stack
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 Placing DMA buffers in the stack is possible but discouraged. If doing so, pay attention to the following:

@@ -1,22 +1,14 @@
 #
-# SPDX-FileCopyrightText: 2022 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-
-import os
+import subprocess
 import sys
 
-try:
-    sys.path.remove(os.path.dirname(os.path.realpath(__file__)))  # do not import this script
-except ValueError:
-    pass
-
-try:
-    import esptool
-except ImportError:
-    raise ModuleNotFoundError('No module named "esptool" please install esptool.py by running '
-                              'the install and export scripts.')
-
 if __name__ == '__main__':
-    esptool._main()  # type: ignore
+    print(
+        "Warning: DEPRECATED: 'esptool.py' wrapper is deprecated. Please use 'esptool' or 'python -m esptool' instead.",
+        file=sys.stderr,
+    )
+    sys.exit(subprocess.run([sys.executable, '-u', '-m', 'esptool'] + sys.argv[1:]).returncode)

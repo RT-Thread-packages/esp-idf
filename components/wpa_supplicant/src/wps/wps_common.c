@@ -94,10 +94,10 @@ int wps_derive_keys(struct wps_data *wps)
 	 * due to the public key calculated when wps start, it will not calculate anymore even when we build M1 message, also calculate the key need take a long time
 	 * which would cause WPS fail, so we clean the key after WPS finished .
 	 */
-#ifndef ESP32_WORKAROUND
+#ifndef ESP_SUPPLICANT
 	wpabuf_clear_free(wps->dh_privkey);
 	wps->dh_privkey = NULL;
-#endif //ESP32_WORKAROUND
+#endif /* ESP_SUPPLICANT */
 
 	wpa_hexdump_buf_key(MSG_DEBUG, "WPS: DH shared key", dh_shared);
 
@@ -271,7 +271,7 @@ int wps_pin_str_valid(const char *pin)
 		return 0;
 
 	len = p - pin;
-	return len == 4 || len == 8;
+	return len == 8;
 }
 
 
@@ -329,6 +329,14 @@ void wps_pbc_overlap_event(struct wps_context *wps)
 	wps->event_cb(wps->cb_ctx, WPS_EV_PBC_OVERLAP, NULL);
 }
 
+
+void wps_selected_registrar_timeout_event(struct wps_context *wps)
+{
+	if (wps->event_cb == NULL)
+		return;
+
+	wps->event_cb(wps->cb_ctx, WPS_EV_SELECTED_REGISTRAR_TIMEOUT, NULL);
+}
 
 void wps_pbc_timeout_event(struct wps_context *wps)
 {
@@ -495,7 +503,7 @@ char * wps_dev_type_bin2str(const u8 dev_type[WPS_DEV_TYPE_LEN], char *buf,
 {
 	int ret;
 
-	ret = os_snprintf(buf, buf_len, "%u-%08X-%u",
+	ret = os_snprintf(buf, buf_len, "%u-%08" PRIX32 "-%u",
 			  WPA_GET_BE16(dev_type), WPA_GET_BE32(&dev_type[2]),
 			  WPA_GET_BE16(&dev_type[6]));
 	if (os_snprintf_error(buf_len, ret))

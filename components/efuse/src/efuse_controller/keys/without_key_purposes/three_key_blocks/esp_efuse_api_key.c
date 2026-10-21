@@ -18,7 +18,7 @@
  * There are no eFuse key purpose fields (added only virtual key purposes to support key APIs).
  */
 
-static __attribute__((unused)) const char *TAG = "efuse";
+ESP_LOG_ATTR_TAG(TAG, "efuse");
 
 /**
  * @brief Keys and their attributes are packed into a structure
@@ -240,7 +240,7 @@ err_exit:
     return err;
 }
 
-#if CONFIG_ESP32_REV_MIN_3
+#if CONFIG_ESP32_REV_MIN_FULL >= 300
 esp_err_t esp_secure_boot_read_key_digests(esp_secure_boot_key_digests_t *trusted_keys)
 {
     if (trusted_keys == NULL) {
@@ -249,4 +249,4 @@ esp_err_t esp_secure_boot_read_key_digests(esp_secure_boot_key_digests_t *truste
     trusted_keys->key_digests[0] = (const void *)esp_efuse_utility_get_read_register_address(EFUSE_BLK_SECURE_BOOT);
     return ESP_OK;
 }
-#endif // CONFIG_ESP32_REV_MIN_3
+#endif // CONFIG_ESP32_REV_MIN_FULL >= 300

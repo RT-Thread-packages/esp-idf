@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -43,7 +43,7 @@ typedef enum
     //AT_RESPONSE
     BTC_HF_UNAT_RESPONSE_EVT,
     BTC_HF_CME_ERR_EVT,
-    BTC_HF_IND_NOTIFICATION_EVT,
+    BTC_HF_CIEV_REPORT_EVT,
     BTC_HF_CIND_RESPONSE_EVT,
     BTC_HF_COPS_RESPONSE_EVT,
     BTC_HF_CLCC_RESPONSE_EVT,
@@ -55,7 +55,9 @@ typedef enum
     BTC_HF_OUT_CALL_EVT,
     BTC_HF_END_CALL_EVT,
     //REG
-    BTC_HF_REGISTER_DATA_CALLBACK_EVT
+    BTC_HF_REGISTER_DATA_CALLBACK_EVT,
+    BTC_HF_REGISTER_AUDIO_DATA_CALLBACK_EVT,
+    BTC_HF_REQUEST_PKT_STAT_EVT
 } btc_hf_act_t;
 
 /* btc_hf_args_t */
@@ -99,14 +101,11 @@ typedef union
         esp_hf_cme_err_t          error_code;
     } ext_at;
 
-    // BTC_HF_IND_NOTIFICATION_EVT
-    struct indchange_status {
+    //BTC_HF_CIEV_REPORT_EVT
+    struct ciev_args {
         bt_bdaddr_t                remote_addr;
-        esp_hf_call_status_t       call_state;
-        esp_hf_call_setup_status_t call_setup_state;
-        esp_hf_network_state_t     ntk_state;
-        int                        signal;
-    } ind_change;
+        tBTA_AG_IND                ind;
+    } ciev_rep;
 
     //BTC_HF_CIND_RESPONSE_EVT
     struct cind_args {
@@ -142,7 +141,8 @@ typedef union
     struct cnum_args {
         bt_bdaddr_t                      remote_addr;
         char                             *number;
-        esp_hf_subscriber_service_type_t type;
+        int                              number_type;
+        esp_hf_subscriber_service_type_t service_type;
     } cnum_rep;
 
     //BTC_HF_NREC_RESPONSE_EVT
@@ -175,10 +175,20 @@ typedef union
     } phone;
 
     // BTC_HF_REGISTER_DATA_CALLBACK_EVT
-    struct reg_data_callback {
+    struct ag_reg_data_callback {
         esp_hf_incoming_data_cb_t recv;
         esp_hf_outgoing_data_cb_t send;
     } reg_data_cb;
+
+    // BTC_HF_REGISTER_AUDIO_DATA_CALLBACK_EVT
+    struct ag_reg_audio_data_callback {
+        esp_hf_ag_audio_data_cb_t callback;
+    } reg_audio_data_cb;
+
+    // BTC_HF_REQUEST_PKT_STAT_EVT
+    struct ag_req_pkt_stat_sync_handle {
+        UINT16            sync_conn_handle;
+    } pkt_sync_hd;
 
 } btc_hf_args_t;
 
@@ -195,8 +205,8 @@ typedef union
 /* BTC-AG control block to map bdaddr to BTA handle */
 typedef struct
 {
-    bool                               initialized;
     UINT16                             handle;
+    UINT16                             sync_conn_hdl;
     bt_bdaddr_t                        connected_bda;
     tBTA_AG_PEER_FEAT                  peer_feat;
     tBTA_AG_CHLD_FEAT                  chld_feat;
@@ -212,12 +222,18 @@ typedef struct
 
 typedef struct
 {
+    bool                               initialized;
     int                                hf_idx;
-    UINT32                             btc_hf_features;
-    btc_hf_cb_t                        btc_hf_cb;
+    btc_hf_cb_t                       *btc_hf_cb;
     esp_hf_incoming_data_cb_t          btc_hf_incoming_data_cb;
     esp_hf_outgoing_data_cb_t          btc_hf_outgoing_data_cb;
+    esp_hf_ag_audio_data_cb_t          btc_hf_audio_data_cb;
 } hf_local_param_t;
+
+#if HFP_DYNAMIC_MEMORY == TRUE
+extern hf_local_param_t *hf_local_param_ptr;
+#define hf_local_param (*hf_local_param_ptr)
+#endif
 
 /*******************************************************************************
 **  BTC HF AG Handle Hub
@@ -228,6 +244,8 @@ void btc_hf_cb_handler(btc_msg_t *msg); //handle the event from bta
 
 void btc_hf_incoming_data_cb_to_app(const uint8_t *data, uint32_t len);
 
+void btc_hf_audio_data_cb_to_app(uint8_t *buf, uint8_t *data, uint16_t len, bool is_bad_frame);
+
 uint32_t btc_hf_outgoing_data_cb_to_app(uint8_t *data, uint32_t len);
 
 void btc_hf_arg_deep_copy(btc_msg_t *msg, void *p_dest, void *p_src);
@@ -236,6 +254,9 @@ void btc_hf_arg_deep_free(btc_msg_t *msg);
 
 bt_status_t btc_hf_ci_sco_data(void);
 
+bt_status_t btc_hf_ag_audio_data_send(uint16_t sync_conn_hdl, uint8_t *p_buff_start, uint8_t *p_data, uint8_t data_len);
+
+void btc_hf_get_profile_status(esp_hf_profile_status_t *param);
 #endif  // BTC_HF_INCLUDED == TRUE
 
 #endif /* __BTC_HF_AG_H__ */

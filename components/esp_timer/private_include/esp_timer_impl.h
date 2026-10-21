@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2017-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2017-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,6 +19,13 @@
 #include <stdint.h>
 #include "esp_err.h"
 #include "esp_intr_alloc.h"
+#include "sdkconfig.h"
+
+#if CONFIG_ESP_TIMER_IN_IRAM
+#define ESP_TIMER_IRAM_ATTR IRAM_ATTR
+#else
+#define ESP_TIMER_IRAM_ATTR
+#endif // CONFIG_ESP_TIMER_IN_IRAM
 
 /**
  * @brief Minimal initialization of platform specific layer of esp_timer
@@ -70,15 +77,6 @@ void esp_timer_impl_set_alarm(uint64_t timestamp);
 void esp_timer_impl_set_alarm_id(uint64_t timestamp, unsigned alarm_id);
 
 /**
- * @brief Notify esp_timer implementation that APB frequency has changed
- *
- * Called by the frequency switching code.
- *
- * @param apb_ticks_per_us new number of APB clock ticks per microsecond
- */
-void esp_timer_impl_update_apb_freq(uint32_t apb_ticks_per_us);
-
-/**
  * @brief Adjust current esp_timer time by a certain value
  *
  * Called from light sleep code to synchronize esp_timer time with RTC time.
@@ -112,7 +110,6 @@ uint64_t esp_timer_impl_get_min_period_us(void);
  */
 void esp_timer_impl_lock(void);
 
-
 /**
  * @brief counterpart of esp_timer_impl_lock
  */
@@ -141,4 +138,13 @@ uint64_t esp_timer_impl_get_alarm_reg(void);
  * @brief Initialize esp_timer as system time provider.
  */
 void esp_timer_impl_init_system_time(void);
+#endif
+
+#if CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD
+/**
+ * @brief Set the next alarm if there is such an alarm in the cached array.
+ *
+ * @note Available only when CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD is enabled.
+ */
+void esp_timer_impl_try_to_set_next_alarm(void);
 #endif

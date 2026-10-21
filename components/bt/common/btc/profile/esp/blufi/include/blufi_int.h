@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,10 +9,15 @@
 
 #include "btc/btc_task.h"
 #include "esp_blufi_api.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if (BLUFI_INCLUDED == TRUE)
 
 #define BTC_BLUFI_GREAT_VER   0x01  //Version + Subversion
-#define BTC_BLUFI_SUB_VER     0x02  //Version + Subversion
+#define BTC_BLUFI_SUB_VER     0x04  //Version + Subversion
 #define BTC_BLUFI_VERSION     ((BTC_BLUFI_GREAT_VER<<8)|BTC_BLUFI_SUB_VER)  //Version + Subversion
 
 typedef UINT8 tGATT_IF;
@@ -31,12 +36,15 @@ typedef struct {
     UINT32                  trans_id;
     UINT8                   congest;
     UINT16                  frag_size;
+// Deprecated: This macro will be removed in the future
 #define BLUFI_PREPAIR_BUF_MAX_SIZE 1024
+#define BLUFI_PREPARE_BUF_MAX_SIZE 1024
     uint8_t                 *prepare_buf;
     int                     prepare_len;
     /* Control reference */
     esp_blufi_callbacks_t   *cbs;
     BOOLEAN                 enabled;
+    BOOLEAN                 notify_enabled;
     uint8_t                 send_seq;
     uint8_t                 recv_seq;
     uint8_t                 sec_mode;
@@ -121,6 +129,9 @@ extern tBLUFI_ENV *blufi_env_ptr;
 #define BLUFI_TYPE_DATA_SUBTYPE_WIFI_LIST               0x11
 #define BLUFI_TYPE_DATA_SUBTYPE_ERROR_INFO              0x12
 #define BLUFI_TYPE_DATA_SUBTYPE_CUSTOM_DATA             0x13
+#define BLUFI_TYPE_DATA_SUBTYPE_STA_MAX_CONN_RETRY      0x14
+#define BLUFI_TYPE_DATA_SUBTYPE_STA_CONN_END_REASON     0x15
+#define BLUFI_TYPE_DATA_SUBTYPE_STA_CONN_RSSI           0x16
 #define BLUFI_TYPE_IS_CTRL(type)        (BLUFI_GET_TYPE((type)) == BLUFI_TYPE_CTRL)
 #define BLUFI_TYPE_IS_DATA(type)        (BLUFI_GET_TYPE((type)) == BLUFI_TYPE_DATA)
 
@@ -190,5 +201,10 @@ void btc_blufi_cb_deep_copy(btc_msg_t *msg, void *p_dest, void *p_src);
 
 void btc_blufi_cb_deep_free(btc_msg_t *msg);
 
-#endif /* __BLUFI_INT_H__ */
-#endif  ///BLUFI_INCLUDED == TRUE
+#endif ///BLUFI_INCLUDED == TRUE
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  /* __BLUFI_INT_H__ */

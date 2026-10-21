@@ -39,7 +39,15 @@ typedef enum {
     BTC_HD_UNPLUG_EVT,
 } BTC_HD_EVT;
 
-typedef enum { BTC_HD_DISABLED = 0, BTC_HD_ENABLED, BTC_HD_DISABLING } BTC_HD_STATUS;
+typedef enum {
+    BTC_HD_DISABLED = 0,
+    BTC_HD_ENABLED,
+    BTC_HD_DISABLING,
+    BTC_HD_CONNECTING,
+    BTC_HD_CONNECTED,
+    BTC_HD_DISCONNECTING,
+    BTC_HD_DISCONNECTED,
+} BTC_HD_STATUS;
 
 /* BTIF-HD control block */
 typedef struct {
@@ -47,6 +55,7 @@ typedef struct {
     bool app_registered;
     bool service_dereg_active;
     bool forced_disc;
+    bool in_use;
     tBTA_HD_APP_INFO app_info;
     tBTA_HD_QOS_INFO in_qos;
     tBTA_HD_QOS_INFO out_qos;
@@ -55,7 +64,7 @@ typedef struct {
 /* btc_hidd_args_t */
 typedef union {
     // BTC_HD_CONNECT_EVT
-    struct connect_arg {
+    struct hd_connect_arg {
         BD_ADDR bd_addr;
     } connect;
 
@@ -89,11 +98,10 @@ void btc_hd_call_handler(btc_msg_t *msg);
 
 void btc_hd_cb_handler(btc_msg_t *msg);
 
-// extern btc_hd_cb_t btc_hd_cb;
-// extern void btc_hd_remove_device(bt_bdaddr_t bd_addr);
-// extern void btc_hd_service_registration();
-
 void btc_hd_arg_deep_copy(btc_msg_t *msg, void *p_dest, void *p_src);
+void btc_hd_call_arg_deep_free(btc_msg_t *msg);
+
+void btc_hd_get_profile_status(esp_hidd_profile_status_t *param);
 
 #ifdef __cplusplus
 }

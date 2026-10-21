@@ -7,17 +7,21 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
+#include "esp_err.h"
+#include "sdkconfig.h"
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gptimer.h"
+#include "esp_trace.h"
 
 static const char *TAG = "example";
 
-#if CONFIG_APPTRACE_SV_ENABLE
 #if !CONFIG_USE_CUSTOM_EVENT_ID
 
 #define SYSVIEW_EXAMPLE_SEND_EVENT_ID     0
@@ -64,15 +68,6 @@ static void example_sysview_event_send(uint32_t id, uint32_t val)
 }
 
 #endif // !CONFIG_USE_CUSTOM_EVENT_ID
-
-#else
-
-#define SYSVIEW_EXAMPLE_SEND_EVENT_START()
-#define SYSVIEW_EXAMPLE_SEND_EVENT_END(_val_)
-#define SYSVIEW_EXAMPLE_WAIT_EVENT_START()
-#define SYSVIEW_EXAMPLE_WAIT_EVENT_END(_val_)
-
-#endif // CONFIG_APPTRACE_SV_ENABLE
 
 typedef struct {
     gptimer_handle_t gptimer;
@@ -126,17 +121,54 @@ static void example_task(void *p)
         SYSVIEW_EXAMPLE_WAIT_EVENT_START();
         xTaskNotifyWait(0, 0, &event_val, portMAX_DELAY);
         SYSVIEW_EXAMPLE_WAIT_EVENT_END(event_val);
-        ESP_LOGI(TAG, "Task[%p]: received event %d", xTaskGetCurrentTaskHandle(), event_val);
+        ESP_LOGI(TAG, "Task[%p]: received event %"PRIu32, xTaskGetCurrentTaskHandle(), event_val);
     }
 }
 
+#if CONFIG_ESP_TRACE_TRANSPORT_APPTRACE
+#include "soc/uart_pins.h"
+#include "esp_app_trace.h"
+esp_trace_open_params_t esp_trace_get_user_params(void)
+{
+    static esp_apptrace_config_t app_trace_config = APPTRACE_CONFIG_DEFAULT();
+#if CONFIG_APPTRACE_DEST_UART
+    /* Override default values to use console pins as a uart channel */
+    app_trace_config.dest_cfg.uart.tx_pin_num = U0TXD_GPIO_NUM;
+    app_trace_config.dest_cfg.uart.rx_pin_num = U0RXD_GPIO_NUM;
+#endif
+
+    esp_trace_open_params_t trace_params = {
+        .core_cfg = NULL,
+        .encoder_name = "sysview",
+        .encoder_cfg = NULL,
+        .transport_name = "apptrace",
+        .transport_cfg = &app_trace_config,
+    };
+    return trace_params;
+}
+#elif CONFIG_ESP_TRACE_TRANSPORT_USB_SERIAL_JTAG
+esp_trace_open_params_t esp_trace_get_user_params(void)
+{
+    esp_trace_open_params_t trace_params = {
+        .core_cfg = NULL,
+        .encoder_name = "sysview",
+        .encoder_cfg = NULL,
+        .transport_name = "usb_serial_jtag",
+        .transport_cfg = NULL,
+    };
+    return trace_params;
+}
+#endif
+
 void app_main(void)
 {
-    static example_event_data_t event_data[portNUM_PROCESSORS];
+    ESP_LOGI(TAG, "Hello from sysview_tracing example!");
 
-#if CONFIG_APPTRACE_SV_ENABLE && CONFIG_USE_CUSTOM_EVENT_ID
+    static example_event_data_t event_data[CONFIG_FREERTOS_NUMBER_OF_CORES];
+
+#if CONFIG_USE_CUSTOM_EVENT_ID
     // Currently OpenOCD does not support requesting module info from target. So do the following...
-    // Wait untill SystemView module receives START command from host,
+    // Wait until SystemView module receives START command from host,
     // after that data can be sent to the host using onboard API,
     // so user module description does not need to be requested by OpenOCD itself.
     while (!SEGGER_SYSVIEW_Started()) {
@@ -145,7 +177,7 @@ void app_main(void)
     SEGGER_SYSVIEW_RegisterModule(&s_example_sysview_module);
 #endif
 
-    for (int i = 0; i < portNUM_PROCESSORS; i++) {
+    for (int i = 0; i < CONFIG_FREERTOS_NUMBER_OF_CORES; i++) {
         gptimer_config_t timer_config = {
             .clk_src = GPTIMER_CLK_SRC_DEFAULT,
             .direction = GPTIMER_COUNT_UP,
@@ -155,7 +187,7 @@ void app_main(void)
         event_data[i].period = 1000000 * (i + 1);
     }
 
-    for (int i = 0; i < portNUM_PROCESSORS; i++) {
+    for (int i = 0; i < CONFIG_FREERTOS_NUMBER_OF_CORES; i++) {
         sprintf(event_data->task_name, "svtrace%d", i);
         xTaskCreatePinnedToCore(example_task, event_data->task_name, 4096, &event_data[i], 3, &event_data[i].thnd, i);
         ESP_LOGI(TAG, "Created task %p", event_data[i].thnd);

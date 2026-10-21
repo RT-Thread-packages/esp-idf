@@ -134,7 +134,7 @@ typedef struct {
 typedef struct {
     bool     op_en;            /*!< Indicate if optional parameters are included */
     uint16_t ctl_lightness;    /*!< Target value of light ctl lightness state */
-    uint16_t ctl_temperatrue;  /*!< Target value of light ctl temperature state */
+    uint16_t ctl_temperature;  /*!< Target value of light ctl temperature state */
     int16_t  ctl_delta_uv;     /*!< Target value of light ctl delta UV state */
     uint8_t  tid;              /*!< Transaction ID */
     uint8_t  trans_time;       /*!< Time to complete state transition (optional) */
@@ -144,7 +144,7 @@ typedef struct {
 /** Parameters of Light CTL Temperature Set */
 typedef struct {
     bool     op_en;            /*!< Indicate if optional parameters are included */
-    uint16_t ctl_temperatrue;  /*!< Target value of light ctl temperature state */
+    uint16_t ctl_temperature;  /*!< Target value of light ctl temperature state */
     int16_t  ctl_delta_uv;     /*!< Target value of light ctl delta UV state */
     uint8_t  tid;              /*!< Transaction ID */
     uint8_t  trans_time;       /*!< Time to complete state transition (optional) */
@@ -551,7 +551,8 @@ esp_err_t esp_ble_mesh_register_light_client_callback(esp_ble_mesh_light_client_
  *
  * @param[in]   params:    Pointer to BLE Mesh common client parameters.
  * @param[in]   get_state: Pointer of light get message value.
- *                         Shall not be set to NULL.
+ *                         Shall not be set to NULL when the opcode requires
+ *                         parameters (e.g., ESP_BLE_MESH_MODEL_OP_LIGHT_LC_PROPERTY_GET).
  *
  * @return      ESP_OK on success or error code otherwise.
  *

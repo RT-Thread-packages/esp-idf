@@ -16,6 +16,7 @@
 #include "esp_event.h"
 #include "esp_vfs_fat.h"
 #include "esp_wifi.h"
+#include "ethernet_init.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #if CONFIG_SNIFFER_PCAP_DESTINATION_SD
@@ -27,9 +28,6 @@
 #include "sdmmc_cmd.h"
 #include "cmd_sniffer.h"
 #include "cmd_pcap.h"
-#if CONFIG_ETH_USE_SPI_ETHERNET
-#include "driver/spi_master.h"
-#endif // CONFIG_ETH_USE_SPI_ETHERNET
 
 #if CONFIG_SNIFFER_STORE_HISTORY
 #define HISTORY_MOUNT_POINT "/data"
@@ -37,20 +35,10 @@
 #endif
 
 #if CONFIG_SNIFFER_SD_SPI_MODE
-
-#if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S2
-#define PIN_NUM_MISO 2
-#define PIN_NUM_MOSI 15
-#define PIN_NUM_CLK  14
-#define PIN_NUM_CS   13
-
-#elif CONFIG_IDF_TARGET_ESP32C3
-#define PIN_NUM_MISO 18
-#define PIN_NUM_MOSI 9
-#define PIN_NUM_CLK  8
-#define PIN_NUM_CS   19
-#endif //CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S2
-
+#define PIN_NUM_MISO CONFIG_SNIFFER_PIN_MISO
+#define PIN_NUM_MOSI CONFIG_SNIFFER_PIN_MOSI
+#define PIN_NUM_CLK  CONFIG_SNIFFER_PIN_CLK
+#define PIN_NUM_CS   CONFIG_SNIFFER_PIN_CS
 #endif  // CONFIG_SNIFFER_SD_SPI_MODE
 
 static const char *TAG = "example";
@@ -91,7 +79,6 @@ static void initialize_wifi(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_NULL));
 }
 
-#ifndef CONFIG_SNIFFER_NO_ETHERNET
 /** Event handler for Ethernet events */
 static void eth_event_handler(void *arg, esp_event_base_t event_base,
                               int32_t event_id, void *event_data)
@@ -105,7 +92,7 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
         esp_eth_ioctl(eth_handle, ETH_CMD_G_MAC_ADDR, mac_addr);
         printf("\n");
         ESP_LOGI(TAG, "Ethernet Link Up");
-        ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x\n",
+        ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
                  mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
         break;
     case ETHERNET_EVENT_DISCONNECTED:
@@ -127,86 +114,31 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
 
 static void initialize_eth(void)
 {
-    // Register user defined event handers
-    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
+    // Initialize Ethernet driver
+    uint8_t eth_port_cnt = 0;
+    esp_eth_handle_t *eth_handles;
+    ESP_ERROR_CHECK(ethernet_init_all(&eth_handles, &eth_port_cnt));
 
-    eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
-    eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
-    phy_config.phy_addr = CONFIG_SNIFFER_ETH_PHY_ADDR;
-    phy_config.reset_gpio_num = CONFIG_SNIFFER_ETH_PHY_RST_GPIO;
-#if CONFIG_SNIFFER_USE_INTERNAL_ETHERNET
-    eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
-    esp32_emac_config.smi_mdc_gpio_num = CONFIG_SNIFFER_ETH_MDC_GPIO;
-    esp32_emac_config.smi_mdio_gpio_num = CONFIG_SNIFFER_ETH_MDIO_GPIO;
-    esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
-#if CONFIG_SNIFFER_ETH_PHY_IP101
-    esp_eth_phy_t *phy = esp_eth_phy_new_ip101(&phy_config);
-#elif CONFIG_SNIFFER_ETH_PHY_RTL8201
-    esp_eth_phy_t *phy = esp_eth_phy_new_rtl8201(&phy_config);
-#elif CONFIG_SNIFFER_ETH_PHY_LAN87XX
-    esp_eth_phy_t *phy = esp_eth_phy_new_lan87xx(&phy_config);
-#elif CONFIG_SNIFFER_ETH_PHY_DP83848
-    esp_eth_phy_t *phy = esp_eth_phy_new_dp83848(&phy_config);
-#elif CONFIG_SNIFFER_ETH_PHY_KSZ80XX
-    esp_eth_phy_t *phy = esp_eth_phy_new_ksz80xx(&phy_config);
-#endif
-#elif CONFIG_ETH_USE_SPI_ETHERNET
-    gpio_install_isr_service(0);
-    spi_bus_config_t buscfg = {
-        .miso_io_num = CONFIG_SNIFFER_ETH_SPI_MISO_GPIO,
-        .mosi_io_num = CONFIG_SNIFFER_ETH_SPI_MOSI_GPIO,
-        .sclk_io_num = CONFIG_SNIFFER_ETH_SPI_SCLK_GPIO,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
-    };
-    ESP_ERROR_CHECK(spi_bus_initialize(CONFIG_SNIFFER_ETH_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO));
-    spi_device_interface_config_t spi_devcfg = {
-        .mode = 0,
-        .clock_speed_hz = CONFIG_SNIFFER_ETH_SPI_CLOCK_MHZ * 1000 * 1000,
-        .spics_io_num = CONFIG_SNIFFER_ETH_SPI_CS_GPIO,
-        .queue_size = 20
-    };
-#if CONFIG_SNIFFER_USE_KSZ8851SNL
-    eth_ksz8851snl_config_t ksz8851snl_config = ETH_KSZ8851SNL_DEFAULT_CONFIG(CONFIG_SNIFFER_ETH_SPI_HOST, &spi_devcfg);
-    ksz8851snl_config.int_gpio_num = CONFIG_SNIFFER_ETH_SPI_INT_GPIO;
-    esp_eth_mac_t *mac = esp_eth_mac_new_ksz8851snl(&ksz8851snl_config, &mac_config);
-    esp_eth_phy_t *phy = esp_eth_phy_new_ksz8851snl(&phy_config);
-#elif CONFIG_SNIFFER_USE_DM9051
-    eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(CONFIG_SNIFFER_ETH_SPI_HOST, &spi_devcfg);
-    dm9051_config.int_gpio_num = CONFIG_SNIFFER_ETH_SPI_INT_GPIO;
-    esp_eth_mac_t *mac = esp_eth_mac_new_dm9051(&dm9051_config, &mac_config);
-    esp_eth_phy_t *phy = esp_eth_phy_new_dm9051(&phy_config);
-#elif CONFIG_SNIFFER_USE_W5500
-    eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(CONFIG_SNIFFER_ETH_SPI_HOST, &spi_devcfg);
-    w5500_config.int_gpio_num = CONFIG_SNIFFER_ETH_SPI_INT_GPIO;
-    esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
-    esp_eth_phy_t *phy = esp_eth_phy_new_w5500(&phy_config);
-#endif
-#endif // CONFIG_ETH_USE_SPI_ETHERNET
-    esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
-    esp_eth_handle_t eth_handle = NULL;
-    ESP_ERROR_CHECK(esp_eth_driver_install(&config, &eth_handle));
-#if !CONFIG_SNIFFER_USE_INTERNAL_ETHERNET
-    /* The SPI Ethernet module might doesn't have a burned factory MAC address, we cat to set it manually.
-       02:00:00 is a Locally Administered OUI range so should not be used except when testing on a LAN under your control.
-    */
-    ESP_ERROR_CHECK(esp_eth_ioctl(eth_handle, ETH_CMD_S_MAC_ADDR, (uint8_t[]) {
-        0x02, 0x00, 0x00, 0x12, 0x34, 0x56
-    }));
-#endif
-    /* start Ethernet driver state machine */
-    ESP_ERROR_CHECK(esp_eth_start(eth_handle));
+    if (eth_port_cnt > 0) {
+        // Register user defined event handlers
+        ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
 
-    /* Register Ethernet interface to could be used by sniffer */
-    ESP_ERROR_CHECK(sniffer_reg_eth_intf(eth_handle));
+        for (uint32_t i = 0; i < eth_port_cnt; i++) {
+            /* start Ethernet driver state machine */
+            ESP_ERROR_CHECK(esp_eth_start(eth_handles[i]));
+            /* Register Ethernet interface to could be used by sniffer */
+            ESP_ERROR_CHECK(sniffer_reg_eth_intf(eth_handles[i]));
+        }
+    }
 }
-#endif // CONFIG_SNIFFER_NO_ETHERNET
 
 #if CONFIG_SNIFFER_PCAP_DESTINATION_SD
 static struct {
     struct arg_str *device;
     struct arg_end *end;
 } mount_args;
+
+static sdmmc_card_t *card = NULL;
 
 /** 'mount' command */
 static int mount(int argc, char **argv)
@@ -228,8 +160,6 @@ static int mount(int argc, char **argv)
         };
 
         // initialize SD card and mount FAT filesystem.
-        sdmmc_card_t *card;
-
 #if CONFIG_SNIFFER_SD_SPI_MODE
         ESP_LOGI(TAG, "Using SPI peripheral");
         sdmmc_host_t host = SDSPI_HOST_DEFAULT();
@@ -309,10 +239,11 @@ static int unmount(int argc, char **argv)
     }
     /* unmount sd card */
     if (!strncmp(mount_args.device->sval[0], "sd", 2)) {
-        if (esp_vfs_fat_sdmmc_unmount() != ESP_OK) {
+        if (esp_vfs_fat_sdcard_unmount(CONFIG_SNIFFER_MOUNT_POINT, card) != ESP_OK) {
             ESP_LOGE(TAG, "Card unmount failed");
             return -1;
         }
+        card = NULL;
         ESP_LOGI(TAG, "Card unmounted");
     }
     return 0;
@@ -341,10 +272,8 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     /* Initialize WiFi */
     initialize_wifi();
-#ifndef CONFIG_SNIFFER_NO_ETHERNET
     /* Initialize Ethernet */
     initialize_eth();
-#endif
 
     /*--- Initialize Console ---*/
     esp_console_repl_t *repl = NULL;

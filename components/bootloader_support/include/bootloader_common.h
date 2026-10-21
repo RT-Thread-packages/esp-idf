@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,6 +23,32 @@ typedef enum {
     ESP_IMAGE_BOOTLOADER,
     ESP_IMAGE_APPLICATION
 } esp_image_type;
+
+/**
+ * @brief Check if the chip revision meets the image requirements.
+ *
+ * This function verifies whether the actual chip revision satisfies the minimum
+ * and optionally the maximum chip revision requirements specified in the image.
+ *
+ * @param image_header Pointer to the image header containing revision details.
+ * @param check_max_revision If true, also checks the maximum chip revision requirements.
+ *
+ * @return true if the chip revision meets the requirements, false otherwise.
+ */
+bool bootloader_common_check_chip_revision_validity(const esp_image_header_t *image_header, bool check_max_revision);
+
+/**
+ * @brief Read ota_info partition and fill array from two otadata structures.
+ *
+ * @param[in]   ota_info It is a pointer to the OTA data partition.
+ *                       The "otadata" partition (Type = "data" and SubType = "ota")
+ *                       is defined in the CSV partition table.
+ * @param[out]  two_otadata Pointer to array of OTA selection structure.
+ * @return      - ESP_OK: On success
+ *              - ESP_ERR_NOT_FOUND: Partition table does not have otadata partition
+ *              - ESP_FAIL: On failure
+ */
+esp_err_t bootloader_common_read_otadata(const esp_partition_pos_t *ota_info, esp_ota_select_entry_t *two_otadata);
 
 /**
  * @brief Calculate crc for the OTA data select.
@@ -82,6 +108,8 @@ esp_comm_gpio_hold_t bootloader_common_check_long_hold_gpio_level(uint32_t num_p
 
 /**
  * @brief Erase the partition data that is specified in the transferred list.
+ *
+ * @note This function can't be called in app.
  *
  * @param[in] list_erase String containing a list of cleared partitions. Like this "nvs, phy". The string must be null-terminal.
  * @param[in] ota_data_erase If true then the OTA data partition will be cleared (if there is it in partition table).
@@ -168,12 +196,26 @@ uint32_t bootloader_common_get_chip_ver_pkg(void);
  */
 esp_err_t bootloader_common_check_chip_validity(const esp_image_header_t* img_hdr, esp_image_type type);
 
+#if !CONFIG_IDF_TARGET_ESP32
+/**
+ * @brief Check the eFuse block revision
+ *
+ * @param[in] min_rev_full The required minimum revision of the eFuse block
+ * @param[in] max_rev_full The required maximum revision of the eFuse block
+ * @return
+ *          - ESP_OK: The eFuse block revision is in the required range.
+ *          - ESP_OK: DISABLE_BLK_VERSION_MAJOR has been set in the eFuse of the SoC. No requirements shall be checked at this time.
+ *          - ESP_FAIL: The eFuse block revision of this chip does not match the requirement of the current image.
+ */
+esp_err_t bootloader_common_check_efuse_blk_validity(uint32_t min_rev_full, uint32_t max_rev_full);
+#endif  // !CONFIG_IDF_TARGET_ESP32
+
 /**
  * @brief Configure VDDSDIO, call this API to rise VDDSDIO to 1.9V when VDDSDIO regulator is enabled as 1.8V mode.
  */
 void bootloader_common_vddsdio_configure(void);
 
-#if defined( CONFIG_BOOTLOADER_SKIP_VALIDATE_IN_DEEP_SLEEP ) || defined( CONFIG_BOOTLOADER_CUSTOM_RESERVE_RTC )
+#if CONFIG_BOOTLOADER_RESERVE_RTC_MEM
 /**
  * @brief Returns partition from rtc_retain_mem
  *
@@ -224,6 +266,21 @@ void bootloader_common_reset_rtc_retain_mem(void);
 uint16_t bootloader_common_get_rtc_retain_mem_reboot_counter(void);
 
 /**
+ * @brief Returns True if Factory reset has happened
+ *
+ * Reset the status after reading it.
+ *
+ * @return True: Factory reset has happened
+ *         False: No Factory reset
+ */
+bool bootloader_common_get_rtc_retain_mem_factory_reset_state(void);
+
+/**
+ * @brief Sets Factory reset status
+ */
+void bootloader_common_set_rtc_retain_mem_factory_reset_state(void);
+
+/**
  * @brief Returns rtc_retain_mem
  *
  * Note: This function operates the RTC FAST memory which available only for PRO_CPU.
@@ -233,7 +290,7 @@ uint16_t bootloader_common_get_rtc_retain_mem_reboot_counter(void);
  */
 rtc_retain_mem_t* bootloader_common_get_rtc_retain_mem(void);
 
-#endif
+#endif // CONFIG_BOOTLOADER_RESERVE_RTC_MEM
 
 #ifdef __cplusplus
 }

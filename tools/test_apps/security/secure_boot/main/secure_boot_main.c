@@ -41,7 +41,9 @@ static void example_print_chip_info(void)
     esp_chip_info(&chip_info);
     printf("This is %s chip with %d CPU cores\n", CONFIG_IDF_TARGET, chip_info.cores);
 
-    printf("silicon revision %d, ", chip_info.revision);
+    unsigned major_rev = chip_info.revision / 100;
+    unsigned minor_rev = chip_info.revision % 100;
+    printf("silicon revision v%d.%d, ", major_rev, minor_rev);
     if(esp_flash_get_size(NULL, &flash_size) != ESP_OK) {
         printf("Get flash size failed");
         return;
@@ -74,4 +76,13 @@ static void example_secure_boot_status(void)
     } else {
         ESP_LOGI(TAG, "Secure Boot not enabled. Enable Secure Boot in menuconfig, build & flash again.");
     }
+
+#if CONFIG_EXAMPLE_TARGET_QEMU
+    for (int i = 5; i >= 0; i--) {
+        ESP_LOGI(TAG, "Restarting in %d seconds...", i);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    ESP_LOGI(TAG, "Restarting now.");
+    esp_restart();
+#endif /* CONFIG_EXAMPLE_TARGET_QEMU */
 }

@@ -41,7 +41,6 @@
 enum {
     BTA_GATTC_OPEN,
     BTA_GATTC_OPEN_FAIL,
-    BTA_GATTC_OPEN_ERROR,
     BTA_GATTC_CANCEL_OPEN,
     BTA_GATTC_CANCEL_OPEN_OK,
     BTA_GATTC_CANCEL_OPEN_ERROR,
@@ -66,6 +65,7 @@ enum {
     BTA_GATTC_RESTART_DISCOVER,
     BTA_GATTC_CFG_MTU,
     BTA_GATTC_READ_BY_TYPE,
+    BTA_GATTC_READ_MULTI_VAR,
 
     BTA_GATTC_IGNORE
 };
@@ -76,7 +76,6 @@ typedef void (*tBTA_GATTC_ACTION)(tBTA_GATTC_CLCB *p_clcb, tBTA_GATTC_DATA *p_da
 const tBTA_GATTC_ACTION bta_gattc_action[] = {
     bta_gattc_open,
     bta_gattc_open_fail,
-    bta_gattc_open_error,
     bta_gattc_cancel_open,
     bta_gattc_cancel_open_ok,
     bta_gattc_cancel_open_error,
@@ -100,7 +99,8 @@ const tBTA_GATTC_ACTION bta_gattc_action[] = {
     bta_gattc_disc_close,
     bta_gattc_restart_discover,
     bta_gattc_cfg_mtu,
-    bta_gattc_read_by_type
+    bta_gattc_read_by_type,
+    bta_gattc_read_multi_var,
 };
 
 
@@ -108,7 +108,6 @@ const tBTA_GATTC_ACTION bta_gattc_action[] = {
 #define BTA_GATTC_ACTIONS           1       /* number of actions */
 #define BTA_GATTC_NEXT_STATE          1       /* position of next state */
 #define BTA_GATTC_NUM_COLS            2       /* number of columns in state tables */
-
 /* state table for idle state */
 static const UINT8 bta_gattc_st_idle[][BTA_GATTC_NUM_COLS] = {
     /* Event                            Action 1                  Next state */
@@ -137,6 +136,7 @@ static const UINT8 bta_gattc_st_idle[][BTA_GATTC_NUM_COLS] = {
     /* BTA_GATTC_INT_DISCONN_EVT       */    {BTA_GATTC_IGNORE,            BTA_GATTC_IDLE_ST},
 
     /* BTA_GATTC_API_READ_BY_TYPE_EVT   */   {BTA_GATTC_FAIL,              BTA_GATTC_IDLE_ST},
+    /* BTA_GATTC_API_READ_MULTI_VAR_EVT */   {BTA_GATTC_FAIL,              BTA_GATTC_IDLE_ST},
 };
 
 /* state table for wait for open state */
@@ -167,6 +167,7 @@ static const UINT8 bta_gattc_st_w4_conn[][BTA_GATTC_NUM_COLS] = {
     /* BTA_GATTC_INT_DISCONN_EVT      */     {BTA_GATTC_OPEN_FAIL,          BTA_GATTC_IDLE_ST},
 
     /* BTA_GATTC_API_READ_BY_TYPE_EVT   */   {BTA_GATTC_FAIL,               BTA_GATTC_W4_CONN_ST},
+    /* BTA_GATTC_API_READ_MULTI_VAR_EVT */   {BTA_GATTC_FAIL,               BTA_GATTC_W4_CONN_ST},
 };
 
 /* state table for open state */
@@ -198,6 +199,7 @@ static const UINT8 bta_gattc_st_connected[][BTA_GATTC_NUM_COLS] = {
     /* BTA_GATTC_INT_DISCONN_EVT        */   {BTA_GATTC_CLOSE,              BTA_GATTC_IDLE_ST},
 
     /* BTA_GATTC_API_READ_BY_TYPE_EVT   */   {BTA_GATTC_READ_BY_TYPE,       BTA_GATTC_CONN_ST},
+    /* BTA_GATTC_API_READ_MULTI_VAR_EVT */   {BTA_GATTC_READ_MULTI_VAR,     BTA_GATTC_CONN_ST},
 };
 
 /* state table for discover state */
@@ -228,6 +230,7 @@ static const UINT8 bta_gattc_st_discover[][BTA_GATTC_NUM_COLS] = {
     /* BTA_GATTC_INT_DISCONN_EVT        */   {BTA_GATTC_CLOSE,              BTA_GATTC_IDLE_ST},
 
     /* BTA_GATTC_API_READ_BY_TYPE_EVT   */   {BTA_GATTC_Q_CMD,              BTA_GATTC_DISCOVER_ST},
+    /* BTA_GATTC_API_READ_MULTI_VAR_EVT */   {BTA_GATTC_Q_CMD,              BTA_GATTC_DISCOVER_ST},
 };
 
 /* type for state table */
@@ -283,11 +286,21 @@ BOOLEAN bta_gattc_sm_execute(tBTA_GATTC_CLCB *p_clcb, UINT16 event, tBTA_GATTC_D
                      gattc_evt_code(in_event));
 #endif
 
+    // should not happen, but just in case
+    if (!p_clcb) {
+        APPL_TRACE_ERROR("p_clcb or p_data is NULL, event is %d", event);
+        return rt;
+    }
 
     /* look up the state table for the current state */
     state_table = bta_gattc_st_tbl[p_clcb->state];
 
     event &= 0x00FF;
+
+    if (event >= sizeof(bta_gattc_st_idle) / sizeof(bta_gattc_st_idle[0])) {
+        APPL_TRACE_ERROR("bta_gattc_sm_execute: invalid event index %d", event);
+        return TRUE;
+    }
 
     /* set next state */
     p_clcb->state = state_table[event][BTA_GATTC_NEXT_STATE];
@@ -375,15 +388,6 @@ BOOLEAN bta_gattc_hdl_event(BT_HDR *p_msg)
     case BTA_GATTC_API_CACHE_CLEAN_EVT:
         bta_gattc_process_api_cache_clean(p_cb, (tBTA_GATTC_DATA *) p_msg);
         break;
-#if BLE_INCLUDED == TRUE
-    case BTA_GATTC_API_LISTEN_EVT:
-        bta_gattc_listen(p_cb, (tBTA_GATTC_DATA *) p_msg);
-        break;
-    case BTA_GATTC_API_BROADCAST_EVT:
-        bta_gattc_broadcast(p_cb, (tBTA_GATTC_DATA *) p_msg);
-        break;
-#endif
-
     case BTA_GATTC_ENC_CMPL_EVT:
         bta_gattc_process_enc_cmpl(p_cb, (tBTA_GATTC_DATA *) p_msg);
         break;
@@ -479,14 +483,20 @@ static char *gattc_evt_code(tBTA_GATTC_INT_EVT evt_code)
         return "BTA_GATTC_API_REFRESH_EVT";
     case BTA_GATTC_API_CACHE_CLEAN_EVT:
         return "BTA_GATTC_API_CACHE_CLEAN_EVT";
-    case BTA_GATTC_API_LISTEN_EVT:
-        return "BTA_GATTC_API_LISTEN_EVT";
     case BTA_GATTC_API_DISABLE_EVT:
         return "BTA_GATTC_API_DISABLE_EVT";
     case BTA_GATTC_API_CFG_MTU_EVT:
         return "BTA_GATTC_API_CFG_MTU_EVT";
     case BTA_GATTC_API_READ_BY_TYPE_EVT:
         return "BTA_GATTC_API_READ_BY_TYPE_EVT";
+    case BTA_GATTC_API_READ_MULTI_VAR_EVT:
+        return "BTA_GATTC_API_READ_MULTI_VAR_EVT";
+    case BTA_GATTC_ENC_CMPL_EVT:
+        return "BTA_GATTC_ENC_CMPL_EVT";
+    case BTA_GATTC_API_CACHE_ASSOC_EVT:
+        return "BTA_GATTC_API_CACHE_ASSOC_EVT";
+    case BTA_GATTC_API_CACHE_GET_ADDR_LIST_EVT:
+        return "BTA_GATTC_API_CACHE_GET_ADDR_LIST_EVT";
     default:
         return "unknown GATTC event code";
     }
@@ -525,5 +535,24 @@ void bta_gattc_deinit(void)
     memset(bta_gattc_cb_ptr, 0, sizeof(tBTA_GATTC_CB));
     FREE_AND_RESET(bta_gattc_cb_ptr);
 #endif /* #if BTA_DYNAMIC_MEMORY */
+}
+
+uint8_t bta_gattc_cl_rcb_active_count(void)
+{
+    uint8_t count = 0;
+    uint8_t dm_gattc_uuid[16];
+
+    // When SDP is included, Bluedroid stack will register the DM GATTC application
+    memset(dm_gattc_uuid, 0x87, 16);
+
+    for (uint8_t i = 0; i < BTA_GATTC_CL_MAX; i ++) {
+        if (bta_gattc_cb.cl_rcb[i].in_use &&
+            (bta_gattc_cb.cl_rcb[i].app_uuid.len != LEN_UUID_128 ||
+             memcmp(bta_gattc_cb.cl_rcb[i].app_uuid.uu.uuid128, dm_gattc_uuid, LEN_UUID_128))) {
+            count++;
+        }
+    }
+
+    return count;
 }
 #endif /* GATTC_INCLUDED == TRUE && BLE_INCLUDED == TRUE */

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,12 +13,12 @@ extern "C" {
 #ifndef __ASSEMBLER__
 
 #include <stdbool.h>
+#include "sdkconfig.h"
 #include "esp_err.h"
-#include "soc/soc.h"  // [refactor-todo] IDF-2297
 #include "esp_cpu.h"
 
-/*
- * @brief   Structure used for backtracing
+/**
+ * @brief Structure used for backtracing.
  *
  * This structure stores the backtrace information of a particular stack frame
  * (i.e. the PC and SP). This structure is used iteratively with the
@@ -26,14 +26,14 @@ extern "C" {
  * single stack. The next_pc represents the PC of the current frame's caller, thus
  * a next_pc of 0 indicates that the current frame is the last frame on the stack.
  *
- * @note    Call esp_backtrace_get_start() to obtain initialization values for
- *          this structure
+ * @note Call esp_backtrace_get_start() to obtain initialization values for
+ *       this structure.
  */
 typedef struct {
-    uint32_t pc;       /* PC of the current frame */
-    uint32_t sp;       /* SP of the current frame */
-    uint32_t next_pc;  /* PC of the current frame's caller */
-    const void *exc_frame;  /* Pointer to the full frame data structure, if applicable */
+    uint32_t pc;              /**< PC of the current frame */
+    uint32_t sp;              /**< SP of the current frame */
+    uint32_t next_pc;         /**< PC of the current frame's caller */
+    const void *exc_frame;    /**< Pointer to the full frame data structure, if applicable */
 } esp_backtrace_frame_t;
 
 /**
@@ -103,11 +103,30 @@ esp_err_t esp_backtrace_print_from_frame(int depth, const esp_backtrace_frame_t*
  *
  * @param depth The maximum number of stack frames to print (should be > 0)
  *
+ * @note On RISC-V targets printing backtrace at run-time is only available if
+ *       CONFIG_ESP_SYSTEM_USE_EH_FRAME is selected. Otherwise we simply print
+ *       a register dump. Function assumes it is called in a context where the
+ *       calling task will not migrate to another core, e.g. interrupts disabled/panic handler.
+ *
  * @return
  *      - ESP_OK    Backtrace successfully printed to completion or to depth limit
  *      - ESP_FAIL  Backtrace is corrupted
  */
 esp_err_t esp_backtrace_print(int depth);
+
+/**
+ * @brief Print the backtrace of all tasks
+ *
+ * @param depth The maximum number of stack frames to print (must be > 0)
+ *
+ * @note Users must ensure that no tasks are created or deleted while this function is running.
+ * @note This function must be called from a task context.
+ *
+ * @return
+ *      - ESP_OK    All backtraces successfully printed to completion or to depth limit
+ *      - ESP_FAIL  One or more backtraces are corrupt
+ */
+esp_err_t esp_backtrace_print_all_tasks(int depth);
 
 /**
  * @brief Set a watchpoint to break/panic when a certain memory range is accessed.

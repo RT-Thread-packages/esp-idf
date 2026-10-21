@@ -7,6 +7,7 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 #include <string.h>
+#include <inttypes.h>
 #include "esp_wifi.h"
 #include "esp_mac.h"
 #include "esp_event.h"
@@ -64,8 +65,8 @@ static void initialise_button(void)
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.pin_bit_mask = BIT64(EXAMPLE_BUTTON_GPIO);
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pull_up_en = 1;
-    io_conf.pull_down_en = 0;
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     gpio_config(&io_conf);
 }
 
@@ -360,7 +361,7 @@ void mesh_event_handler(void *arg, esp_event_base_t event_base,
     }
     break;
     default:
-        ESP_LOGI(MESH_TAG, "unknown id:%d", event_id);
+        ESP_LOGI(MESH_TAG, "unknown id:%" PRId32 "", event_id);
         break;
     }
 }
@@ -404,7 +405,12 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_mesh_set_max_layer(CONFIG_MESH_MAX_LAYER));
     ESP_ERROR_CHECK(esp_mesh_set_vote_percentage(1));
     ESP_ERROR_CHECK(esp_mesh_set_ap_assoc_expire(10));
+    /* set blocking time of esp_mesh_send() to 30s, to prevent the esp_mesh_send() from permanently for some reason */
+    ESP_ERROR_CHECK(esp_mesh_send_block_time(30000));
     mesh_cfg_t cfg = MESH_INIT_CONFIG_DEFAULT();
+#if !MESH_IE_ENCRYPTED
+    cfg.crypto_funcs = NULL;
+#endif
     /* mesh ID */
     memcpy((uint8_t *) &cfg.mesh_id, MESH_ID, 6);
     /* router */
@@ -422,6 +428,6 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_mesh_set_config(&cfg));
     /* mesh start */
     ESP_ERROR_CHECK(esp_mesh_start());
-    ESP_LOGI(MESH_TAG, "mesh starts successfully, heap:%d, %s\n",  esp_get_free_heap_size(),
+    ESP_LOGI(MESH_TAG, "mesh starts successfully, heap:%" PRId32 ", %s",  esp_get_free_heap_size(),
              esp_mesh_is_root_fixed() ? "root fixed" : "root not fixed");
 }

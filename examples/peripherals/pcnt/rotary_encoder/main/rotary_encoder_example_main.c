@@ -1,14 +1,17 @@
 /*
- * SPDX-FileCopyrightText: 2010-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2010-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: CC0-1.0
  */
 
+#include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "esp_log.h"
 #include "driver/pulse_cnt.h"
+#include "driver/gpio.h"
+#include "esp_sleep.h"
 
 static const char *TAG = "example";
 
@@ -42,6 +45,12 @@ void app_main(void)
         .max_glitch_ns = 1000,
     };
     ESP_ERROR_CHECK(pcnt_unit_set_glitch_filter(pcnt_unit, &filter_config));
+
+#if CONFIG_EXAMPLE_ENABLE_INTERNAL_PULL_UPS
+    ESP_LOGI(TAG, "enable internal pull-up resistors");
+    ESP_ERROR_CHECK(gpio_pullup_en(EXAMPLE_EC11_GPIO_A));
+    ESP_ERROR_CHECK(gpio_pullup_en(EXAMPLE_EC11_GPIO_B));
+#endif
 
     ESP_LOGI(TAG, "install pcnt channels");
     pcnt_chan_config_t chan_a_config = {
@@ -80,6 +89,13 @@ void app_main(void)
     ESP_ERROR_CHECK(pcnt_unit_clear_count(pcnt_unit));
     ESP_LOGI(TAG, "start pcnt unit");
     ESP_ERROR_CHECK(pcnt_unit_start(pcnt_unit));
+
+#if CONFIG_EXAMPLE_WAKE_UP_LIGHT_SLEEP
+    // EC11 channel output high level in normal state, so we set "low level" to wake up the chip
+    ESP_ERROR_CHECK(gpio_wakeup_enable(EXAMPLE_EC11_GPIO_A, GPIO_INTR_LOW_LEVEL));
+    ESP_ERROR_CHECK(esp_sleep_enable_gpio_wakeup());
+    ESP_ERROR_CHECK(esp_light_sleep_start());
+#endif
 
     // Report counter value
     int pulse_count = 0;

@@ -10,11 +10,12 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * SPDX-FileContributor: 2015-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2015-2026 Espressif Systems (Shanghai) CO LTD
  */
 
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <time.h>
 #include <sys/time.h>
 #include "freertos/FreeRTOS.h"
@@ -39,15 +40,22 @@
 
 #include "esp_tls.h"
 #include "sdkconfig.h"
-#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE && CONFIG_EXAMPLE_USING_ESP_TLS_MBEDTLS
 #include "esp_crt_bundle.h"
 #endif
 #include "time_sync.h"
+#include "esp_random.h"
 
 /* Constants that aren't configurable in menuconfig */
-#define WEB_SERVER "www.howsmyssl.com"
+#ifdef CONFIG_EXAMPLE_SSL_PROTO_TLS1_3_CLIENT
+#define WEB_SERVER "tls13.browserleaks.com"
+#define WEB_PORT "443"
+#define WEB_URL "https://tls13.browserleaks.com/tls"
+#else
+#define WEB_SERVER "howsmyssl.com"
 #define WEB_PORT "443"
 #define WEB_URL "https://www.howsmyssl.com/a/check"
+#endif
 
 #define SERVER_URL_MAX_SZ 256
 
@@ -83,6 +91,15 @@ extern const uint8_t server_root_cert_pem_end[]   asm("_binary_server_root_cert_
 
 extern const uint8_t local_server_cert_pem_start[] asm("_binary_local_server_cert_pem_start");
 extern const uint8_t local_server_cert_pem_end[]   asm("_binary_local_server_cert_pem_end");
+#if CONFIG_EXAMPLE_USING_ESP_TLS_MBEDTLS
+#if defined(CONFIG_EXAMPLE_SSL_PROTO_TLS1_3_CLIENT)
+static const int server_supported_ciphersuites[] = {MBEDTLS_TLS1_3_AES_256_GCM_SHA384, MBEDTLS_TLS1_3_AES_128_CCM_SHA256, 0};
+static const int server_unsupported_ciphersuites[] = {MBEDTLS_TLS_ECDHE_RSA_WITH_ARIA_128_CBC_SHA256, 0};
+#else
+static const int server_supported_ciphersuites[] = {MBEDTLS_TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_CCM, 0};
+static const int server_unsupported_ciphersuites[] = {MBEDTLS_TLS_ECDHE_RSA_WITH_ARIA_128_CBC_SHA256, 0};
+#endif // CONFIG_EXAMPLE_SSL_PROTO_TLS1_3_CLIENT
+#endif // CONFIG_EXAMPLE_USING_ESP_TLS_MBEDTLS
 
 #ifdef CONFIG_EXAMPLE_CLIENT_SESSION_TICKETS
 static esp_tls_client_session_t *tls_client_session = NULL;
@@ -104,16 +121,16 @@ static void https_get_request(esp_tls_cfg_t cfg, const char *WEB_SERVER_URL, con
         ESP_LOGI(TAG, "Connection established...");
     } else {
         ESP_LOGE(TAG, "Connection failed...");
+        int esp_tls_code = 0, esp_tls_flags = 0;
+        esp_tls_error_handle_t tls_e = NULL;
+        esp_tls_get_error_handle(tls, &tls_e);
+        /* Try to get TLS stack level error and certificate failure flags, if any */
+        ret = esp_tls_get_and_clear_last_error(tls_e, &esp_tls_code, &esp_tls_flags);
+        if (ret == ESP_OK) {
+            ESP_LOGE(TAG, "TLS error = -0x%x, TLS flags = -0x%x", esp_tls_code, esp_tls_flags);
+        }
         goto cleanup;
     }
-
-#ifdef CONFIG_EXAMPLE_CLIENT_SESSION_TICKETS
-    /* The TLS session is successfully established, now saving the session ctx for reuse */
-    if (save_client_session) {
-        esp_tls_free_client_session(tls_client_session);
-        tls_client_session = esp_tls_get_client_session(tls);
-    }
-#endif
 
     size_t written_bytes = 0;
     do {
@@ -154,6 +171,14 @@ static void https_get_request(esp_tls_cfg_t cfg, const char *WEB_SERVER_URL, con
         putchar('\n'); // JSON output doesn't have a newline at end
     } while (1);
 
+#ifdef CONFIG_EXAMPLE_CLIENT_SESSION_TICKETS
+    /* The TLS session is successfully established, now saving the session ctx for reuse */
+    if (save_client_session) {
+        esp_tls_free_client_session(tls_client_session);
+        tls_client_session = esp_tls_get_client_session(tls);
+    }
+#endif
+
 cleanup:
     esp_tls_conn_destroy(tls);
 exit:
@@ -163,7 +188,7 @@ exit:
     }
 }
 
-#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE && CONFIG_EXAMPLE_USING_ESP_TLS_MBEDTLS
 static void https_get_request_using_crt_bundle(void)
 {
     ESP_LOGI(TAG, "https_request using crt bundle");
@@ -172,7 +197,7 @@ static void https_get_request_using_crt_bundle(void)
     };
     https_get_request(cfg, WEB_URL, HOWSMYSSL_REQUEST);
 }
-#endif // CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+#endif // CONFIG_MBEDTLS_CERTIFICATE_BUNDLE && CONFIG_EXAMPLE_USING_ESP_TLS_MBEDTLS
 
 static void https_get_request_using_cacert_buf(void)
 {
@@ -182,6 +207,32 @@ static void https_get_request_using_cacert_buf(void)
         .cacert_bytes = server_root_cert_pem_end - server_root_cert_pem_start,
     };
     https_get_request(cfg, WEB_URL, HOWSMYSSL_REQUEST);
+}
+
+static void https_get_request_using_specified_ciphersuites(void)
+{
+#if CONFIG_EXAMPLE_USING_ESP_TLS_MBEDTLS
+
+    ESP_LOGI(TAG, "https_request using server supported ciphersuites");
+    esp_tls_cfg_t cfg = {
+        .cacert_buf = (const unsigned char *) server_root_cert_pem_start,
+        .cacert_bytes = server_root_cert_pem_end - server_root_cert_pem_start,
+        .ciphersuites_list = server_supported_ciphersuites,
+#if defined(CONFIG_EXAMPLE_SSL_PROTO_TLS1_3_CLIENT)
+        .tls_version = ESP_TLS_VER_TLS_1_3,
+#else
+        .tls_version = ESP_TLS_VER_TLS_1_2,
+#endif
+    };
+
+    https_get_request(cfg, WEB_URL, HOWSMYSSL_REQUEST);
+
+    ESP_LOGI(TAG, "https_request using server unsupported ciphersuites");
+
+    cfg.ciphersuites_list = server_unsupported_ciphersuites;
+
+    https_get_request(cfg, WEB_URL, HOWSMYSSL_REQUEST);
+#endif
 }
 
 static void https_get_request_using_global_ca_store(void)
@@ -218,6 +269,9 @@ static void https_get_request_using_already_saved_session(const char *url)
     ESP_LOGI(TAG, "https_request using saved client session");
     esp_tls_cfg_t cfg = {
         .client_session = tls_client_session,
+        .cacert_buf = (const unsigned char *) local_server_cert_pem_start,
+        .cacert_bytes = local_server_cert_pem_end - local_server_cert_pem_start,
+        .skip_common_name = true,
     };
     https_get_request(cfg, url, LOCAL_SRV_REQUEST);
     esp_tls_free_client_session(tls_client_session);
@@ -252,12 +306,13 @@ static void https_request_task(void *pvparameters)
     https_get_request_using_already_saved_session(server_url);
 #endif
 
-#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE && CONFIG_EXAMPLE_USING_ESP_TLS_MBEDTLS
     https_get_request_using_crt_bundle();
 #endif
-    ESP_LOGI(TAG, "Minimum free heap size: %d bytes", esp_get_minimum_free_heap_size());
+    ESP_LOGI(TAG, "Minimum free heap size: %" PRIu32 " bytes", esp_get_minimum_free_heap_size());
     https_get_request_using_cacert_buf();
     https_get_request_using_global_ca_store();
+    https_get_request_using_specified_ciphersuites();
     ESP_LOGI(TAG, "Finish https_request example");
     vTaskDelete(NULL);
 }
@@ -280,7 +335,7 @@ void app_main(void)
     }
 
     const esp_timer_create_args_t nvs_update_timer_args = {
-            .callback = &fetch_and_store_time_in_nvs,
+            .callback = (void *)&fetch_and_store_time_in_nvs,
     };
 
     esp_timer_handle_t nvs_update_timer;

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -15,32 +15,15 @@ extern "C" {
 #endif
 
 /**
- * @brief Get the psram mapped vaddr range
+ * @brief Check if the pointer is on PSRAM
  *
- * @param[out] out_vstart PSRAM virtual address start
- * @param[out] out_vend   PSRAM virtual address end
- *
- * @note [out_vstart, out_vend), `out_vend` isn't included.
+ * @param[in] p  The pointer to check
  *
  * @return
- *        - ESP_OK                  On success
- *        - ESP_ERR_INVALID_STATE   PSRAM is not initialized successfully
+ *        - False: the pointer isn't on PSRAM, or PSRAM isn't initialised successfully
+ *        - True:  the pointer is on PSRAM
  */
-esp_err_t esp_psram_extram_get_mapped_range(intptr_t *out_vstart, intptr_t *out_vend);
-
-/**
- * @brief Get the psram alloced vaddr range
- *
- * @param[out] out_vstart PSRAM virtual address start
- * @param[out] out_vend   PSRAM virtual address end
- *
- * @note [out_vstart, out_vend), `out_vend` isn't included.
- *
- * @return
- *        - ESP_OK                  On success
- *        - ESP_ERR_INVALID_STATE   PSRAM is not initialized successfully
- */
-esp_err_t esp_psram_extram_get_alloced_range(intptr_t *out_vstart, intptr_t *out_vend);
+bool esp_psram_check_ptr_addr(const void *p);
 
 /**
  * @brief Add the initialized PSRAM to the heap allocator.
@@ -53,6 +36,11 @@ esp_err_t esp_psram_extram_add_to_heap_allocator(void);
 
 /**
  * @brief Reserve a pool of internal memory for specific DMA/internal allocations
+ *
+ * Carves out @p size bytes from the regular internal heaps and registers the
+ * region as separate heap pool with new priority-based caps: medium priority for
+ * MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL, and low priority for MALLOC_CAP_DEFAULT.
+ * malloc() uses the pool only after other internal heaps are exhausted.
  *
  * @param size Size of reserved pool in bytes
  *
@@ -71,6 +59,34 @@ esp_err_t esp_psram_extram_reserve_dma_pool(size_t size);
  * @return true on success, false on failed memory test
  */
 bool esp_psram_extram_test(void);
+
+/**
+ * @brief Init .bss on psram
+ */
+void esp_psram_bss_init(void);
+
+/**
+ * @brief Initialize the PSRAM hardware.
+ * Just initialize the PSRAM hardware, does not load the XIP segments or map the PSRAM memory
+ *
+ * @return
+ *        - ESP_OK:                On success
+ *        - ESP_FAIL:              PSRAM isn't initialized successfully, potential reason would be: wrong VDDSDIO, invalid chip ID, etc.
+ *        - ESP_ERR_INVALID_STATE: PSRAM is initialized already
+ */
+esp_err_t esp_psram_chip_init(void);
+
+/**
+ * @brief Calculates the effective PSRAM memory that would be / is added into the heap.
+ *
+ * @return The size of PSRAM memory that would be / is added into the heap in bytes, or 0 if PSRAM hardware isn't successfully initialized
+ * @note The function pre-calculates the effective size of the PSRAM memory that would be added into the heap after performing the XIP or
+ *       ext bss and ext noinit considerations, thus, even if the function is called before esp_psram_init(), it will return the final
+ *       effective size of the PSRAM memory that would have been added into the heap after esp_psram_init() is performed
+ *       instead of the vanilla size of the PSRAM memory.
+ *       This function is only available if CONFIG_SPIRAM_PRE_CONFIGURE_MEMORY_PROTECTION is enabled.
+ */
+size_t esp_psram_get_heap_size_to_protect(void);
 
 #if CONFIG_IDF_TARGET_ESP32
 /**

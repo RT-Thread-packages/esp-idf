@@ -47,6 +47,7 @@ struct wpa_state_machine {
 	Boolean AuthenticationRequest;
 	Boolean ReAuthenticationRequest;
 	Boolean Disconnect;
+	u16 disconnect_reason; /* specific reason code to use with Disconnect */
 	int TimeoutCtr;
 	int GTimeoutCtr;
 	Boolean TimeoutEvt;
@@ -58,6 +59,8 @@ struct wpa_state_machine {
 	u8 ANonce[WPA_NONCE_LEN];
 	u8 SNonce[WPA_NONCE_LEN];
 	u8 PMK[PMK_LEN];
+	unsigned int pmk_len;
+	u8 pmkid[PMKID_LEN];
 	struct wpa_ptk PTK;
 	Boolean PTK_valid;
 	Boolean pairwise_set;
@@ -83,17 +86,28 @@ struct wpa_state_machine {
 	unsigned int mgmt_frame_prot:1;
 	unsigned int rx_eapol_key_secure:1;
 	unsigned int update_snonce:1;
+	unsigned int alt_snonce_valid:1;
 #ifdef CONFIG_IEEE80211R_AP
 	unsigned int ft_completed:1;
 	unsigned int pmk_r1_name_valid:1;
 #endif /* CONFIG_IEEE80211R */
 	unsigned int is_wnmsleep:1;
+	unsigned int pmkid_set:1;
 
 	u8 req_replay_counter[WPA_REPLAY_COUNTER_LEN];
 	int req_replay_counter_used;
 
+	u8 alt_SNonce[WPA_NONCE_LEN];
+	u8 alt_replay_counter[WPA_REPLAY_COUNTER_LEN];
+
 	u8 *wpa_ie;
 	size_t wpa_ie_len;
+	u8 *rsnxe;
+	size_t rsnxe_len;
+#ifdef CONFIG_WPA3_COMPAT
+	u8 *rsn_selection;
+	size_t rsn_selection_len;
+#endif
 
 	enum {
 		WPA_VERSION_NO_WPA = 0 /* WPA not used */,
@@ -102,6 +116,11 @@ struct wpa_state_machine {
 	} wpa;
 	int pairwise; /* Pairwise cipher suite, WPA_CIPHER_* */
 	int wpa_key_mgmt; /* the selected WPA_KEY_MGMT_* */
+	struct rsn_pmksa_cache_entry *pmksa;
+
+#ifdef CONFIG_WPA3_COMPAT
+	bool rsn_override;
+#endif
 
 #ifdef CONFIG_IEEE80211R_AP
 	u8 xxkey[PMK_LEN_MAX]; /* PSK or the second 256 bits of MSK, or the
@@ -171,14 +190,16 @@ struct wpa_ft_pmk_cache;
 struct wpa_authenticator {
 	struct wpa_group *group;
 
+	u8 dot11RSNAPMKIDUsed[PMKID_LEN];
+
 	struct wpa_auth_config conf;
 
 	u8 *wpa_ie;
 	size_t wpa_ie_len;
+	struct rsn_pmksa_cache *pmksa;
 
 	u8 addr[ETH_ALEN];
 #ifdef CONFIG_IEEE80211R
-	struct rsn_pmksa_cache *pmksa;
 	struct wpa_ft_pmk_cache *ft_pmk_cache;
 #endif
 
@@ -187,6 +208,7 @@ struct wpa_authenticator {
 
 int wpa_write_rsn_ie(struct wpa_auth_config *conf, u8 *buf, size_t len,
 		     const u8 *pmkid);
+int wpa_write_rsnxe(struct wpa_auth_config *conf, u8 *buf, size_t len);
 void __wpa_send_eapol(struct wpa_authenticator *wpa_auth,
 		      struct wpa_state_machine *sm, int key_info,
 		      const u8 *key_rsc, const u8 *nonce,

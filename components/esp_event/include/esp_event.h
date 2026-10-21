@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,8 +11,6 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/queue.h"
-#include "freertos/semphr.h"
 
 #include "esp_event_base.h"
 
@@ -63,6 +61,7 @@ esp_err_t esp_event_loop_delete(esp_event_loop_handle_t event_loop);
  * @return
  *  - ESP_OK: Success
  *  - ESP_ERR_NO_MEM: Cannot allocate memory for event loops list
+ *  - ESP_ERR_INVALID_STATE: Default event loop has already been created
  *  - ESP_FAIL: Failed to create task loop
  *  - Others: Fail
  */
@@ -108,9 +107,6 @@ esp_err_t esp_event_loop_run(esp_event_loop_handle_t event_loop, TickType_t tick
 /**
  * @brief Register an event handler to the system event loop (legacy).
  *
- * @note This function is obsolete and will be deprecated soon, please use esp_event_handler_instance_register()
- *       instead.
- *
  * This function can be used to register a handler for either: (1) specific events,
  * (2) all events of a certain event base, or (3) all events known by the system event loop.
  *
@@ -120,7 +116,9 @@ esp_err_t esp_event_loop_run(esp_event_loop_handle_t event_loop, TickType_t tick
  *
  * Registering multiple handlers to events is possible. Registering a single handler to multiple events is
  * also possible. However, registering the same handler to the same event multiple times would cause the
- * previous registrations to be overwritten.
+ * overwriting of the event_handler_arg but the handler will be kept at the same position in the list associated
+ * with the event that triggers it. It means that the call order of registered handlers for that event will remain
+ * the same.
  *
  * @param[in] event_base the base ID of the event to register the handler for
  * @param[in] event_id the ID of the event to register the handler for
@@ -143,9 +141,6 @@ esp_err_t esp_event_handler_register(esp_event_base_t event_base,
 
 /**
  * @brief Register an event handler to a specific loop (legacy).
- *
- * @note This function is obsolete and will be deprecated soon, please use esp_event_handler_instance_register_with()
- *       instead.
  *
  * This function behaves in the same manner as esp_event_handler_register, except the additional
  * specification of the event loop to register the handler to.
@@ -204,6 +199,8 @@ esp_err_t esp_event_handler_register_with(esp_event_loop_handle_t event_loop,
  * @note the event loop library does not maintain a copy of event_handler_arg, therefore the user should
  * ensure that event_handler_arg still points to a valid location by the time the handler gets called
  *
+ * @note Calling this function with instance set to NULL is equivalent to calling esp_event_handler_register_with.
+ *
  * @return
  *  - ESP_OK: Success
  *  - ESP_ERR_NO_MEM: Cannot allocate memory for the handler
@@ -211,11 +208,11 @@ esp_err_t esp_event_handler_register_with(esp_event_loop_handle_t event_loop,
  *  - Others: Fail
  */
 esp_err_t esp_event_handler_instance_register_with(esp_event_loop_handle_t event_loop,
-                                                  esp_event_base_t event_base,
-                                                  int32_t event_id,
-                                                  esp_event_handler_t event_handler,
-                                                  void *event_handler_arg,
-                                                  esp_event_handler_instance_t *instance);
+                                                   esp_event_base_t event_base,
+                                                   int32_t event_id,
+                                                   esp_event_handler_t event_handler,
+                                                   void *event_handler_arg,
+                                                   esp_event_handler_instance_t *instance);
 
 /**
  * @brief Register an instance of event handler to the default loop.
@@ -237,6 +234,8 @@ esp_err_t esp_event_handler_instance_register_with(esp_event_loop_handle_t event
  * @note the event loop library does not maintain a copy of event_handler_arg, therefore the user should
  * ensure that event_handler_arg still points to a valid location by the time the handler gets called
  *
+ * @note Calling this function with instance set to NULL is equivalent to calling esp_event_handler_register.
+ *
  * @return
  *  - ESP_OK: Success
  *  - ESP_ERR_NO_MEM: Cannot allocate memory for the handler
@@ -244,16 +243,13 @@ esp_err_t esp_event_handler_instance_register_with(esp_event_loop_handle_t event
  *  - Others: Fail
  */
 esp_err_t esp_event_handler_instance_register(esp_event_base_t event_base,
-                                             int32_t event_id,
-                                             esp_event_handler_t event_handler,
-                                             void *event_handler_arg,
-                                             esp_event_handler_instance_t *instance);
+                                              int32_t event_id,
+                                              esp_event_handler_t event_handler,
+                                              void *event_handler_arg,
+                                              esp_event_handler_instance_t *instance);
 
 /**
  * @brief Unregister a handler with the system event loop (legacy).
- *
- * @note This function is obsolete and will be deprecated soon, please use esp_event_handler_instance_unregister()
- *       instead.
  *
  * Unregisters a handler, so it will no longer be called during dispatch.
  * Handlers can be unregistered for any combination of event_base and event_id which were previously registered.
@@ -279,9 +275,6 @@ esp_err_t esp_event_handler_unregister(esp_event_base_t event_base,
 
 /**
  * @brief Unregister a handler from a specific event loop (legacy).
- *
- * @note This function is obsolete and will be deprecated soon, please use esp_event_handler_instance_unregister_with()
- *       instead.
  *
  * This function behaves in the same manner as esp_event_handler_unregister, except the additional specification of
  * the event loop to unregister the handler with.
@@ -378,7 +371,7 @@ esp_err_t esp_event_post(esp_event_base_t event_base,
  * the copy's lifetime automatically (allocation + deletion); this ensures that the data the
  * handler receives is always valid.
  *
- * This function behaves in the same manner as esp_event_post_to, except the additional specification of the event loop
+ * This function behaves in the same manner as esp_event_post, except the additional specification of the event loop
  * to post the event to.
  *
  * @param[in] event_loop the event loop to post to, must not be NULL

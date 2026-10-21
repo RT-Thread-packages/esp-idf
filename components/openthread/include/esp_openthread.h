@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,7 +7,9 @@
 #pragma once
 
 #include "esp_err.h"
+#include "esp_netif.h"
 #include "esp_openthread_types.h"
+#include "openthread/dataset.h"
 #include "openthread/error.h"
 #include "openthread/instance.h"
 #include "lwip/ip_addr.h"
@@ -33,9 +35,22 @@ extern "C" {
 esp_err_t esp_openthread_init(const esp_openthread_platform_config_t *init_config);
 
 /**
+ * @brief   Starts the Thread protocol operation and attaches to a Thread network.
+ *
+ * @param[in]  datasetTlvs    The operational dataset (TLV encoded), if it's NULL, the function will generate the dataset
+ *                            based on the configurations from kconfig.
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_FAIL on failures
+ *
+ */
+esp_err_t esp_openthread_auto_start(otOperationalDatasetTlvs *datasetTlvs);
+
+/**
  * @brief   Launches the OpenThread main loop.
  *
- * @note Thie function will not return unless error happens when running the OpenThread stack.
+ * @note This function will not return unless error happens when running the OpenThread stack.
  *
  * @return
  *      - ESP_OK on success
@@ -65,6 +80,38 @@ esp_err_t esp_openthread_deinit(void);
  */
 otInstance *esp_openthread_get_instance(void);
 
+/**
+ * @brief Signals the OpenThread main loop to exit.
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_FAIL on failures
+ *
+ */
+esp_err_t esp_openthread_mainloop_exit(void);
+
+/**
+ * @brief   Starts the full OpenThread stack and create a handle task.
+ *
+ * @note The OpenThread instance will also be initialized in this function.
+ *
+ * @param[in]  config      The OpenThread platform configuration.
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_ERR_INVALID_STATE if already initialized
+ *
+ */
+esp_err_t esp_openthread_start(const esp_openthread_config_t *config);
+
+/**
+ * @brief This function performs OpenThread stack and platform driver deinitialization and delete the handle task.
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_ERR_INVALID_STATE if Thread is already active
+ *
+ */
+esp_err_t esp_openthread_stop(void);
 
 #ifdef __cplusplus
 } // end of extern "C"

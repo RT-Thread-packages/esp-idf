@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
 
 import os
@@ -12,6 +12,7 @@ from test_utils import compare_folders, fill_sector, generate_local_folder_struc
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import fatfsgen  # noqa E402  # pylint: disable=C0413
+from fatfs_utils.entry import Entry  # noqa E402  # pylint: disable=C0413
 
 
 class FatFSGen(unittest.TestCase):
@@ -31,13 +32,13 @@ class FatFSGen(unittest.TestCase):
     @staticmethod
     def test_gen_parse() -> None:
         run([
-            'python',
+            sys.executable,
             f'{os.path.join(os.path.dirname(__file__), "..", "fatfsgen.py")}',
             'output_data/tst_str'
         ], stderr=STDOUT)
 
-        run(['python', '../fatfsgen.py', 'output_data/tst_str'], stderr=STDOUT)
-        run(['python', '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsgen.py', 'output_data/tst_str'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
 
         assert set(os.listdir('Espressif')) == {'TEST', 'TESTFILE'}
         with open('Espressif/TESTFILE', 'rb') as in_:
@@ -58,7 +59,7 @@ class FatFSGen(unittest.TestCase):
         fatfs.write_content(path_from_root=['WRITEF.TXT'], content=4096 * b'a' + b'a')
         fatfs.write_filesystem('fatfs_image.img')
 
-        run(['python', '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         with open('Espressif/WRITEF.TXT', 'rb') as in_:
             assert in_.read() == 4097 * b'a'
 
@@ -73,7 +74,7 @@ class FatFSGen(unittest.TestCase):
         fatfs.write_content(path_from_root=['TESTFOLD', 'A255'], content=b'last')
         fatfs.write_filesystem('fatfs_image.img')
 
-        run(['python', '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         assert set(os.listdir('Espressif')) == {'TESTFOLD'}
         assert set(os.listdir('Espressif/TESTFOLD')) == {f'A{str(i).upper()}' for i in range(256)}
 
@@ -87,7 +88,7 @@ class FatFSGen(unittest.TestCase):
     def test_empty_fat16() -> None:
         fatfs = fatfsgen.FATFS(size=17 * 1024 * 1024)
         fatfs.write_filesystem('fatfs_image.img')
-        run(['python', '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
 
     @staticmethod
     def test_chaining_fat16() -> None:
@@ -95,7 +96,7 @@ class FatFSGen(unittest.TestCase):
         fatfs.create_file('WRITEF', extension='TXT')
         fatfs.write_content(path_from_root=['WRITEF.TXT'], content=4096 * b'a' + b'a')
         fatfs.write_filesystem('fatfs_image.img')
-        run(['python', '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         with open('Espressif/WRITEF.TXT', 'rb') as in_:
             assert in_.read() == 4097 * b'a'
 
@@ -108,7 +109,7 @@ class FatFSGen(unittest.TestCase):
         fatfs.write_content(path_from_root=['TESTFOLD', 'A0'], content=b'first')
         fatfs.write_content(path_from_root=['TESTFOLD', 'A126'], content=b'later')
         fatfs.write_filesystem('fatfs_image.img')
-        run(['python', '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         assert set(os.listdir('Espressif')) == {'TESTFOLD'}
         assert set(os.listdir('Espressif/TESTFOLD')) == {f'A{str(i).upper()}' for i in range(128)}
         with open('Espressif/TESTFOLD/A0', 'rb') as in_:
@@ -133,20 +134,20 @@ class FatFSGen(unittest.TestCase):
         }
         generate_local_folder_structure(struct_, path_='.')
         run([
-            'python',
+            sys.executable,
             f'{os.path.join(os.path.dirname(__file__), "..", "fatfsgen.py")}',
             'testf'
         ], stderr=STDOUT)
-        run(['python', '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         assert compare_folders('testf', 'Espressif')
         shutil.rmtree('Espressif', ignore_errors=True)
 
         run([
-            'python',
+            sys.executable,
             f'{os.path.join(os.path.dirname(__file__), "..", "wl_fatfsgen.py")}',
             'testf'
         ], stderr=STDOUT)
-        run(['python', '../fatfsparse.py', '--wear-leveling', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         assert compare_folders('testf', 'Espressif')
 
     def test_e2e_deeper(self) -> None:
@@ -172,20 +173,20 @@ class FatFSGen(unittest.TestCase):
 
         generate_local_folder_structure(struct_, path_='.')
         run([
-            'python',
+            sys.executable,
             f'{os.path.join(os.path.dirname(__file__), "..", "fatfsgen.py")}',
             'testf'
         ], stderr=STDOUT)
-        run(['python', '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         assert compare_folders('testf', 'Espressif')
         shutil.rmtree('Espressif', ignore_errors=True)
 
         run([
-            'python',
+            sys.executable,
             f'{os.path.join(os.path.dirname(__file__), "..", "wl_fatfsgen.py")}',
             'testf'
         ], stderr=STDOUT)
-        run(['python', '../fatfsparse.py', '--wear-leveling', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         assert compare_folders('testf', 'Espressif')
 
     def test_e2e_deeper_large(self) -> None:
@@ -228,20 +229,20 @@ class FatFSGen(unittest.TestCase):
         }
         generate_local_folder_structure(struct_, path_='.')
         run([
-            'python',
+            sys.executable,
             f'{os.path.join(os.path.dirname(__file__), "..", "fatfsgen.py")}',
             'testf'
         ], stderr=STDOUT)
-        run(['python', '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         assert compare_folders('testf', 'Espressif')
         shutil.rmtree('Espressif', ignore_errors=True)
 
         run([
-            'python',
+            sys.executable,
             f'{os.path.join(os.path.dirname(__file__), "..", "wl_fatfsgen.py")}',
             'testf'
         ], stderr=STDOUT)
-        run(['python', '../fatfsparse.py', '--wear-leveling', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         assert compare_folders('testf', 'Espressif')
 
     def test_e2e_very_deep(self) -> None:
@@ -286,11 +287,11 @@ class FatFSGen(unittest.TestCase):
         }
         generate_local_folder_structure(struct_, path_='.')
         run([
-            'python',
+            sys.executable,
             f'{os.path.join(os.path.dirname(__file__), "..", "fatfsgen.py")}',
             'testf'
         ], stderr=STDOUT)
-        run(['python', '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         assert compare_folders('testf', 'Espressif')
 
     def test_e2e_very_deep_long(self) -> None:
@@ -316,12 +317,37 @@ class FatFSGen(unittest.TestCase):
         }
         generate_local_folder_structure(struct_, path_='.')
         run([
-            'python',
+            sys.executable,
             f'{os.path.join(os.path.dirname(__file__), "..", "fatfsgen.py")}',
             'testf', '--long_name_support'
         ], stderr=STDOUT)
-        run(['python', '../fatfsparse.py', 'fatfs_image.img', '--long-name-support'], stderr=STDOUT)
+        run([sys.executable, '../fatfsparse.py', 'fatfs_image.img'], stderr=STDOUT)
         assert compare_folders('testf', 'Espressif')
+
+    def test_parse_long_name(self) -> None:
+        self.assertEqual(
+            Entry.parse_entry_long(
+                b'\x01t\x00h\x00i\x00s\x00_\x00\x0f\x00\xfbi\x00s\x00_\x00l\x00o\x00n\x00\x00\x00g\x00_\x00', 251),
+            {
+                'order': 1,
+                'name1': b't\x00h\x00i\x00s\x00_\x00',
+                'name2': b'i\x00s\x00_\x00l\x00o\x00n\x00',
+                'name3': b'g\x00_\x00',
+                'is_last': False
+            }
+        )
+        self.assertEqual(
+            Entry.parse_entry_long(
+                b'\x01t\x00h\x00i\x00s\x00_\x00\x0f\x00\xfbi\x00s\x00_\x00l\x00o\x00n\x00\x00\x00g\x00_\x00', 252
+            ),
+            {}
+        )
+        self.assertEqual(
+            Entry.parse_entry_long(
+                b'\x01t\x00h\x00i\x00s\x00_\x00\x0f\x01\xfbi\x00s\x00_\x00l\x00o\x00n\x00\x00\x00g\x00_\x00', 251
+            ),
+            {}
+        )
 
 
 if __name__ == '__main__':

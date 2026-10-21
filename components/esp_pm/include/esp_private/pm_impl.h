@@ -1,16 +1,8 @@
-// Copyright 2016-2017 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #pragma once
 
@@ -23,7 +15,6 @@
 
 #include "soc/rtc.h"
 #include "esp_pm.h"
-#include "esp_timer.h"
 #include "sdkconfig.h"
 
 #ifdef __cplusplus
@@ -34,11 +25,11 @@ extern "C" {
  * This is an enum of possible power modes supported by the implementation
  */
 typedef enum {
-    PM_MODE_LIGHT_SLEEP,//!< Light sleep
-    PM_MODE_APB_MIN,    //!< Idle (no CPU frequency or APB frequency locks)
-    PM_MODE_APB_MAX,    //!< Maximum APB frequency mode
-    PM_MODE_CPU_MAX,    //!< Maximum CPU frequency mode
-    PM_MODE_COUNT       //!< Number of items
+    PM_MODE_LIGHT_SLEEP,      //!< Light sleep
+    PM_MODE_APB_MIN,          //!< Idle (no CPU frequency or APB frequency locks)
+    PM_MODE_APB_MAX,          //!< Maximum APB frequency mode
+    PM_MODE_CPU_MAX,          //!< Maximum CPU frequency mode
+    PM_MODE_COUNT             //!< Number of items
 } pm_mode_t;
 
 /**
@@ -149,60 +140,9 @@ esp_err_t esp_pm_register_skip_light_sleep_callback(skip_light_sleep_cb_t cb);
   */
 esp_err_t esp_pm_unregister_skip_light_sleep_callback(skip_light_sleep_cb_t cb);
 
-/**
- * @brief Callback function type for peripherals to know light sleep wakeup overhead.
- *
- */
-typedef void (* inform_out_light_sleep_overhead_cb_t)(uint32_t);
-
-/**
-  * @brief  Register informing peripherals light sleep wakeup overhead time callback
-  *
-  * This function allows you to register a callback that informs the peripherals of
-  * the wakeup overhead time of light sleep.
-  * @param cb function to inform time
-  * @return
-  *   - ESP_OK on success
-  *   - ESP_ERR_NO_MEM if no more callback slots are available
-  */
-esp_err_t esp_pm_register_inform_out_light_sleep_overhead_callback(inform_out_light_sleep_overhead_cb_t cb);
-
-/**
-  * @brief  Unregister informing peripherals light sleep wakeup overhead time callback
-  *
-  * This function allows you to unregister a callback that informs the peripherals of
-  * the wakeup overhead time of light sleep.
-  * @param cb function to inform time
-  * @return
-  *   - ESP_OK on success
-  *   - ESP_ERR_INVALID_STATE if the given callback hasn't been registered before
-  */
-esp_err_t esp_pm_unregister_inform_out_light_sleep_overhead_callback(inform_out_light_sleep_overhead_cb_t cb);
-
-/**
- * @brief Callback function type for peripherals to know light sleep default parameters
- */
-typedef void (* update_light_sleep_default_params_config_cb_t)(int, int);
-
-/**
- * @brief  Register peripherals light sleep default parameters configure callback
- *
- * This function allows you to register a callback that configure the peripherals
- * of default parameters of light sleep
- * @param cb function to update default parameters
- */
-void esp_pm_register_light_sleep_default_params_config_callback(update_light_sleep_default_params_config_cb_t cb);
-
-/**
- * @brief  Unregister peripherals light sleep default parameters configure Callback
- *
- * This function allows you to unregister a callback that configure the peripherals
- * of default parameters of light sleep
- */
-void esp_pm_unregister_light_sleep_default_params_config_callback(void);
-
 #ifdef CONFIG_PM_PROFILING
 #define WITH_PROFILING
+#include "esp_timer.h"
 #endif
 
 #ifdef WITH_PROFILING

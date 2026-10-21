@@ -1,7 +1,7 @@
 /*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 PROVIDE ( UART0 = 0x3ff40000 );
 PROVIDE ( SPI1 = 0x3ff42000 );
@@ -36,7 +36,6 @@ PROVIDE ( EMAC_DMA = 0x3ff69000 );
 PROVIDE ( EMAC_EXT = 0x3ff69800 );
 PROVIDE ( EMAC_MAC = 0x3ff6A000 );
 PROVIDE ( TWAI = 0x3ff6B000 );
-PROVIDE ( CAN = 0x3ff6B000 );
 PROVIDE ( MCPWM1 = 0x3ff6C000 );
 PROVIDE ( I2S1 = 0x3ff6D000 );
 PROVIDE ( UART2 = 0x3ff6E000 );

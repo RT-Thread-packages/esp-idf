@@ -1,15 +1,17 @@
 /*
- * SPDX-FileCopyrightText: 2018-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 
 #include <stdlib.h>
+#include <string.h>
 #include <sys/param.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <http_parser.h>
+#include <inttypes.h>
 
 #include <esp_http_server.h>
 #include "esp_httpd_priv.h"
@@ -63,27 +65,29 @@ static esp_err_t verify_url (http_parser *parser)
     const char *at = parser_data->last.at;
     size_t  length = parser_data->last.length;
 
-    if ((r->method = parser->method) < 0) {
-        ESP_LOGW(TAG, LOG_FMT("HTTP Operation not supported"));
+    r->method = parser->method;
+    if (r->method < 0) {
+        ESP_LOGW(TAG, LOG_FMT("HTTP method not supported (%d)"), r->method);
         parser_data->error = HTTPD_501_METHOD_NOT_IMPLEMENTED;
         return ESP_FAIL;
     }
 
     if (sizeof(r->uri) < (length + 1)) {
-        ESP_LOGW(TAG, LOG_FMT("URI length (%d) greater than supported (%d)"),
-                 length, sizeof(r->uri));
+        ESP_LOGW(TAG, LOG_FMT("URI length (%"NEWLIB_NANO_COMPAT_FORMAT") greater than supported (%"NEWLIB_NANO_COMPAT_FORMAT")"),
+                 NEWLIB_NANO_COMPAT_CAST(length), NEWLIB_NANO_COMPAT_CAST(sizeof(r->uri)));
         parser_data->error = HTTPD_414_URI_TOO_LONG;
         return ESP_FAIL;
     }
 
-    /* Keep URI with terminating null character. Note URI string pointed
+    /* Copy URI and append terminating null character. Note URI string pointed
      * by 'at' is not NULL terminated, therefore use length provided by
      * parser while copying the URI to buffer */
-    strlcpy((char *)r->uri, at, (length + 1));
+    memcpy((char *)r->uri, at, length);
+    ((char *)r->uri)[length] = '\0';
     ESP_LOGD(TAG, LOG_FMT("received URI = %s"), r->uri);
 
-    /* Make sure version is HTTP/1.1 */
-    if ((parser->http_major != 1) && (parser->http_minor != 1)) {
+    /* Make sure version is HTTP/1.1 or HTTP/1.0 (legacy compliance purpose) */
+    if (!((parser->http_major == 1) && ((parser->http_minor == 0) || (parser->http_minor == 1)))) {
         ESP_LOGW(TAG, LOG_FMT("unsupported HTTP version = %d.%d"),
                  parser->http_major, parser->http_minor);
         parser_data->error = HTTPD_505_VERSION_NOT_SUPPORTED;
@@ -92,7 +96,7 @@ static esp_err_t verify_url (http_parser *parser)
 
     /* Parse URL and keep result for later */
     http_parser_url_init(res);
-    if (http_parser_parse_url(r->uri, strlen(r->uri),
+    if (http_parser_parse_url(r->uri, length,
                               r->method == HTTP_CONNECT, res)) {
         ESP_LOGW(TAG, LOG_FMT("http_parser_parse_url failed with errno = %d"),
                               parser->http_errno);
@@ -103,12 +107,14 @@ static esp_err_t verify_url (http_parser *parser)
 }
 
 /* http_parser callback on finding url in HTTP request
- * Will be invoked ATLEAST once every packet
+ * Will be invoked AT LEAST once every packet
  */
 static esp_err_t cb_url(http_parser *parser,
                         const char *at, size_t length)
 {
     parser_data_t *parser_data = (parser_data_t *) parser->data;
+    httpd_req_t          *req   = parser_data->req;
+    struct httpd_req_aux *raux  = req->aux;
 
     if (parser_data->status == PARSING_IDLE) {
         ESP_LOGD(TAG, LOG_FMT("message begin"));
@@ -124,12 +130,12 @@ static esp_err_t cb_url(http_parser *parser,
         return ESP_FAIL;
     }
 
-    ESP_LOGD(TAG, LOG_FMT("processing url = %.*s"), length, at);
+    ESP_LOGD(TAG, LOG_FMT("processing url = %.*s"), (int)length, at);
 
     /* Update length of URL string */
-    if ((parser_data->last.length += length) > HTTPD_MAX_URI_LEN) {
-        ESP_LOGW(TAG, LOG_FMT("URI length (%d) greater than supported (%d)"),
-                 parser_data->last.length, HTTPD_MAX_URI_LEN);
+    if ((parser_data->last.length += length) > raux->max_uri_len) {
+        ESP_LOGW(TAG, LOG_FMT("URI length (%"NEWLIB_NANO_COMPAT_FORMAT") greater than supported (%d)"),
+                 NEWLIB_NANO_COMPAT_CAST(parser_data->last.length), raux->max_uri_len);
         parser_data->error = HTTPD_414_URI_TOO_LONG;
         parser_data->status = PARSING_FAILED;
         return ESP_FAIL;
@@ -147,7 +153,7 @@ static esp_err_t pause_parsing(http_parser *parser, const char* at)
      * and hence needs to be read again later for parsing */
     ssize_t unparsed = parser_data->raw_datalen - (at - ra->scratch);
     if (unparsed < 0) {
-        ESP_LOGE(TAG, LOG_FMT("parsing beyond valid data = %d"), -unparsed);
+        ESP_LOGE(TAG, LOG_FMT("parsing beyond valid data = %d"), (int)(-unparsed));
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -155,7 +161,7 @@ static esp_err_t pause_parsing(http_parser *parser, const char* at)
      * receiving again with httpd_recv_with_opt() later when
      * read_block() executes */
     if (unparsed && (unparsed != httpd_unrecv(r, at, unparsed))) {
-        ESP_LOGE(TAG, LOG_FMT("data too large for un-recv = %d"), unparsed);
+        ESP_LOGE(TAG, LOG_FMT("data too large for un-recv = %d"), (int)unparsed);
         return ESP_FAIL;
     }
 
@@ -179,7 +185,7 @@ static size_t continue_parsing(http_parser *parser, size_t length)
      * so we must skip that before parsing resumes */
     length = MIN(length, data->pre_parsed);
     data->pre_parsed -= length;
-    ESP_LOGD(TAG, LOG_FMT("skip pre-parsed data of size = %d"), length);
+    ESP_LOGD(TAG, LOG_FMT("skip pre-parsed data of size = %"NEWLIB_NANO_COMPAT_FORMAT), NEWLIB_NANO_COMPAT_CAST(length));
 
     http_parser_pause(parser, 0);
     data->paused = false;
@@ -188,7 +194,7 @@ static size_t continue_parsing(http_parser *parser, size_t length)
 }
 
 /* http_parser callback on header field in HTTP request
- * May be invoked ATLEAST once every header field
+ * May be invoked AT LEAST once every header field
  */
 static esp_err_t cb_header_field(http_parser *parser, const char *at, size_t length)
 {
@@ -212,6 +218,7 @@ static esp_err_t cb_header_field(http_parser *parser, const char *at, size_t len
         parser_data->last.at     = ra->scratch;
         parser_data->last.length = 0;
         parser_data->status      = PARSING_HDR_FIELD;
+        ra->scratch_size_limit   = ra->max_req_hdr_len;
 
         /* Stop parsing for now and give control to process */
         if (pause_parsing(parser, at) != ESP_OK) {
@@ -229,6 +236,7 @@ static esp_err_t cb_header_field(http_parser *parser, const char *at, size_t len
         parser_data->last.at     = at;
         parser_data->last.length = 0;
         parser_data->status      = PARSING_HDR_FIELD;
+        ra->scratch_size_limit   = ra->max_req_hdr_len;
 
         /* Increment header count */
         ra->req_hdrs_count++;
@@ -239,7 +247,7 @@ static esp_err_t cb_header_field(http_parser *parser, const char *at, size_t len
         return ESP_FAIL;
     }
 
-    ESP_LOGD(TAG, LOG_FMT("processing field = %.*s"), length, at);
+    ESP_LOGD(TAG, LOG_FMT("processing field = %.*s"), (int)length, at);
 
     /* Update length of header string */
     parser_data->last.length += length;
@@ -247,7 +255,7 @@ static esp_err_t cb_header_field(http_parser *parser, const char *at, size_t len
 }
 
 /* http_parser callback on header value in HTTP request.
- * May be invoked ATLEAST once every header value
+ * May be invoked AT LEAST once every header value
  */
 static esp_err_t cb_header_value(http_parser *parser, const char *at, size_t length)
 {
@@ -283,7 +291,7 @@ static esp_err_t cb_header_value(http_parser *parser, const char *at, size_t len
         return ESP_FAIL;
     }
 
-    ESP_LOGD(TAG, LOG_FMT("processing value = %.*s"), length, at);
+    ESP_LOGD(TAG, LOG_FMT("processing value = %.*s"), (int)length, at);
 
     /* Update length of header string */
     parser_data->last.length += length;
@@ -363,8 +371,8 @@ static esp_err_t cb_headers_complete(http_parser *parser)
     r->content_len = ((int)parser->content_length != -1 ?
                       parser->content_length : 0);
 
-    ESP_LOGD(TAG, LOG_FMT("bytes read     = %d"),  parser->nread);
-    ESP_LOGD(TAG, LOG_FMT("content length = %zu"), r->content_len);
+    ESP_LOGD(TAG, LOG_FMT("bytes read     = %" PRId32 ""),  parser->nread);
+    ESP_LOGD(TAG, LOG_FMT("content length = %"NEWLIB_NANO_COMPAT_FORMAT), NEWLIB_NANO_COMPAT_CAST(r->content_len));
 
     /* Handle upgrade requests - only WebSocket is supported for now */
     if (parser->upgrade) {
@@ -400,6 +408,9 @@ static esp_err_t cb_headers_complete(http_parser *parser)
 
     parser_data->status = PARSING_BODY;
     ra->remaining_len = r->content_len;
+    struct httpd_data *hd = (struct httpd_data *) r->handle;
+    hd->http_server_state = HTTP_SERVER_EVENT_ON_HEADER;
+    esp_http_server_dispatch_event(HTTP_SERVER_EVENT_ON_HEADER, &(ra->sd->fd), sizeof(int));
     return ESP_OK;
 }
 
@@ -476,16 +487,37 @@ static esp_err_t cb_no_body(http_parser *parser)
     return ESP_OK;
 }
 
-static int read_block(httpd_req_t *req, size_t offset, size_t length)
+static int read_block(httpd_req_t *req, http_parser *parser, size_t offset, size_t length)
 {
     struct httpd_req_aux *raux  = req->aux;
+    parser_data_t *parser_data = (parser_data_t *) parser->data;
 
     /* Limits the read to scratch buffer size */
-    ssize_t buf_len = MIN(length, (sizeof(raux->scratch) - offset));
+    ssize_t buf_len = MIN(length, (raux->scratch_size_limit - offset));
     if (buf_len <= 0) {
         return 0;
     }
-
+    /* Calculate the offset of the current position from the start of the buffer,
+     * as after reallocating the buffer, the base address of the buffer may change.
+     */
+    size_t at_offset = parser_data->last.at - raux->scratch;
+    /* Allocate the buffer according to offset and buf_len. Offset is
+       from where the reading will start and buf_len is till what length
+       the buffer will be read.
+    */
+    char *new_scratch = (char *) realloc(raux->scratch, offset + buf_len);
+    if (new_scratch == NULL) {
+        free(raux->scratch);
+        raux->scratch = NULL;
+        /* Set last.at to NULL to avoid accidental dereference of dangling pointer */
+        parser_data->last.at = NULL;
+        ESP_LOGE(TAG, "Unable to allocate the scratch buffer");
+        return 0;
+    }
+    raux->scratch = new_scratch;
+    parser_data->last.at = raux->scratch + at_offset;
+    raux->scratch_cur_size = offset + buf_len;
+    ESP_LOGD(TAG, "scratch buf qsize = %d", raux->scratch_cur_size);
     /* Receive data into buffer. If data is pending (from unrecv) then return
      * immediately after receiving pending data, as pending data may just complete
      * this request packet. */
@@ -529,13 +561,14 @@ static int parse_block(http_parser *parser, size_t offset, size_t length)
          * parse means no more space left on buffer,
          * therefore it can be inferred that the
          * request URI/header must be too long */
-        ESP_LOGW(TAG, LOG_FMT("request URI/header too long"));
         switch (data->status) {
             case PARSING_URL:
+                ESP_LOGW(TAG, LOG_FMT("request URI too long"));
                 data->error = HTTPD_414_URI_TOO_LONG;
                 break;
             case PARSING_HDR_FIELD:
             case PARSING_HDR_VALUE:
+                ESP_LOGW(TAG, LOG_FMT("request header too long"));
                 data->error = HTTPD_431_REQ_HDR_FIELDS_TOO_LARGE;
                 break;
             default:
@@ -579,14 +612,14 @@ static int parse_block(http_parser *parser, size_t offset, size_t length)
         /* http_parser error */
         data->error  = HTTPD_400_BAD_REQUEST;
         data->status = PARSING_FAILED;
-        ESP_LOGW(TAG, LOG_FMT("incomplete (%d/%d) with parser error = %d"),
-                 nparsed, length, parser->http_errno);
+        ESP_LOGW(TAG, LOG_FMT("incomplete (%"NEWLIB_NANO_COMPAT_FORMAT"/%"NEWLIB_NANO_COMPAT_FORMAT") with parser error = %d"),
+                 NEWLIB_NANO_COMPAT_CAST(nparsed), NEWLIB_NANO_COMPAT_CAST(length), parser->http_errno);
         return -1;
     }
 
     /* Return with the total length of the request packet
      * that has been parsed till now */
-    ESP_LOGD(TAG, LOG_FMT("parsed block size = %d"), offset + nparsed);
+    ESP_LOGD(TAG, LOG_FMT("parsed block size = %"NEWLIB_NANO_COMPAT_FORMAT), NEWLIB_NANO_COMPAT_CAST((offset + nparsed)));
     return offset + nparsed;
 }
 
@@ -618,8 +651,8 @@ static esp_err_t httpd_parse_req(struct httpd_data *hd)
 {
     httpd_req_t *r = &hd->hd_req;
     int blk_len,  offset;
-    http_parser   parser;
-    parser_data_t parser_data;
+    http_parser   parser = {};
+    parser_data_t parser_data = {};
 
     /* Initialize parser */
     parse_init(r, &parser, &parser_data);
@@ -628,7 +661,7 @@ static esp_err_t httpd_parse_req(struct httpd_data *hd)
     offset = 0;
     do {
         /* Read block into scratch buffer */
-        if ((blk_len = read_block(r, offset, PARSER_BLOCK_SIZE)) < 0) {
+        if ((blk_len = read_block(r, &parser, offset, PARSER_BLOCK_SIZE)) < 0) {
             if (blk_len == HTTPD_SOCK_ERR_TIMEOUT) {
                 /* Retry read in case of non-fatal timeout error.
                  * read_block() ensures that the timeout error is
@@ -675,13 +708,17 @@ static void init_req(httpd_req_t *r, httpd_config_t *config)
 static void init_req_aux(struct httpd_req_aux *ra, httpd_config_t *config)
 {
     ra->sd = 0;
-    memset(ra->scratch, 0, sizeof(ra->scratch));
     ra->remaining_len = 0;
     ra->status = 0;
     ra->content_type = 0;
     ra->first_chunk_sent = 0;
     ra->req_hdrs_count = 0;
     ra->resp_hdrs_count = 0;
+    ra->scratch = NULL;
+    ra->scratch_cur_size = 0;
+    ra->max_req_hdr_len = (config->max_req_hdr_len > 0) ? config->max_req_hdr_len : CONFIG_HTTPD_MAX_REQ_HDR_LEN;
+    ra->max_uri_len = (config->max_uri_len > 0) ? config->max_uri_len : CONFIG_HTTPD_MAX_URI_LEN;
+    ra->scratch_size_limit = ra->max_uri_len;
 #if CONFIG_HTTPD_WS_SUPPORT
     ra->ws_handshake_detect = false;
 #endif
@@ -694,7 +731,7 @@ static void httpd_req_cleanup(httpd_req_t *r)
 
     /* Check if the context has changed and needs to be cleared */
     if ((r->ignore_sess_ctx_changes == false) && (ra->sd->ctx != r->sess_ctx)) {
-        httpd_sess_free_ctx(ra->sd->ctx, ra->sd->free_ctx);
+        httpd_sess_free_ctx(&ra->sd->ctx, ra->sd->free_ctx);
     }
 
 #if CONFIG_HTTPD_WS_SUPPORT
@@ -712,6 +749,10 @@ static void httpd_req_cleanup(httpd_req_t *r)
 
     /* Clear out the request and request_aux structures */
     ra->sd = NULL;
+    free(ra->scratch);
+    ra->scratch = NULL;
+    ra->scratch_size_limit = 0;
+    ra->scratch_cur_size = 0;
     r->handle = NULL;
     r->aux = NULL;
     r->user_ctx = NULL;
@@ -770,9 +811,16 @@ esp_err_t httpd_req_new(struct httpd_data *hd, struct sock_db *sd)
             ESP_LOGD(TAG, LOG_FMT("Received PONG frame"));
         }
 
-        /* Call handler if it's a non-control frame (or if handler requests control frames, as well) */
+        /* Call handler if it's a non-control frame, a PONG frame,
+         * or if handler requests control frames as well.
+         * PONG must be dispatched so that:
+         *  1. User code that sends PINGs can track responses (heartbeat)
+         *  2. The PONG frame bytes are consumed from the socket via
+         *     httpd_ws_recv_frame(), preventing TCP stream misalignment */
         if (ret == ESP_OK &&
-            (ra->ws_type < HTTPD_WS_TYPE_CLOSE || sd->ws_control_frames)) {
+            (ra->ws_type < HTTPD_WS_TYPE_CLOSE ||
+             ra->ws_type == HTTPD_WS_TYPE_PONG ||
+             sd->ws_control_frames)) {
             ret = sd->ws_handler(r);
         }
 
@@ -847,12 +895,13 @@ bool httpd_validate_req_ptr(httpd_req_t *r)
 /* Helper function to get a URL query tag from a query string of the type param1=val1&param2=val2 */
 esp_err_t httpd_query_key_value(const char *qry_str, const char *key, char *val, size_t val_size)
 {
-    if (qry_str == NULL || key == NULL || val == NULL) {
+    /* Reject a zero-size output buffer: val_size - 1 below would underflow to SIZE_MAX,
+     * defeating the truncation check and overflowing the caller's buffer (CWE-191/CWE-787). */
+    if (qry_str == NULL || key == NULL || val == NULL || val_size == 0) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    const char   *qry_ptr = qry_str;
-    const size_t  buf_len = val_size;
+    const char *qry_ptr = qry_str;
 
     while (strlen(qry_ptr)) {
         /* Search for the '=' character. Else, it would mean
@@ -886,16 +935,18 @@ esp_err_t httpd_query_key_value(const char *qry_str, const char *key, char *val,
             qry_ptr = val_ptr + strlen(val_ptr);
         }
 
-        /* Update value length, including one byte for null */
-        val_size = qry_ptr - val_ptr + 1;
+        /* Query value length does not include terminating null */
+        size_t val_len = qry_ptr - val_ptr;
 
         /* Copy value to the caller's buffer. */
-        strlcpy(val, val_ptr, MIN(val_size, buf_len));
-
+        size_t copy_len = MIN(val_len, val_size - 1);
         /* If buffer length is smaller than needed, return truncation error */
-        if (buf_len < val_size) {
+        if (copy_len < val_len) {
             return ESP_ERR_HTTPD_RESULT_TRUNC;
         }
+        memcpy(val, val_ptr, copy_len);
+        val[copy_len] = '\0';
+
         return ESP_OK;
     }
     ESP_LOGD(TAG, LOG_FMT("key %s not found"), key);
@@ -912,6 +963,11 @@ size_t httpd_req_get_url_query_len(httpd_req_t *r)
         return 0;
     }
 
+    if (r->uri[0] == '\0') {
+        ESP_LOGD(TAG, "uri is empty");
+        return 0;
+    }
+
     struct httpd_req_aux   *ra  = r->aux;
     struct http_parser_url *res = &ra->url_parse_res;
 
@@ -924,12 +980,19 @@ size_t httpd_req_get_url_query_len(httpd_req_t *r)
 
 esp_err_t httpd_req_get_url_query_str(httpd_req_t *r, char *buf, size_t buf_len)
 {
-    if (r == NULL || buf == NULL) {
+    /* Reject a zero-size output buffer: buf_len - 1 below would underflow to SIZE_MAX,
+     * defeating the truncation check and overflowing the caller's buffer (CWE-191/CWE-787). */
+    if (r == NULL || buf == NULL || buf_len == 0) {
         return ESP_ERR_INVALID_ARG;
     }
 
     if (!httpd_valid_req(r)) {
         return ESP_ERR_HTTPD_INVALID_REQ;
+    }
+
+    if (r->uri[0] == '\0') {
+        ESP_LOGD(TAG, "uri is empty");
+        return ESP_FAIL;
     }
 
     struct httpd_req_aux   *ra  = r->aux;
@@ -939,14 +1002,17 @@ esp_err_t httpd_req_get_url_query_str(httpd_req_t *r, char *buf, size_t buf_len)
     if (res->field_set & (1 << UF_QUERY)) {
         const char *qry = r->uri + res->field_data[UF_QUERY].off;
 
-        /* Minimum required buffer len for keeping
-         * null terminated query string */
-        size_t min_buf_len = res->field_data[UF_QUERY].len + 1;
+        /* Query data length does not include terminating null */
+        size_t data_len = res->field_data[UF_QUERY].len;
 
-        strlcpy(buf, qry, MIN(buf_len, min_buf_len));
-        if (buf_len < min_buf_len) {
+        /* Copy data to the caller's buffer. */
+        size_t copy_len = MIN(data_len, buf_len - 1);
+        if (copy_len < data_len) {
             return ESP_ERR_HTTPD_RESULT_TRUNC;
         }
+        memcpy(buf, qry, copy_len);
+        buf[copy_len] = '\0';
+
         return ESP_OK;
     }
     return ESP_ERR_NOT_FOUND;
@@ -1021,7 +1087,6 @@ esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r, const char *field, char *v
     struct httpd_req_aux *ra = r->aux;
     const char   *hdr_ptr = ra->scratch;         /*!< Request headers are kept in scratch buffer */
     unsigned     count    = ra->req_hdrs_count;  /*!< Count set during parsing  */
-    const size_t buf_len  = val_size;
 
     while (count--) {
         /* Search for the ':' character. Else, it would mean
@@ -1059,14 +1124,13 @@ esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r, const char *field, char *v
             val_ptr++;
         }
 
-        /* Get the NULL terminated value and copy it to the caller's buffer. */
-        strlcpy(val, val_ptr, buf_len);
-
-        /* Update value length, including one byte for null */
-        val_size = strlen(val_ptr) + 1;
+        /* Get the NULL terminated value and copy it to the caller's buffer.
+         * Note `strlcpy()` will always return the size of the source string
+         * including terminimating null.*/
+        size_t full_size = strlcpy(val, val_ptr, val_size);
 
         /* If buffer length is smaller than needed, return truncation error */
-        if (buf_len < val_size) {
+        if (val_size < full_size) {
             return ESP_ERR_HTTPD_RESULT_TRUNC;
         }
         return ESP_OK;
@@ -1077,13 +1141,14 @@ esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r, const char *field, char *v
 /* Helper function to get a cookie value from a cookie string of the type "cookie1=val1; cookie2=val2" */
 esp_err_t static httpd_cookie_key_value(const char *cookie_str, const char *key, char *val, size_t *val_size)
 {
-    if (cookie_str == NULL || key == NULL || val == NULL) {
+    /* Reject a NULL or zero-size output buffer: *val_size - 1 below would underflow to
+     * SIZE_MAX, defeating the truncation check and overflowing the caller's buffer
+     * (CWE-191/CWE-787). val_size is also dereferenced below, so it must be non-NULL. */
+    if (cookie_str == NULL || key == NULL || val == NULL || val_size == NULL || *val_size == 0) {
         return ESP_ERR_INVALID_ARG;
     }
 
     const char *cookie_ptr = cookie_str;
-    const size_t buf_len = *val_size;
-    size_t _val_size = *val_size;
 
     while (strlen(cookie_ptr)) {
         /* Search for the '=' character. Else, it would mean
@@ -1116,19 +1181,22 @@ esp_err_t static httpd_cookie_key_value(const char *cookie_str, const char *key,
             cookie_ptr = val_ptr + strlen(val_ptr);
         }
 
-        /* Update value length, including one byte for null */
-        _val_size = cookie_ptr - val_ptr + 1;
+        /* Cookie value length does not include terminating null */
+        size_t val_len = cookie_ptr - val_ptr;
 
         /* Copy value to the caller's buffer. */
-        strlcpy(val, val_ptr, MIN(_val_size, buf_len));
+        size_t copy_len = MIN(val_len, *val_size - 1);
+
+        /* Save actual Cookie value size (including terminating null) */
+        *val_size = val_len + 1;
 
         /* If buffer length is smaller than needed, return truncation error */
-        if (buf_len < _val_size) {
-            *val_size = _val_size;
+        if (copy_len < val_len) {
             return ESP_ERR_HTTPD_RESULT_TRUNC;
         }
-        /* Save amount of bytes copied to caller's buffer */
-        *val_size = MIN(_val_size, buf_len);
+        memcpy(val, val_ptr, copy_len);
+        val[copy_len] = '\0';
+
         return ESP_OK;
     }
     ESP_LOGD(TAG, LOG_FMT("cookie %s not found"), key);
@@ -1161,4 +1229,49 @@ esp_err_t httpd_req_get_cookie_val(httpd_req_t *req, const char *cookie_name, ch
     free(cookie_str);
     return ret;
 
+}
+
+/* Get the length of the raw request data received from the client.
+ */
+size_t httpd_get_raw_req_data_len(httpd_req_t *req)
+{
+    if (req == NULL) {
+        return 0;
+    }
+    struct httpd_req_aux *ra = req->aux;
+    return ra->scratch_cur_size;
+}
+
+/* Get the raw request data, which contains the raw HTTP request headers and
+ * URI related information. Internally, the httpd_parse.c file uses a scratch buffer
+ * to store the original HTTP request data exactly as received from the client.
+ * This function returns the contents of this scratch buffer.
+ *
+ * NOTE - This function returns different data for different http server states.
+ * 1. HTTP_SERVER_EVENT_ON_CONNECTED - Returns the data containing information related to URI and headers.
+ * 2. HTTP_SERVER_EVENT_ON_HEADER - Returns the data containing information related to only headers.
+ * 3. HTTP_SERVER_EVENT_ON_DATA - Returns the data containing information related to only headers.
+ * 4. HTTP_SERVER_EVENT_SENT_DATA - Returns the data containing information related to only headers.
+ * 5. HTTP_SERVER_EVENT_DISCONNECTED - Returns the data containing information related to only headers.
+ * 6. HTTP_SERVER_EVENT_STOP - Returns the data containing information related to only headers.
+ */
+esp_err_t httpd_get_raw_req_data(httpd_req_t *req, char *buf, size_t buf_len)
+{
+    if (req == NULL || buf == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (buf_len == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (req->aux == NULL) {
+        ESP_LOGW(TAG, "Request auxiliary data is NULL for URI: [%s]", req->uri ? req->uri : "(null)");
+        return ESP_ERR_INVALID_ARG;
+    }
+    struct httpd_req_aux *ra = req->aux;
+    /* The caller controls buf_len; a value larger than the valid scratch data would read
+     * past the scratch allocation (CWE-125). Clamp to scratch_cur_size. Callers should query
+     * the available length with httpd_get_raw_req_data_len() before calling this. */
+    size_t copy_len = MIN(buf_len, ra->scratch_cur_size);
+    memcpy(buf, ra->scratch, copy_len);
+    return ESP_OK;
 }

@@ -1,15 +1,13 @@
 /*
- * SPDX-FileCopyrightText: 2020-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-#ifndef _DPORT_ACCESS_H_
-#define _DPORT_ACCESS_H_
+#pragma once
 
 #include <stdint.h>
-#include "soc.h"
-#include "soc/uart_reg.h"
+#include "soc/soc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -108,5 +106,3 @@ void esp_dport_access_read_buffer(uint32_t *buff_out, uint32_t address, uint32_t
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* _DPORT_ACCESS_H_ */

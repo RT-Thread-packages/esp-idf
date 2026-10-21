@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2019-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2019-2023 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -33,32 +33,60 @@ extern "C" {
 #define ESP_ERR_WIFI_WPS_TYPE    (ESP_ERR_WIFI_BASE + 52)  /*!< WPS type error */
 #define ESP_ERR_WIFI_WPS_SM      (ESP_ERR_WIFI_BASE + 53)  /*!< WPS state machine is not initialized */
 
+/**
+ * @brief Enumeration of WPS (Wi-Fi Protected Setup) types.
+ */
 typedef enum wps_type {
-    WPS_TYPE_DISABLE = 0,
-    WPS_TYPE_PBC,
-    WPS_TYPE_PIN,
-    WPS_TYPE_MAX,
+    WPS_TYPE_DISABLE = 0,   /**< WPS is disabled */
+    WPS_TYPE_PBC,           /**< WPS Push Button Configuration method */
+    WPS_TYPE_PIN,           /**< WPS PIN (Personal Identification Number) method */
+    WPS_TYPE_MAX            /**< Maximum value for WPS type enumeration */
 } wps_type_t;
 
-#define WPS_MAX_MANUFACTURER_LEN 65
-#define WPS_MAX_MODEL_NUMBER_LEN 33
-#define WPS_MAX_MODEL_NAME_LEN   33
-#define WPS_MAX_DEVICE_NAME_LEN  33
+#define WPS_MAX_MANUFACTURER_LEN 65  /**< Maximum length of the manufacturer name in WPS information */
+#define WPS_MAX_MODEL_NUMBER_LEN 33  /**< Maximum length of the model number in WPS information */
+#define WPS_MAX_MODEL_NAME_LEN   33  /**< Maximum length of the model name in WPS information */
+#define WPS_MAX_DEVICE_NAME_LEN  33  /**< Maximum length of the device name in WPS information */
 
+/**
+ * @brief Structure representing WPS factory information for ESP device.
+ *
+ * This structure holds various strings representing factory information for a device, such as the manufacturer,
+ * model number, model name, and device name. Each string is a null-terminated character array. If any of the
+ * strings are empty, the default values are used.
+ */
 typedef struct {
-    char manufacturer[WPS_MAX_MANUFACTURER_LEN]; /*!< Manufacturer, null-terminated string. The default manufcturer is used if the string is empty */
-    char model_number[WPS_MAX_MODEL_NUMBER_LEN]; /*!< Model number, null-terminated string. The default model number is used if the string is empty */
-    char model_name[WPS_MAX_MODEL_NAME_LEN];     /*!< Model name, null-terminated string. The default model name is used if the string is empty */
-    char device_name[WPS_MAX_DEVICE_NAME_LEN];   /*!< Device name, null-terminated string. The default device name is used if the string is empty */
+    char manufacturer[WPS_MAX_MANUFACTURER_LEN]; /*!< Manufacturer of the device. If empty, the default manufacturer is used. */
+    char model_number[WPS_MAX_MODEL_NUMBER_LEN]; /*!< Model number of the device. If empty, the default model number is used. */
+    char model_name[WPS_MAX_MODEL_NAME_LEN];     /*!< Model name of the device. If empty, the default model name is used. */
+    char device_name[WPS_MAX_DEVICE_NAME_LEN];   /*!< Device name. If empty, the default device name is used. */
 } wps_factory_information_t;
 
-#define PIN_LEN 9
+#define PIN_LEN 9 /*!< The length of the WPS PIN (Personal Identification Number). */
+/**
+ * @brief Structure representing configuration settings for WPS (Wi-Fi Protected Setup).
+ *
+ * This structure encapsulates various configuration settings for WPS, including the WPS type (PBC or PIN),
+ * factory information that will be shown in the WPS Information Element (IE), and a PIN if the WPS type is
+ * set to PIN.
+ */
 typedef struct {
-    wps_type_t wps_type;
-    wps_factory_information_t factory_info;
-    char pin[PIN_LEN];
+    wps_type_t wps_type;  /*!< The type of WPS to be used (PBC or PIN). */
+    wps_factory_information_t factory_info; /*!< Factory information to be shown in the WPS Information Element (IE). Vendor can choose to display their own information. */
+    char pin[PIN_LEN];   /*!< WPS PIN (Personal Identification Number) used when wps_type is set to WPS_TYPE_PIN. */
 } esp_wps_config_t;
 
+/**
+ * @def WPS_CONFIG_INIT_DEFAULT(type)
+ * @brief Initialize a default WPS configuration structure with specified WPS type.
+ *
+ * This macro initializes a `esp_wps_config_t` structure with default values for the specified WPS type.
+ * It sets the WPS type, factory information (including default manufacturer, model number, model name, and device name),
+ * and a default PIN value if applicable.
+ *
+ * @param type The WPS type to be used (PBC or PIN).
+ * @return An initialized `esp_wps_config_t` structure with the specified WPS type and default values.
+ */
 #define WPS_CONFIG_INIT_DEFAULT(type) { \
     .wps_type = type, \
     .factory_info = {   \
@@ -73,9 +101,7 @@ typedef struct {
 /**
   * @brief     Enable Wi-Fi WPS function.
   *
-  * @attention WPS can only be used when station is enabled.
-  *
-  * @param     wps_type_t wps_type : WPS type, so far only WPS_TYPE_PBC and WPS_TYPE_PIN is supported
+  * @param     config : WPS config to be used in connection
   *
   * @return
   *          - ESP_OK : succeed
@@ -88,8 +114,6 @@ esp_err_t esp_wifi_wps_enable(const esp_wps_config_t *config);
 /**
   * @brief  Disable Wi-Fi WPS function and release resource it taken.
   *
-  * @param  null
-  *
   * @return
   *          - ESP_OK : succeed
   *          - ESP_ERR_WIFI_WPS_MODE : wifi is not in station mode or sniffer mode is on
@@ -97,13 +121,9 @@ esp_err_t esp_wifi_wps_enable(const esp_wps_config_t *config);
 esp_err_t esp_wifi_wps_disable(void);
 
 /**
-  * @brief     WPS starts to work.
+  * @brief     Start WPS session.
   *
-  * @attention WPS can only be used when station is enabled.
-  *
-  * @param     timeout_ms : maximum blocking time before API return.
-  *          - 0 : non-blocking
-  *          - 1~120000 : blocking time (not supported in IDF v1.0)
+  * @attention WPS can only be used when station is enabled. WPS needs to be enabled first for using this API.
   *
   * @return
   *          - ESP_OK : succeed
@@ -112,14 +132,14 @@ esp_err_t esp_wifi_wps_disable(void);
   *          - ESP_ERR_WIFI_WPS_SM : wps state machine is not initialized
   *          - ESP_FAIL : wps initialization fails
   */
-esp_err_t esp_wifi_wps_start(int timeout_ms);
+esp_err_t esp_wifi_wps_start(void);
 
 /**
   * @brief     Enable Wi-Fi AP WPS function.
   *
   * @attention WPS can only be used when softAP is enabled.
   *
-  * @param     wps_type_t wps_type : WPS type, so far only WPS_TYPE_PBC and WPS_TYPE_PIN is supported
+  * @param     config: wps configuration to be used.
   *
   * @return
   *          - ESP_OK : succeed
@@ -132,8 +152,6 @@ esp_err_t esp_wifi_ap_wps_enable(const esp_wps_config_t *config);
 /**
   * @brief  Disable Wi-Fi SoftAP WPS function and release resource it taken.
   *
-  * @param  null
-  *
   * @return
   *          - ESP_OK : succeed
   *          - ESP_ERR_WIFI_WPS_MODE : wifi is not in station mode or sniffer mode is on
@@ -145,6 +163,10 @@ esp_err_t esp_wifi_ap_wps_disable(void);
   *
   * @attention WPS can only be used when softAP is enabled.
   *
+  * @param  pin : Pin to be used in case of WPS mode is pin.
+  *               If Pin is not provided, device will use the pin generated/provided
+  *               during esp_wifi_ap_wps_enable() and reported in WIFI_EVENT_AP_WPS_RG_PIN
+  *
   * @return
   *          - ESP_OK : succeed
   *          - ESP_ERR_WIFI_WPS_TYPE : wps type is invalid
@@ -153,7 +175,6 @@ esp_err_t esp_wifi_ap_wps_disable(void);
   *          - ESP_FAIL : wps initialization fails
   */
 esp_err_t esp_wifi_ap_wps_start(const unsigned char *pin);
-
 
 /**
   * @}

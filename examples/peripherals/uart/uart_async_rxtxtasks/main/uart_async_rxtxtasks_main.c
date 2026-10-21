@@ -16,12 +16,13 @@
 
 static const int RX_BUF_SIZE = 1024;
 
-#define TXD_PIN (GPIO_NUM_4)
-#define RXD_PIN (GPIO_NUM_5)
+#define TXD_PIN (CONFIG_EXAMPLE_UART_TXD)
+#define RXD_PIN (CONFIG_EXAMPLE_UART_RXD)
 
-void init(void) {
+void init(void)
+{
     const uart_config_t uart_config = {
-        .baud_rate = 115200,
+        .baud_rate = CONFIG_EXAMPLE_UART_BAUD_RATE,
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
@@ -56,7 +57,7 @@ static void rx_task(void *arg)
 {
     static const char *RX_TASK_TAG = "RX_TASK";
     esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
-    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE+1);
+    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1);
     while (1) {
         const int rxBytes = uart_read_bytes(UART_NUM_1, data, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
         if (rxBytes > 0) {
@@ -71,6 +72,6 @@ static void rx_task(void *arg)
 void app_main(void)
 {
     init();
-    xTaskCreate(rx_task, "uart_rx_task", 1024*2, NULL, configMAX_PRIORITIES, NULL);
-    xTaskCreate(tx_task, "uart_tx_task", 1024*2, NULL, configMAX_PRIORITIES-1, NULL);
+    xTaskCreate(rx_task, "uart_rx_task", CONFIG_EXAMPLE_TASK_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
+    xTaskCreate(tx_task, "uart_tx_task", CONFIG_EXAMPLE_TASK_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
 }

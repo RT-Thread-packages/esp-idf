@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,7 +20,6 @@
 #include "freertos/FreeRTOS.h"
 #include "esp_app_format.h"
 #include "esp_core_dump_types.h"
-#include "esp_core_dump_port_impl.h"
 #include "esp_core_dump.h"
 
 #ifdef __cplusplus
@@ -40,8 +39,10 @@ uint16_t esp_core_dump_get_arch_id(void);
  *
  * @param info Pointer to the panic information. It contains the execution
  *             frame.
+ * @param isr_context A flag indicating whether the crash happened within an ISR context.
+ *                    Set to 1 if the crash occurred in an ISR, and 0 otherwise.
  */
-void esp_core_dump_port_init(panic_info_t *info);
+void esp_core_dump_port_init(panic_info_t *info, bool isr_context);
 
 /**
  * @brief Reset fake stacks allocator, if any.
@@ -58,14 +59,12 @@ void esp_core_dump_reset_fake_stacks(void);
  */
 uint32_t esp_core_dump_get_isr_stack_end(void);
 
-
 /**
  * @brief Get the top of the ISR stack.
  *
  * @return Pointer to the top of the ISR stack.
  */
 uint8_t* esp_core_dump_get_isr_stack_top(void);
-
 
 /**
  * @brief Check the stack defined by address given.
@@ -76,7 +75,6 @@ uint8_t* esp_core_dump_get_isr_stack_top(void);
  */
 bool esp_core_dump_check_stack(core_dump_task_header_t *task);
 
-
 /**
  * @brief Check if the memory segment is sane.
  *
@@ -86,7 +84,6 @@ bool esp_core_dump_check_stack(core_dump_task_header_t *task);
  * @return true if the memory segment is sane, false else.
  */
 bool esp_core_dump_mem_seg_is_sane(uint32_t addr, uint32_t sz);
-
 
 /**
  * @brief Get the stack of a task.
@@ -102,29 +99,27 @@ bool esp_core_dump_mem_seg_is_sane(uint32_t addr, uint32_t sz);
 uint32_t esp_core_dump_get_stack(core_dump_task_header_t* task_snapshot,
                                  uint32_t* stk_vaddr, uint32_t* stk_paddr);
 
-
 /**
  * @brief Check the task passed as a parameter.
  *
  * @note The goal of this function is to check whether the task passed is the
  *       task that crashed or not. If this is the case and if it didn't crash
  *       within an ISR, its stack pointer will be set to the panic frame,
- *       containing all the registers values when the error occured. This
+ *       containing all the registers values when the error occurred. This
  *       function also checks if the TCB address is sane or not.
  *
- * @param task Pointer to the frame exception generated when the panic occured.
+ * @param task Pointer to the frame exception generated when the panic occurred.
  *
  * @return True if the TCB is sane, false else.
  */
 bool esp_core_dump_check_task(core_dump_task_header_t *task);
-
 
 /**
  * @brief Get a dump of the task's registers.
  *
  * @note In practice, this function is used to fill the ELF file with the
  *       PR_STATUS sections for all the existing tasks. This structure
- *       contains the CPU registers value when the exception occured.
+ *       contains the CPU registers value when the exception occurred.
  *
  * @param task     Task to dump the registers from.
  * @param reg_dump Pointer that will be filled with the registers dump.
@@ -156,7 +151,7 @@ void esp_core_dump_port_set_crashed_tcb(uint32_t handle);
  */
 uint32_t esp_core_dump_get_extra_info(void **info);
 
-#if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH && CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF
+#if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH
 
 /**
  * @brief Parse extra information into summary
@@ -184,7 +179,17 @@ void esp_core_dump_summary_parse_exc_regs(esp_core_dump_summary_t *summary, void
  */
 void esp_core_dump_summary_parse_backtrace_info(esp_core_dump_bt_info_t *bt_info, const void *vaddr,
                                                 const void *paddr, uint32_t stack_size);
-#endif /* CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH && CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF */
+#endif /* CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH */
+
+/**
+ * @brief Stack switching implemented in C for RISC-V, Assembly for Xtensa
+ *
+ * This function switches to the coredump stack, writes the ELF core dump,
+ * reports stack usage, and restores the original stack.
+ * @param new_stack new stack buffer address
+ * @param new_sp aligned stack pointer address
+ */
+void esp_core_dump_port_write(uint32_t new_stack, uint32_t new_sp);
 
 #ifdef __cplusplus
 }

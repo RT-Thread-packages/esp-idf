@@ -6,10 +6,12 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include "soc/ext_mem_defs.h"
 #include "soc/memprot_defs.h"
 #include "hal/memprot_types.h"
 #include "soc/sensitive_reg.h"
+#include "soc/periph_defs.h"
 
 /* Uncomment to enable MPS debug assertions on false register writes.
  * It irregularly happens the PMS registers cannot be written which causes unpredictable malfunction of the Memprot feature
@@ -25,17 +27,16 @@
 extern "C" {
 #endif
 
-    //highest address of each Level slot in the SRAM's 3rd memory region (I/D access, 416kB)
+//highest address of each Level slot in the SRAM's 3rd memory region (I/D access, 416kB)
 //quick resolver of split-address category bits
-static const intptr_t sram_rg3_level_hlimits[] = {
-        0x4037FFFF, //level 2 (32KB)
-        0x4038FFFF, //level 3 (64KB)
-        0x4039FFFF, //level 4 (64KB)
-        0x403A0000, //level 5 (64KB)
-        0x403B0000, //level 6 (64KB)
-        0x403C0000, //level 7 (64KB)
-        0x403D0000  //level 8 (64KB)
-};
+//         0x4037FFFF   level 2 (32KB)
+//         0x4038FFFF   level 3 (64KB)
+//         0x4039FFFF   level 4 (64KB)
+//         0x403AFFFF   level 5 (64KB)
+//         0x403BFFFF   level 6 (64KB)
+//         0x403CFFFF   level 7 (64KB)
+//         0x403DFFFF   level 8 (64KB)
+#define SRAM_RG3_LEVEL_HLIMITS(level) ((intptr_t[]) {0x4037FFFF,0x4038FFFF,0x4039FFFF,0x403AFFFF,0x403BFFFF,0x403CFFFF,0x403DFFFF} [(level)])
 
 /* ******************************************************************************************************
  * *** COMMON ***
@@ -82,6 +83,62 @@ static inline void *memprot_ll_get_split_addr_from_reg(const uint32_t regval, co
 }
 
 /* ******************************************************************************************************
+ * *** ICACHE ***
+ * ******************************************************************************************************/
+static inline uint32_t memprot_ll_icache_set_permissions(const bool r, const bool w, const bool x)
+{
+    uint32_t permissions = 0;
+    if (r) {
+        permissions |= SENSITIVE_CORE_X_ICACHE_PMS_CONSTRAIN_SRAM_WORLD_X_R;
+    }
+    if (w) {
+        permissions |= SENSITIVE_CORE_X_ICACHE_PMS_CONSTRAIN_SRAM_WORLD_X_W;
+    }
+    if (x) {
+        permissions |= SENSITIVE_CORE_X_ICACHE_PMS_CONSTRAIN_SRAM_WORLD_X_F;
+    }
+
+    return permissions;
+}
+
+static inline void memprot_ll_icache_set_pms_area_0(const bool r, const bool w, const bool x)
+{
+    REG_SET_FIELD(SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_2_REG, SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_SRAM_WORLD_0_CACHEDATAARRAY_PMS_0, memprot_ll_icache_set_permissions(r, w, x));
+#ifdef PMS_DEBUG_ASSERTIONS
+    uint32_t expected = REG_GET_FIELD(SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_2_REG, SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_SRAM_WORLD_0_CACHEDATAARRAY_PMS_0);
+    HAL_ASSERT((expected == memprot_ll_icache_set_permissions(r, w, x)) && "Value not stored to required register");
+#endif
+}
+
+static inline void memprot_ll_icache_set_pms_area_1(const bool r, const bool w, const bool x)
+{
+    REG_SET_FIELD(SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_2_REG, SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_SRAM_WORLD_0_CACHEDATAARRAY_PMS_1, memprot_ll_icache_set_permissions(r, w, x));
+#ifdef PMS_DEBUG_ASSERTIONS
+    uint32_t expected = REG_GET_FIELD(SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_2_REG, SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_SRAM_WORLD_0_CACHEDATAARRAY_PMS_1);
+    HAL_ASSERT((expected == memprot_ll_icache_set_permissions(r, w, x)) && "Value not stored to required register");
+#endif
+}
+
+static inline void memprot_ll_icache_get_permissions(const uint32_t perms, bool *r, bool *w, bool *x)
+{
+    *r = perms & SENSITIVE_CORE_X_ICACHE_PMS_CONSTRAIN_SRAM_WORLD_X_R;
+    *w = perms & SENSITIVE_CORE_X_ICACHE_PMS_CONSTRAIN_SRAM_WORLD_X_W;
+    *x = perms & SENSITIVE_CORE_X_ICACHE_PMS_CONSTRAIN_SRAM_WORLD_X_F;
+}
+
+static inline void memprot_ll_icache_get_pms_area_0(bool *r, bool *w, bool *x)
+{
+    uint32_t permissions = REG_GET_FIELD(SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_2_REG, SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_SRAM_WORLD_0_CACHEDATAARRAY_PMS_0);
+    memprot_ll_icache_get_permissions(permissions, r, w, x);
+}
+
+static inline void memprot_ll_icache_get_pms_area_1(bool *r, bool *w, bool *x)
+{
+    uint32_t permissions = REG_GET_FIELD(SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_2_REG, SENSITIVE_CORE_X_IRAM0_PMS_CONSTRAIN_SRAM_WORLD_0_CACHEDATAARRAY_PMS_1);
+    memprot_ll_icache_get_permissions(permissions, r, w, x);
+}
+
+/* ******************************************************************************************************
  * *** IRAM0 ***
  * ******************************************************************************************************/
 static inline memprot_hal_err_t memprot_ll_iram0_get_intr_source_num(const int core, uint32_t* src_num)
@@ -120,9 +177,15 @@ static inline uint32_t memprot_ll_get_iram0_split_line_main_I_1_regval(void)
 static inline void memprot_ll_prepare_iram0_split_line_regval(const uint32_t addr, uint32_t* regval)
 {
     //set category bits for given split line
-    uint32_t cat[7] = {[0 ... 6]=MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA};
+    uint32_t cat[7] = { MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA };
     for (size_t x=0; x<7; x++) {
-        if (addr <= sram_rg3_level_hlimits[x]) {
+        if (addr <= SRAM_RG3_LEVEL_HLIMITS(x)) {
             cat[x] = MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_EQUAL_SA;
             break;
         } else {
@@ -571,7 +634,7 @@ static inline memprot_hal_err_t memprot_ll_iram0_get_monitor_status_fault_addr(c
             return MEMP_HAL_ERR_CORE_INVALID;
     }
 
-    *addr = (void*)(reg_off > 0 ? (reg_off << I_D_FAULT_ADDR_SHIFT) + IRAM0_ADDRESS_LOW : 0);
+    *addr = (void*)(reg_off > 0 ? (reg_off << I_FAULT_ADDR_SHIFT) + IRAM0_VIOLATE_STATUS_ADDR_OFFSET : 0);
 
     return MEMP_HAL_OK;
 }
@@ -1194,9 +1257,16 @@ static inline uint32_t memprot_ll_get_dram0_split_line_main_D_1_regval(void)
 static inline void memprot_ll_prepare_dram0_split_line_regval(const uint32_t addr, uint32_t* regval)
 {
     //set category bits for given split line
-    uint32_t cat[7] = {[0 ... 6]=MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA};
+    uint32_t cat[7] = { MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA,
+                        MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_ABOVE_SA };
+
     for (size_t x=0; x<7; x++) {
-        if (addr <= MAP_IRAM_TO_DRAM(sram_rg3_level_hlimits[x])) {
+        if (addr <= MAP_IRAM_TO_DRAM(SRAM_RG3_LEVEL_HLIMITS(x))) {
             cat[x] = MEMP_HAL_CORE_X_IRAM0_DRAM0_DMA_SRAM_CATEGORY_BITS_EQUAL_SA;
             break;
         } else {
@@ -1590,7 +1660,7 @@ static inline memprot_hal_err_t memprot_ll_dram0_get_monitor_status_fault_addr(c
             return MEMP_HAL_ERR_CORE_INVALID;
     }
 
-    *addr = (void*)(reg_off > 0 ? (reg_off << I_D_FAULT_ADDR_SHIFT) + IRAM0_ADDRESS_LOW : 0);
+    *addr = (void*)(reg_off > 0 ? (reg_off << D_FAULT_ADDR_SHIFT) + DRAM0_VIOLATE_STATUS_ADDR_OFFSET : 0);
 
     return MEMP_HAL_OK;
 }

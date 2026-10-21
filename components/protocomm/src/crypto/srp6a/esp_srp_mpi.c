@@ -1,9 +1,10 @@
 /*
- * SPDX-FileCopyrightText: 2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
 #include "esp_srp_mpi.h"
 
 esp_mpi_t *esp_mpi_new(void)
@@ -26,6 +27,7 @@ esp_mpi_t *esp_mpi_new_from_hex(const char *hex)
     int ret = mbedtls_mpi_read_string(a, 16, hex);
     if (ret != 0) {
         printf("mbedtls_mpi_read_string() failed, returned %x\n", ret);
+        esp_mpi_free(a);
         return NULL;
     }
     return a;
@@ -41,6 +43,7 @@ esp_mpi_t *esp_mpi_new_from_bin(const char *str, int str_len)
     int ret = mbedtls_mpi_read_binary(a, (unsigned char *)str, str_len);
     if (ret != 0) {
         printf("mbedtls_mpi_read_binary() failed, returned %x\n", ret);
+        esp_mpi_free(a);
         return NULL;
     }
     return a;
@@ -81,6 +84,7 @@ char *esp_mpi_to_bin(esp_mpi_t *bn, int *len)
     int ret = mbedtls_mpi_write_binary(bn, (unsigned char *)p, *len);
     if (ret != 0) {
         printf("mbedtls_mpi_read_string() failed, returned %x\n", ret);
+        free(p);
         return NULL;
     }
     return p;
@@ -123,6 +127,16 @@ int esp_mpi_a_mul_b_mod_c(esp_mpi_t *result, esp_mpi_t *a, esp_mpi_t *b, esp_mpi
     mbedtls_mpi_free(&t);
 
     return res;
+}
+
+int esp_mpi_a_mod_b(esp_mpi_t *result, const esp_mpi_t *a, const esp_mpi_t *b)
+{
+    return mbedtls_mpi_mod_mpi(result, a, b);
+}
+
+int esp_mpi_cmp_int(const esp_mpi_t *a, int value)
+{
+    return mbedtls_mpi_cmp_int(a, value);
 }
 
 int esp_mpi_a_add_b_mod_c(esp_mpi_t *result, esp_mpi_t *a, esp_mpi_t *b, esp_mpi_t *c, esp_mpi_ctx_t *ctx)

@@ -2,4 +2,9 @@
 archive: libriscv.a
 entries:
     interrupt (noflash_text)
+    interrupt:intr_handler_get (default)
+    interrupt:intr_handler_set (default)
     vectors (noflash_text)
+    if IDF_RTOS_RTTHREAD = y:
+        vectors_rtthread (noflash_text)
+    rv_utils (noflash_text)

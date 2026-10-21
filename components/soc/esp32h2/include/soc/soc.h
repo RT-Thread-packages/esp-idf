@@ -1,7 +1,7 @@
 /*
- * SPDX-FileCopyrightText: 2020-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
 #pragma once
@@ -12,18 +12,18 @@
 #endif
 
 #include "esp_bit_defs.h"
-#include "reg_base.h"
+#include "soc/reg_base.h"
 
 #define PRO_CPU_NUM (0)
 
-#define REG_UHCI_BASE(i)         (DR_REG_UHCI0_BASE - (i) * 0x8000)
-#define REG_UART_BASE( i )  (DR_REG_UART_BASE + (i) * 0x10000 + ( (i) > 1 ? 0xe000 : 0 ) )
-#define REG_UART_AHB_BASE(i)  (0x60000000 + (i) * 0x10000 + ( (i) > 1 ? 0xe000 : 0 ) )
-#define UART_FIFO_AHB_REG(i)  (REG_UART_AHB_BASE(i) + 0x0)
-#define REG_I2S_BASE( i ) (DR_REG_I2S_BASE + (i) * 0x1E000)
-#define REG_TIMG_BASE(i)              (DR_REG_TIMERGROUP0_BASE + (i)*0x1000)
-#define REG_SPI_MEM_BASE(i)     (DR_REG_SPI0_BASE - (i) * 0x1000)
-#define REG_I2C_BASE(i)    (DR_REG_I2C_EXT_BASE + (i) * 0x14000 )
+#define REG_UHCI_BASE(i)                        (DR_REG_UHCI0_BASE - (i) * 0x8000)
+#define REG_UART_BASE(i)                        (DR_REG_UART_BASE + (i) * 0x1000)
+#define REG_UART_AHB_BASE(i)                    (0x60000000 + (i) * 0x10000)
+#define UART_FIFO_AHB_REG(i)                    (REG_UART_AHB_BASE(i) + 0x0)
+#define REG_TIMG_BASE(i)                        (DR_REG_TIMERGROUP0_BASE + (i)*0x1000)
+#define REG_SPI_MEM_BASE(i)                     (DR_REG_SPI0_BASE + (i) * 0x1000)
+#define REG_SPI_BASE(i)                         (((i)==2) ? (DR_REG_SPI2_BASE) : (0))    // only one GPSPI
+#define REG_I2C_BASE(i)                         (DR_REG_I2C_EXT0_BASE + (i) * 0x1000)
 
 //Registers Operation {{
 #define ETS_UNCACHED_ADDR(addr) (addr)
@@ -133,68 +133,58 @@
 //}}
 
 //Periheral Clock {{
-#define  APB_CLK_FREQ_ROM                            ( 32*1000000 )
-#define  CPU_CLK_FREQ_ROM                            APB_CLK_FREQ_ROM
-#define  EFUSE_CLK_FREQ_ROM                          ( 20*1000000)
-#define  CPU_CLK_FREQ                                APB_CLK_FREQ
-#if CONFIG_IDF_ENV_FPGA
 #define  APB_CLK_FREQ                                ( 32*1000000 )
-#else
-#define  APB_CLK_FREQ                                ( 48*1000000 )         //ESP32H2-TODO: IDF-3786
-#endif
-#define  REF_CLK_FREQ                                ( 1000000 )
-#define  RTC_CLK_FREQ                                (17.5*1000000)
-#define  XTAL_CLK_FREQ                               (32*1000000)
-#define  UART_CLK_FREQ                               APB_CLK_FREQ
-#define  WDT_CLK_FREQ                                APB_CLK_FREQ
-#define  TIMER_CLK_FREQ                              (80000000>>4) //80MHz divided by 16
-#define  SPI_CLK_DIV                                 4
-#define  TICKS_PER_US_ROM                            40              // CPU is 80MHz
-#define  GPIO_MATRIX_DELAY_NS                        0
+#define  MODEM_REQUIRED_MIN_APB_CLK_FREQ             ( 32*1000000 )
 //}}
 
 /* Overall memory map */
-#define SOC_DROM_LOW    0x3C000000
-#define SOC_DROM_HIGH   0x3C800000
+/* Note: We should not use MACROs similar in cache_memory.h
+ * those are defined during run-time. But the MACROs here
+ * should be defined statically!
+ */
+
 #define SOC_IROM_LOW    0x42000000
-#define SOC_IROM_HIGH   0x42800000
+#define SOC_IROM_HIGH   (SOC_IROM_LOW + (SOC_MMU_PAGE_SIZE<<8))
+#define SOC_DROM_LOW    SOC_IROM_LOW
+#define SOC_DROM_HIGH   SOC_IROM_HIGH
 #define SOC_IROM_MASK_LOW  0x40000000
-#define SOC_IROM_MASK_HIGH 0x40060000
-#define SOC_DROM_MASK_LOW 0x3FF00000
-#define SOC_DROM_MASK_HIGH 0x3FF20000
-#define SOC_IRAM_LOW    0x4037C000
-#define SOC_IRAM_HIGH   0x403E0000
-#define SOC_DRAM_LOW    0x3FC80000
-#define SOC_DRAM_HIGH   0x3FCE0000
-#define SOC_RTC_IRAM_LOW  0x50000000 // ESP32-H2 only has RTC slow memory
-#define SOC_RTC_IRAM_HIGH 0x50002000
+#define SOC_IROM_MASK_HIGH 0x40020000
+#define SOC_DROM_MASK_LOW  0x40000000
+#define SOC_DROM_MASK_HIGH 0x40020000
+#define SOC_IRAM_LOW    0x40800000
+#define SOC_IRAM_HIGH   0x40850000
+#define SOC_DRAM_LOW    0x40800000
+#define SOC_DRAM_HIGH   0x40850000
+#define SOC_RTC_IRAM_LOW  0x50000000 // ESP32-H2 only has 4k LP memory
+#define SOC_RTC_IRAM_HIGH 0x50001000
 #define SOC_RTC_DRAM_LOW  0x50000000
-#define SOC_RTC_DRAM_HIGH 0x50002000
+#define SOC_RTC_DRAM_HIGH 0x50001000
 #define SOC_RTC_DATA_LOW  0x50000000
-#define SOC_RTC_DATA_HIGH 0x50002000
+#define SOC_RTC_DATA_HIGH 0x50001000
 
 //First and last words of the D/IRAM region, for both the DRAM address as well as the IRAM alias.
-#define SOC_DIRAM_IRAM_LOW    0x40380000
-#define SOC_DIRAM_IRAM_HIGH   0x403E0000
-#define SOC_DIRAM_DRAM_LOW    0x3FC80000
-#define SOC_DIRAM_DRAM_HIGH   0x3FCE0000
+#define SOC_DIRAM_IRAM_LOW    0x40800000
+#define SOC_DIRAM_IRAM_HIGH   0x40850000
+#define SOC_DIRAM_DRAM_LOW    0x40800000
+#define SOC_DIRAM_DRAM_HIGH   0x40850000
 
-#define SOC_I_D_OFFSET (SOC_DIRAM_IRAM_LOW - SOC_DIRAM_DRAM_LOW)
-#define MAP_DRAM_TO_IRAM(addr) (addr + SOC_I_D_OFFSET)
-#define MAP_IRAM_TO_DRAM(addr) (addr - SOC_I_D_OFFSET)
+#define MAP_DRAM_TO_IRAM(addr) (addr)
+#define MAP_IRAM_TO_DRAM(addr) (addr)
 
 // Region of memory accessible via DMA. See esp_ptr_dma_capable().
-#define SOC_DMA_LOW  0x3FC88000
-#define SOC_DMA_HIGH 0x3FD00000
+#define SOC_DMA_LOW  0x40800000
+#define SOC_DMA_HIGH 0x40850000
 
 // Region of RAM that is byte-accessible. See esp_ptr_byte_accessible().
-#define SOC_BYTE_ACCESSIBLE_LOW     0x3FC88000
-#define SOC_BYTE_ACCESSIBLE_HIGH    0x3FD00000
+#define SOC_BYTE_ACCESSIBLE_LOW     0x40800000
+#define SOC_BYTE_ACCESSIBLE_HIGH    0x40850000
 
 //Region of memory that is internal, as in on the same silicon die as the ESP32 CPUs
 //(excluding RTC data region, that's checked separately.) See esp_ptr_internal().
-#define SOC_MEM_INTERNAL_LOW        0x3FC80000
-#define SOC_MEM_INTERNAL_HIGH       0x3FCE0000
+#define SOC_MEM_INTERNAL_LOW        0x40800000
+#define SOC_MEM_INTERNAL_HIGH       0x40850000
+#define SOC_MEM_INTERNAL_LOW1       0x40800000
+#define SOC_MEM_INTERNAL_HIGH1      0x40850000
 
 #define SOC_MAX_CONTIGUOUS_RAM_SIZE (SOC_IRAM_HIGH - SOC_IRAM_LOW) ///< Largest span of contiguous memory (DRAM or IRAM) in the address space
 
@@ -202,21 +192,23 @@
 #define SOC_PERIPHERAL_LOW 0x60000000
 #define SOC_PERIPHERAL_HIGH 0x60100000
 
-// Debug region, not used by software
-#define SOC_DEBUG_LOW 0x20000000
-#define SOC_DEBUG_HIGH 0x28000000
+// CPU sub-system region, contains interrupt config registers
+#define SOC_CPU_SUBSYSTEM_LOW 0x20000000
+#define SOC_CPU_SUBSYSTEM_HIGH 0x30000000
 
 // Start (highest address) of ROM boot stack, only relevant during early boot
-#define SOC_ROM_STACK_START         0x3fcdf120
+#define SOC_ROM_STACK_START         0x4084f380
 #define SOC_ROM_STACK_SIZE          0x2000
 
 //On RISC-V CPUs, the interrupt sources are all external interrupts, whose type, source and priority are configured by SW.
 //There is no HW NMI conception. SW should controlled the masked levels through INT_THRESH_REG.
 
-//CPU0 Interrupt number reserved in riscv/vector.S, not touch this.
+//CPU0 Interrupt numbers used in components/riscv/vectors.S. Change it's logic if modifying
 #define ETS_T1_WDT_INUM                         24
 #define ETS_CACHEERR_INUM                       25
 #define ETS_MEMPROT_ERR_INUM                    26
+#define ETS_ASSIST_DEBUG_INUM                   27  // Note: this interrupt can be combined with others (e.g., CACHEERR), as we can identify its trigger is activated
+
 //CPU0 Max valid interrupt number
 #define ETS_MAX_INUM                            31
 
@@ -235,3 +227,6 @@
 
 //Interrupt medium level, used for INT WDT for example
 #define SOC_INTERRUPT_LEVEL_MEDIUM              4
+
+// Interrupt number for the Interrupt watchdog
+#define ETS_INT_WDT_INUM                         (ETS_T1_WDT_INUM)

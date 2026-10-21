@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -29,10 +29,19 @@ esp_err_t esp_ble_gatts_register_callback(esp_gatts_cb_t callback)
     return (btc_profile_cb_set(BTC_PID_GATTS, callback) == 0 ? ESP_OK : ESP_FAIL);
 }
 
+esp_gatts_cb_t esp_ble_gatts_get_callback(void)
+{
+    if (esp_bluedroid_get_status() != ESP_BLUEDROID_STATUS_ENABLED) {
+        return NULL;
+    }
+    return (esp_gatts_cb_t) btc_profile_cb_get(BTC_PID_GATTS);
+}
+
 esp_err_t esp_ble_gatts_app_register(uint16_t app_id)
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
@@ -46,7 +55,7 @@ esp_err_t esp_ble_gatts_app_register(uint16_t app_id)
     msg.act = BTC_GATTS_ACT_APP_REGISTER;
     arg.app_reg.app_id = app_id;
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL, NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 
@@ -54,6 +63,7 @@ esp_err_t esp_ble_gatts_app_unregister(esp_gatt_if_t gatts_if)
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
@@ -62,7 +72,7 @@ esp_err_t esp_ble_gatts_app_unregister(esp_gatt_if_t gatts_if)
     msg.act = BTC_GATTS_ACT_APP_UNREGISTER;
     arg.app_unreg.gatts_if = gatts_if;
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL, NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 esp_err_t esp_ble_gatts_create_service(esp_gatt_if_t gatts_if,
@@ -70,8 +80,13 @@ esp_err_t esp_ble_gatts_create_service(esp_gatt_if_t gatts_if,
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
+
+    if (service_id == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
     msg.sig = BTC_SIG_API_CALL;
     msg.pid = BTC_PID_GATTS;
@@ -80,7 +95,7 @@ esp_err_t esp_ble_gatts_create_service(esp_gatt_if_t gatts_if,
     arg.create_srvc.num_handle = num_handle;
     memcpy(&arg.create_srvc.service_id, service_id, sizeof(esp_gatt_srvc_id_t));
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL, NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 esp_err_t esp_ble_gatts_create_attr_tab(const esp_gatts_attr_db_t *gatts_attr_db,
@@ -90,11 +105,16 @@ esp_err_t esp_ble_gatts_create_attr_tab(const esp_gatts_attr_db_t *gatts_attr_db
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
+    if (gatts_attr_db == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     if (max_nb_attr > ESP_GATT_ATTR_HANDLE_MAX) {
-        LOG_ERROR("%s the number of attribute should not be greater than CONFIG_BT_GATT_MAX_SR_ATTRIBUTES\n");
+        LOG_ERROR("The number of attribute should not be greater than CONFIG_BT_GATT_MAX_SR_ATTRIBUTES\n");
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -106,8 +126,8 @@ esp_err_t esp_ble_gatts_create_attr_tab(const esp_gatts_attr_db_t *gatts_attr_db
     arg.create_attr_tab.srvc_inst_id = srvc_inst_id;
     arg.create_attr_tab.gatts_attr_db = (esp_gatts_attr_db_t *)gatts_attr_db;
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), btc_gatts_arg_deep_copy)
-            == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), btc_gatts_arg_deep_copy,
+                btc_gatts_arg_deep_free) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 
@@ -115,6 +135,7 @@ esp_err_t esp_ble_gatts_add_included_service(uint16_t service_handle, uint16_t i
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
@@ -124,7 +145,7 @@ esp_err_t esp_ble_gatts_add_included_service(uint16_t service_handle, uint16_t i
     arg.add_incl_srvc.service_handle = service_handle;
     arg.add_incl_srvc.included_service_handle = included_service_handle;
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL, NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 
@@ -134,9 +155,14 @@ esp_err_t esp_ble_gatts_add_char(uint16_t service_handle,  esp_bt_uuid_t  *char_
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
     esp_err_t status;
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
+
+    if (char_uuid == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
     /* parameter validation check */
     status = esp_ble_gatts_add_char_desc_param_check(char_val, control);
@@ -162,7 +188,8 @@ esp_err_t esp_ble_gatts_add_char(uint16_t service_handle,  esp_bt_uuid_t  *char_
     }
     memcpy(&arg.add_char.char_uuid, char_uuid, sizeof(esp_bt_uuid_t));
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), btc_gatts_arg_deep_copy) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), btc_gatts_arg_deep_copy,
+                btc_gatts_arg_deep_free) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 
@@ -173,9 +200,14 @@ esp_err_t esp_ble_gatts_add_char_descr (uint16_t service_handle,
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
     esp_err_t status;
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
+
+    if (descr_uuid == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
     /* parameter validation check */
     status = esp_ble_gatts_add_char_desc_param_check(char_descr_val, control);
@@ -201,13 +233,15 @@ esp_err_t esp_ble_gatts_add_char_descr (uint16_t service_handle,
     }
     memcpy(&arg.add_descr.descr_uuid, descr_uuid, sizeof(esp_bt_uuid_t));
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), btc_gatts_arg_deep_copy) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), btc_gatts_arg_deep_copy,
+                btc_gatts_arg_deep_free) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 esp_err_t esp_ble_gatts_delete_service(uint16_t service_handle)
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
@@ -216,13 +250,14 @@ esp_err_t esp_ble_gatts_delete_service(uint16_t service_handle)
     msg.act = BTC_GATTS_ACT_DELETE_SERVICE;
     arg.delete_srvc.service_handle = service_handle;
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL, NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 esp_err_t esp_ble_gatts_start_service(uint16_t service_handle)
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
@@ -231,13 +266,14 @@ esp_err_t esp_ble_gatts_start_service(uint16_t service_handle)
     msg.act = BTC_GATTS_ACT_START_SERVICE;
     arg.start_srvc.service_handle = service_handle;
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL, NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 esp_err_t esp_ble_gatts_stop_service(uint16_t service_handle)
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
@@ -246,17 +282,27 @@ esp_err_t esp_ble_gatts_stop_service(uint16_t service_handle)
     msg.act = BTC_GATTS_ACT_STOP_SERVICE;
     arg.stop_srvc.service_handle = service_handle;
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL, NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 
 esp_err_t esp_ble_gatts_send_indicate(esp_gatt_if_t gatts_if, uint16_t conn_id, uint16_t attr_handle,
                                       uint16_t value_len, uint8_t *value, bool need_confirm)
 {
+    ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
+    if (value_len > ESP_GATT_MAX_ATTR_LEN) {
+        LOG_ERROR("%s, value_len > ESP_GATT_MAX_ATTR_LEN.", __func__);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    if(value == NULL && value_len > 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
-    ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
     tGATT_TCB       *p_tcb = gatt_get_tcb_by_idx(conn_id);
     if (!gatt_check_connection_state_by_tcb(p_tcb)) {
@@ -265,7 +311,7 @@ esp_err_t esp_ble_gatts_send_indicate(esp_gatt_if_t gatts_if, uint16_t conn_id, 
     }
 
     if (L2CA_CheckIsCongest(L2CAP_ATT_CID, p_tcb->peer_bda)) {
-        LOG_DEBUG("%s, the l2cap chanel is congest.", __func__);
+        LOG_DEBUG("%s, the l2cap channel is congest.", __func__);
         return ESP_FAIL;
     }
 
@@ -280,8 +326,8 @@ esp_err_t esp_ble_gatts_send_indicate(esp_gatt_if_t gatts_if, uint16_t conn_id, 
     if(need_confirm == false){
         l2ble_update_att_acl_pkt_num(L2CA_ADD_BTC_NUM, NULL);
     }
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t),
-                                 btc_gatts_arg_deep_copy) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), btc_gatts_arg_deep_copy,
+                btc_gatts_arg_deep_free) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 esp_err_t esp_ble_gatts_send_response(esp_gatt_if_t gatts_if, uint16_t conn_id, uint32_t trans_id,
@@ -289,6 +335,9 @@ esp_err_t esp_ble_gatts_send_response(esp_gatt_if_t gatts_if, uint16_t conn_id, 
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
+
+   // rsp may be NULL
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
@@ -306,14 +355,19 @@ esp_err_t esp_ble_gatts_send_response(esp_gatt_if_t gatts_if, uint16_t conn_id, 
     arg.send_rsp.status = status;
     arg.send_rsp.rsp = rsp;
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t),
-                                 btc_gatts_arg_deep_copy) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), btc_gatts_arg_deep_copy,
+                btc_gatts_arg_deep_free) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 esp_err_t esp_ble_gatts_set_attr_value(uint16_t attr_handle, uint16_t length, const uint8_t *value)
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
+
+    if(value == NULL && length > 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
@@ -324,13 +378,19 @@ esp_err_t esp_ble_gatts_set_attr_value(uint16_t attr_handle, uint16_t length, co
     arg.set_attr_val.length = length;
     arg.set_attr_val.value  = (uint8_t *)value;
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t),
-                                 btc_gatts_arg_deep_copy) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), btc_gatts_arg_deep_copy,
+                btc_gatts_arg_deep_free) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 esp_gatt_status_t esp_ble_gatts_get_attr_value(uint16_t attr_handle, uint16_t *length, const uint8_t **value)
 {
-    ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
+    if (esp_bluedroid_get_status() != ESP_BLUEDROID_STATUS_ENABLED) {
+        return ESP_GATT_WRONG_STATE;
+    }
+
+    if (length == NULL || value == NULL) {
+        return ESP_GATT_INVALID_PDU;
+    }
 
     if (attr_handle == ESP_GATT_ILLEGAL_HANDLE) {
         *length = 0;
@@ -344,8 +404,13 @@ esp_err_t esp_ble_gatts_open(esp_gatt_if_t gatts_if, esp_bd_addr_t remote_bda, b
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
+
+    if (remote_bda == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
     msg.sig = BTC_SIG_API_CALL;
     msg.pid = BTC_PID_GATTS;
@@ -354,7 +419,7 @@ esp_err_t esp_ble_gatts_open(esp_gatt_if_t gatts_if, esp_bd_addr_t remote_bda, b
     arg.open.is_direct = is_direct;
     memcpy(&arg.open.remote_bda, remote_bda, sizeof(esp_bd_addr_t));
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL)
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL, NULL)
             == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
@@ -362,6 +427,7 @@ esp_err_t esp_ble_gatts_close(esp_gatt_if_t gatts_if, uint16_t conn_id)
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
@@ -370,7 +436,7 @@ esp_err_t esp_ble_gatts_close(esp_gatt_if_t gatts_if, uint16_t conn_id)
     msg.act = BTC_GATTS_ACT_CLOSE;
     arg.close.conn_id = BTC_GATT_CREATE_CONN_ID(gatts_if, conn_id);
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL)
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL, NULL)
             == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
@@ -378,6 +444,7 @@ esp_err_t esp_ble_gatts_send_service_change_indication(esp_gatt_if_t gatts_if, e
 {
     btc_msg_t msg = {0};
     btc_ble_gatts_args_t arg;
+    memset(&arg, 0, sizeof(arg));
 
     ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
 
@@ -392,31 +459,68 @@ esp_err_t esp_ble_gatts_send_service_change_indication(esp_gatt_if_t gatts_if, e
     }
 
 
-    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL)
+    return (btc_transfer_context(&msg, &arg, sizeof(btc_ble_gatts_args_t), NULL, NULL)
             == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 static esp_err_t esp_ble_gatts_add_char_desc_param_check(esp_attr_value_t *char_val, esp_attr_control_t *control)
 {
-    if ((control != NULL) && ((control->auto_rsp != ESP_GATT_AUTO_RSP) && (control->auto_rsp != ESP_GATT_RSP_BY_APP))){
-            LOG_ERROR("Error in %s, line=%d, control->auto_rsp should be set to ESP_GATT_AUTO_RSP or ESP_GATT_RSP_BY_APP\n",\
-                            __func__, __LINE__);
-            return ESP_ERR_INVALID_ARG;
+    if ((control != NULL) &&
+        (control->auto_rsp != ESP_GATT_AUTO_RSP) &&
+        (control->auto_rsp != ESP_GATT_RSP_BY_APP)) {
+        return ESP_ERR_INVALID_ARG;
     }
 
-    if ((control != NULL) && (control->auto_rsp == ESP_GATT_AUTO_RSP)){
-        if (char_val == NULL){
-            LOG_ERROR("Error in %s, line=%d, for stack respond attribute, char_val should not be NULL here\n",\
-                            __func__, __LINE__);
+    /* Validate attribute value regardless of auto_rsp to avoid deep-copy waste and leaks. */
+    if (char_val != NULL) {
+        bool invalid = false;
+
+        if (char_val->attr_max_len > ESP_GATT_MAX_ATTR_LEN) {
+            invalid = true;
+        }
+        if (char_val->attr_len > ESP_GATT_MAX_ATTR_LEN) {
+            invalid = true;
+        }
+        /* Always require attr_len <= attr_max_len to avoid leaks and wasteful allocations. */
+        if (char_val->attr_len > char_val->attr_max_len) {
+            invalid = true;
+        }
+
+        if (invalid) {
+            LOG_ERROR("%s bad attr len=%u/%u lim=%u",
+                      __func__,
+                      (unsigned)char_val->attr_len,
+                      (unsigned)char_val->attr_max_len,
+                      (unsigned)ESP_GATT_MAX_ATTR_LEN);
             return ESP_ERR_INVALID_ARG;
-        } else if (char_val->attr_max_len == 0){
-            LOG_ERROR("Error in %s, line=%d, for stack respond attribute,  attribute max length should not be 0\n",\
-                            __func__, __LINE__);
+        }
+    }
+
+    if ((control != NULL) && (control->auto_rsp == ESP_GATT_AUTO_RSP)) {
+        if (char_val == NULL) {
+            return ESP_ERR_INVALID_ARG;
+        }
+
+        /* For stack auto response, attr_max_len must be non-zero. */
+        if (char_val->attr_max_len == 0) {
             return ESP_ERR_INVALID_ARG;
         }
     }
 
     return ESP_OK;
+}
+
+esp_err_t esp_ble_gatts_show_local_database(void)
+{
+    btc_msg_t msg = {0};
+
+    ESP_BLUEDROID_STATUS_CHECK(ESP_BLUEDROID_STATUS_ENABLED);
+
+    msg.sig = BTC_SIG_API_CALL;
+    msg.pid = BTC_PID_GATTS;
+    msg.act = BTC_GATTS_ACT_SHOW_LOCAL_DATABASE;
+
+    return (btc_transfer_context(&msg, NULL, 0, NULL, NULL) == BT_STATUS_SUCCESS ? ESP_OK : ESP_FAIL);
 }
 
 #endif  ///GATTS_INCLUDED

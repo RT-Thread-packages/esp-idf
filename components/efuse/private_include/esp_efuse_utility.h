@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2017-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2017-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -29,8 +29,8 @@ extern "C" {
  * @brief Structure range address by blocks
  */
 typedef struct {
-    uint32_t start;
-    uint32_t end;
+    uintptr_t start;
+    uintptr_t end;
 } esp_efuse_range_addr_t;
 
 /**
@@ -115,6 +115,23 @@ esp_err_t esp_efuse_utility_burn_efuses(void);
 esp_err_t esp_efuse_utility_burn_chip(void);
 
 /**
+ * @brief Chip specific operations to perform the burn of values written to the efuse write registers.
+ *
+ * If CONFIG_EFUSE_VIRTUAL is set, writing will not be performed.
+ * After the function is completed, the writing registers are cleared.
+ *
+ * @param[in] ignore_coding_errors If this is true and any coding errors occur,
+ *                                 they will be ignored and no further attempts
+ *                                 will be made to correct them.
+ * @param[in] verify_written_data  If this is true, then after burning it will check that all data is set correctly.
+ *
+ * @return
+ *      - ESP_OK: The operation was successfully completed.
+ *      - ESP_FAIL: The operation was not successfully completed.
+ */
+esp_err_t esp_efuse_utility_burn_chip_opt(bool ignore_coding_errors, bool verify_written_data);
+
+/**
  * @brief Returns the number of array elements for placing these "bits" in an array with the length of each element equal to "size_of_base".
  */
 int esp_efuse_utility_get_number_of_items(int bits, int size_of_base);
@@ -127,7 +144,7 @@ uint32_t esp_efuse_utility_read_reg(esp_efuse_block_t blk, unsigned int num_reg)
 /**
  * @brief Writing efuse register with checking of repeated programming of programmed bits.
  */
-esp_err_t esp_efuse_utility_write_reg(unsigned int num_reg, esp_efuse_block_t efuse_block, uint32_t reg_to_write);
+esp_err_t esp_efuse_utility_write_reg(esp_efuse_block_t efuse_block, unsigned int num_reg, uint32_t reg_to_write);
 
 /* @brief Reset efuse write registers
  *
@@ -145,6 +162,15 @@ void esp_efuse_utility_update_virt_blocks(void);
  * @brief   Prints efuse values for all registers.
  */
 void esp_efuse_utility_debug_dump_blocks(void);
+
+/**
+ * @brief   Prints efuse values for a single block.
+ * @param[in] num_block Index of efuse block.
+ * @param[in] from_read Take data from:
+ *                      true - read area (already burned efuses),
+ *                      false - write area (not yet burned efuses, prepared for burn).
+ */
+void esp_efuse_utility_debug_dump_single_block(int num_block, bool from_read);
 
 /**
  * @brief   Erase the virt_blocks array.
@@ -209,7 +235,7 @@ void esp_efuse_utility_erase_efuses_in_flash(void);
  *
  * @return a numeric read register address of the first word in the block.
  */
-uint32_t esp_efuse_utility_get_read_register_address(esp_efuse_block_t block);
+uintptr_t esp_efuse_utility_get_read_register_address(esp_efuse_block_t block);
 
 /**
  * @brief Checks the correctness of burned data in the given block.

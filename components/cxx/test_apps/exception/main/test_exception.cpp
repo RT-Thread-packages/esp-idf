@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,12 +13,10 @@
    - 88 bytes are allocated by pthread_setspecific() to init internal lock
    - some more memory...
    */
-#if CONFIG_IDF_TARGET_ESP32
-#define LEAKS (300)
-#elif CONFIG_IDF_TARGET_ESP32S2
-#define LEAKS (800)
-#elif CONFIG_IDF_TARGET_ESP32C3
-#define LEAKS (700)
+#if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32C61 || CONFIG_IDF_TARGET_ESP32P4
+#define LEAKS (128)  /* real: 72 */
+#elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3
+#define LEAKS (448)  /* real: 396 */
 #else
 #error "unknown target in CXX tests, can't set leaks threshold"
 #endif
@@ -171,12 +169,9 @@ TEST_CASE("c++ exceptions emergency pool", "[cxx] [exceptions]")
     void **p, **pprev = NULL;
     int thrown_value = 0;
     // throw first exception to ensure that all initial allocations are made
-    try
-    {
+    try {
         throw 33;
-    }
-    catch (int e)
-    {
+    } catch (int e) {
         thrown_value = e;
     }
     TEST_ASSERT_EQUAL(33, thrown_value);
@@ -189,12 +184,9 @@ TEST_CASE("c++ exceptions emergency pool", "[cxx] [exceptions]")
         }
         pprev = p;
     }
-    try
-    {
+    try {
         throw 20;
-    }
-    catch (int e)
-    {
+    } catch (int e) {
         thrown_value = e;
     }
 #if CONFIG_COMPILER_CXX_EXCEPTIONS_EMG_POOL_SIZE > 0

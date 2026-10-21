@@ -335,6 +335,10 @@ void perror(const char *s);
 #define BIT(x) (1U << (x))
 #endif
 
+#ifndef GET_BIT_POSITION
+#define GET_BIT_POSITION(value) (__builtin_ffs(value) - 1)
+#endif
+
 /*
  * Definitions for sparse validation
  * (http://kernel.org/pub/linux/kernel/people/josh/sparse/)
@@ -379,6 +383,7 @@ int hwaddr_aton2(const char *txt, u8 *addr);
 int hex2byte(const char *hex);
 int hexstr2bin(const char *hex, u8 *buf, size_t len);
 void inc_byte_array(u8 *counter, size_t len);
+void buf_shift_right(u8 *buf, size_t len, size_t bits);
 void wpa_get_ntp_timestamp(u8 *buf);
 int wpa_scnprintf(char *buf, size_t size, const char *fmt, ...);
 int wpa_snprintf_hex_sep(char *buf, size_t buf_size, const u8 *data, size_t len,
@@ -392,6 +397,9 @@ u8 rssi_to_rcpi(int rssi);
 int os_reltime_expired(struct os_time *now,
 		struct os_time *ts,
 		os_time_t timeout_secs);
+int os_reltime_initialized(struct os_reltime *t);
+void os_reltime_add_ms(struct os_reltime *ts, int ms);
+int os_reltime_in_ms(struct os_reltime *ts);
 
 #ifdef CONFIG_NATIVE_WINDOWS
 void wpa_unicode2ascii_inplace(TCHAR *str);
@@ -427,6 +435,11 @@ static inline int is_broadcast_ether_addr(const u8 *a)
 static inline int is_multicast_ether_addr(const u8 *a)
 {
 	return a[0] & 0x01;
+}
+
+static inline bool ether_addr_equal(const u8 *a, const u8 *b)
+{
+        return os_memcmp(a, b, ETH_ALEN) == 0;
 }
 
 #define broadcast_ether_addr (const u8 *) "\xff\xff\xff\xff\xff\xff"
@@ -477,3 +490,5 @@ void * __hide_aliasing_typecast(void *foo);
 #define IANA_SECP384R1 20
 #define IANA_SECP521R1 21
 #endif /* COMMON_H */
+
+#define GHZ_24_MAX_CHANNEL_COUNT 14

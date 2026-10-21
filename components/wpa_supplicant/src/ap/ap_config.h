@@ -11,6 +11,7 @@
 
 #include "common/defs.h"
 #include "common/wpa_common.h"
+#include "common/ieee802_11_common.h"
 
 #define MAX_STA_COUNT 10
 #define MAX_VLAN_ID 4094
@@ -53,6 +54,7 @@ struct hostapd_ssid {
 
 	struct hostapd_wpa_psk *wpa_psk;
 	char *wpa_passphrase;
+	struct sae_pt *pt;
 
 	struct hostapd_wep_keys wep;
 
@@ -198,8 +200,14 @@ struct hostapd_bss_config {
 
 	int wpa; /* bitfield of WPA_PROTO_WPA, WPA_PROTO_RSN */
 	int wpa_key_mgmt;
+#ifdef CONFIG_WPA3_COMPAT
+	int rsn_override_key_mgmt;
+#endif
 #ifdef CONFIG_IEEE80211W
 	enum mfp_options ieee80211w;
+#ifdef CONFIG_WPA3_COMPAT
+	enum mfp_options rsn_override_mfp;
+#endif
 	/* dot11AssociationSAQueryMaximumTimeout (in TUs) */
 	unsigned int assoc_sa_query_max_timeout;
 	/* dot11AssociationSAQueryRetryTimeout (in TUs) */
@@ -218,6 +226,9 @@ struct hostapd_bss_config {
 	int wpa_ptk_rekey;
 	int rsn_pairwise;
 	int rsn_preauth;
+#ifdef CONFIG_WPA3_COMPAT
+	int rsn_override_pairwise;
+#endif
 	char *rsn_preauth_interfaces;
 
 #ifdef CONFIG_IEEE80211R
@@ -299,6 +310,15 @@ struct hostapd_bss_config {
 	char *dump_msk_file;
 #endif /* CONFIG_RADIUS_TEST */
 
+	unsigned int sae_anti_clogging_threshold;
+	enum sae_pwe sae_pwe;
+	unsigned int sae_sync;
+	int *sae_groups;
+#define SAE_ANTI_CLOGGING_THRESHOLD 2 /* max number of commit msg allowed to queue without anti-clogging token request */
+
+#ifdef CONFIG_WPA3_COMPAT
+	int rsn_override_omit_rsnxe;
+#endif
 };
 
 
@@ -331,7 +351,7 @@ struct hostapd_config {
 	char country[3]; /* first two octets: country code as described in
 			  * ISO/IEC 3166-1. Third octet:
 			  * ' ' (ascii 32): all environments
-			  * 'O': Outdoor environemnt only
+			  * 'O': Outdoor environment only
 			  * 'I': Indoor environment only
 			  */
 
@@ -367,13 +387,29 @@ void hostapd_config_free(struct hostapd_config *conf);
 int hostapd_maclist_found(struct mac_acl_entry *list, int num_entries,
 			  const u8 *addr, int *vlan_id);
 int hostapd_rate_found(int *list, int rate);
+void hostapd_config_clear_wpa_psk(struct hostapd_wpa_psk **p);
+void hostapd_config_free_bss(struct hostapd_bss_config *conf);
 int hostapd_wep_key_cmp(struct hostapd_wep_keys *a,
 			struct hostapd_wep_keys *b);
 const u8 * hostapd_get_psk(const struct hostapd_bss_config *conf,
 			   const u8 *addr, const u8 *prev_psk);
 int hostapd_setup_wpa_psk(struct hostapd_bss_config *conf);
 struct sta_info;
-bool wpa_ap_join(struct sta_info *sta, uint8_t *bssid, uint8_t *wpa_ie, uint8_t wpa_ie_len, bool *pmf_enable);
-bool wpa_ap_remove(void* sta_info);
+
+struct hostap_assoc_sta_req {
+	u8 *wpa_ie;
+	u8 wpa_ie_len;
+	u8 *rsnxe;
+	u16 rsnxe_len;
+	int subtype;
+	u8 *rsn_selection_ie;
+	u8 *owe_dh;
+	u8 owe_ie_len;
+};
+
+bool hostap_new_assoc_sta(struct sta_info *sta, uint8_t *bssid,
+			  const struct hostap_assoc_sta_req *assoc_req,
+			  bool *pmf_enable, u8 *pairwise_cipher, u8 *reason);
+bool wpa_ap_remove(u8* bssid);
 
 #endif /* HOSTAPD_CONFIG_H */

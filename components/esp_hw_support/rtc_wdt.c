@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "soc/efuse_periph.h"
 #include "rtc_wdt.h"
 #include "soc/rtc.h"
 #include "hal/efuse_ll.h"
+#include "hal/rwdt_ll.h"
 
 #if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S2
 

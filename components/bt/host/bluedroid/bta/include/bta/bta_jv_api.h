@@ -53,6 +53,7 @@ typedef UINT8 tBTA_JV_STATUS;
 #define BTA_JV_MAX_L2C_CONN     GAP_MAX_CONNECTIONS /* GAP handle is used as index, hence do not change this value */
 #define BTA_JV_MAX_SCN          PORT_MAX_RFC_PORTS /* same as BTM_MAX_SCN (in btm_int.h) */
 #define BTA_JV_MAX_RFC_CONN     MAX_RFC_PORTS
+#define BTA_JV_MAX_CREDIT_NUM   PORT_RX_BUF_HIGH_WM
 
 #ifndef BTA_JV_DEF_RFC_MTU
 #define BTA_JV_DEF_RFC_MTU      (3*330)
@@ -286,6 +287,7 @@ typedef struct {
 /* data associated with BTA_JV_RFCOMM_OPEN_EVT */
 typedef struct {
     tBTA_JV_STATUS  status;     /* Whether the operation succeeded or failed. */
+    UINT16          peer_mtu;   /* Max MTU that port can send */
     UINT32          handle;     /* The connection handle */
     BD_ADDR         rem_bda;    /* The peer address */
 } tBTA_JV_RFCOMM_OPEN;
@@ -293,6 +295,7 @@ typedef struct {
 /* data associated with BTA_JV_RFCOMM_SRV_OPEN_EVT */
 typedef struct {
     tBTA_JV_STATUS  status;             /* Whether the operation succeeded or failed. */
+    UINT16          peer_mtu;           /* Max MTU that port can send */
     UINT32          handle;             /* The connection handle */
     UINT32          new_listen_handle;  /* The new listen handle */
     BD_ADDR         rem_bda;            /* The peer address */
@@ -312,7 +315,7 @@ typedef struct {
     tBTA_JV_STATUS  status;     /* Whether the operation succeeded or failed. */
     UINT32          handle;     /* The connection handle */
     UINT8           sec_id;     /* security ID used by this server */
-    UINT8           scn;        /* Server channe number */
+    UINT8           scn;        /* Server channel number */
     BOOLEAN         use_co;     /* TRUE to use co_rfc_data */
 } tBTA_JV_RFCOMM_START;
 
@@ -375,6 +378,7 @@ typedef struct {
 typedef enum {
     BTA_JV_SERVER_START_FAILED,
     BTA_JV_SERVER_RUNNING,
+    BTA_JV_SERVER_CONNECTED,
     BTA_JV_SERVER_STATUS_MAX,
 } tBTA_JV_SERVER_STATUS;
 
@@ -387,7 +391,7 @@ typedef struct {
 typedef struct {
     tBTA_JV_STATUS          status;         /* Status of the operation */
     tBTA_JV_SERVER_STATUS   server_status;  /* Server status */
-    UINT8                   scn;            /* Server channe number */
+    UINT16                  scn;            /* Server channel number */
 } tBTA_JV_FREE_SCN;
 
 
@@ -804,9 +808,22 @@ extern tBTA_JV_STATUS BTA_JvL2capWriteFixed(UINT16 channel, BD_ADDR *addr, UINT3
 #if BTA_JV_RFCOMM_INCLUDED
 /*******************************************************************************
 **
+** Function         BTA_JvRfcommConfig
+**
+** Description      This function is to configure RFCOMM.
+**
+**
+** Returns          BTA_JV_SUCCESS, if the request is being processed.
+**                  BTA_JV_FAILURE, otherwise.
+**
+*******************************************************************************/
+extern tBTA_JV_STATUS BTA_JvRfcommConfig(BOOLEAN enable_l2cap_ertm);
+
+/*******************************************************************************
+**
 ** Function         BTA_JvRfcommConnect
 **
-** Description      This function makes an RFCOMM conection to a remote BD
+** Description      This function makes an RFCOMM connection to a remote BD
 **                  Address.
 **                  When the connection is initiated or failed to initiate,
 **                  tBTA_JV_RFCOMM_CBACK is called with BTA_JV_RFCOMM_CL_INIT_EVT
@@ -831,7 +848,7 @@ extern tBTA_JV_STATUS BTA_JvRfcommConnect(tBTA_SEC sec_mask,
 **                  BTA_JV_FAILURE, otherwise.
 **
 *******************************************************************************/
-extern tBTA_JV_STATUS BTA_JvRfcommClose(UINT32 handle, tBTA_JV_RFCOMM_CBACK *p_cback, void *user_data);
+extern tBTA_JV_STATUS BTA_JvRfcommClose(UINT32 handle, void *user_data);
 
 /*******************************************************************************
 **
@@ -940,7 +957,7 @@ UINT16 BTA_JvRfcommGetPortHdl(UINT32 handle);
  ** Parameters:  handle,  JV handle from RFCOMM or L2CAP
  **              app_id:  app specific pm ID, can be BTA_JV_PM_ALL, see bta_dm_cfg.c for details
  **              BTA_JV_PM_ID_CLEAR: removes pm management on the handle. init_st is ignored and
- **              BTA_JV_CONN_CLOSE is called implicitely
+ **              BTA_JV_CONN_CLOSE is called implicitly
  **              init_st:  state after calling this API. typically it should be BTA_JV_CONN_OPEN
  **
  ** Returns      BTA_JV_SUCCESS, if the request is being processed.

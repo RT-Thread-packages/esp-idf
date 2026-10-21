@@ -27,11 +27,12 @@ typedef struct {
     rmt_symbol_word_t curve_table[];
 } rmt_stepper_curve_encoder_t;
 
+RMT_ENCODER_FUNC_ATTR
 static size_t rmt_encode_stepper_motor_curve(rmt_encoder_t *encoder, rmt_channel_handle_t channel, const void *primary_data, size_t data_size, rmt_encode_state_t *ret_state)
 {
     rmt_stepper_curve_encoder_t *motor_encoder = __containerof(encoder, rmt_stepper_curve_encoder_t, base);
     rmt_encoder_handle_t copy_encoder = motor_encoder->copy_encoder;
-    rmt_encode_state_t session_state = 0;
+    rmt_encode_state_t session_state = RMT_ENCODING_RESET;
     uint32_t points_num = *(uint32_t *)primary_data;
     size_t encoded_symbols = 0;
     if (motor_encoder->flags.is_accel_curve) {
@@ -53,6 +54,7 @@ static esp_err_t rmt_del_stepper_motor_curve_encoder(rmt_encoder_t *encoder)
     return ESP_OK;
 }
 
+RMT_ENCODER_FUNC_ATTR
 static esp_err_t rmt_reset_stepper_motor_curve_encoder(rmt_encoder_t *encoder)
 {
     rmt_stepper_curve_encoder_t *motor_encoder = __containerof(encoder, rmt_stepper_curve_encoder_t, base);
@@ -69,15 +71,16 @@ esp_err_t rmt_new_stepper_motor_curve_encoder(const stepper_motor_curve_encoder_
     ESP_GOTO_ON_FALSE(config && ret_encoder, ESP_ERR_INVALID_ARG, err, TAG, "invalid arguments");
     ESP_GOTO_ON_FALSE(config->sample_points, ESP_ERR_INVALID_ARG, err, TAG, "sample points number can't be zero");
     ESP_GOTO_ON_FALSE(config->start_freq_hz != config->end_freq_hz, ESP_ERR_INVALID_ARG, err, TAG, "start freq can't equal to end freq");
-    step_encoder = calloc(1, sizeof(rmt_stepper_curve_encoder_t) + config->sample_points * sizeof(rmt_symbol_word_t));
+    step_encoder = rmt_alloc_encoder_mem(sizeof(rmt_stepper_curve_encoder_t) + config->sample_points * sizeof(rmt_symbol_word_t));
     ESP_GOTO_ON_FALSE(step_encoder, ESP_ERR_NO_MEM, err, TAG, "no mem for stepper curve encoder");
     rmt_copy_encoder_config_t copy_encoder_config = {};
     ESP_GOTO_ON_ERROR(rmt_new_copy_encoder(&copy_encoder_config, &step_encoder->copy_encoder), err, TAG, "create copy encoder failed");
     bool is_accel_curve = config->start_freq_hz < config->end_freq_hz;
 
     // prepare the curve table, in RMT symbol format
+    uint32_t curve_step = 0;
     if (is_accel_curve) {
-        uint32_t curve_step = (config->end_freq_hz - config->start_freq_hz) / (config->sample_points - 1);
+        curve_step = (config->end_freq_hz - config->start_freq_hz) / (config->sample_points - 1);
         for (uint32_t i = 0; i < config->sample_points; i++) {
             smooth_freq = convert_to_smooth_freq(config->start_freq_hz, config->end_freq_hz, config->start_freq_hz + curve_step * i);
             symbol_duration = config->resolution / smooth_freq / 2;
@@ -87,7 +90,7 @@ esp_err_t rmt_new_stepper_motor_curve_encoder(const stepper_motor_curve_encoder_
             step_encoder->curve_table[i].duration1 = symbol_duration;
         }
     } else {
-        uint32_t curve_step = (config->start_freq_hz - config->end_freq_hz) / (config->sample_points - 1);
+        curve_step = (config->start_freq_hz - config->end_freq_hz) / (config->sample_points - 1);
         for (uint32_t i = 0; i < config->sample_points; i++) {
             smooth_freq = convert_to_smooth_freq(config->end_freq_hz, config->start_freq_hz, config->end_freq_hz + curve_step * i);
             symbol_duration = config->resolution / smooth_freq / 2;
@@ -97,6 +100,7 @@ esp_err_t rmt_new_stepper_motor_curve_encoder(const stepper_motor_curve_encoder_
             step_encoder->curve_table[config->sample_points - i - 1].duration1 = symbol_duration;
         }
     }
+    ESP_GOTO_ON_FALSE(curve_step > 0, ESP_ERR_INVALID_ARG, err, TAG, "|end_freq_hz - start_freq_hz| can't be smaller than sample_points");
 
     step_encoder->sample_points = config->sample_points;
     step_encoder->flags.is_accel_curve = is_accel_curve;
@@ -125,7 +129,7 @@ static size_t rmt_encode_stepper_motor_uniform(rmt_encoder_t *encoder, rmt_chann
 {
     rmt_stepper_uniform_encoder_t *motor_encoder = __containerof(encoder, rmt_stepper_uniform_encoder_t, base);
     rmt_encoder_handle_t copy_encoder = motor_encoder->copy_encoder;
-    rmt_encode_state_t session_state = 0;
+    rmt_encode_state_t session_state = RMT_ENCODING_RESET;
     uint32_t target_freq_hz = *(uint32_t *)primary_data;
     uint32_t symbol_duration = motor_encoder->resolution / target_freq_hz / 2;
     rmt_symbol_word_t freq_sample = {
@@ -159,7 +163,7 @@ esp_err_t rmt_new_stepper_motor_uniform_encoder(const stepper_motor_uniform_enco
     esp_err_t ret = ESP_OK;
     rmt_stepper_uniform_encoder_t *step_encoder = NULL;
     ESP_GOTO_ON_FALSE(config && ret_encoder, ESP_ERR_INVALID_ARG, err, TAG, "invalid arguments");
-    step_encoder = calloc(1, sizeof(rmt_stepper_uniform_encoder_t));
+    step_encoder = rmt_alloc_encoder_mem(sizeof(rmt_stepper_uniform_encoder_t));
     ESP_GOTO_ON_FALSE(step_encoder, ESP_ERR_NO_MEM, err, TAG, "no mem for stepper uniform encoder");
     rmt_copy_encoder_config_t copy_encoder_config = {};
     ESP_GOTO_ON_ERROR(rmt_new_copy_encoder(&copy_encoder_config, &step_encoder->copy_encoder), err, TAG, "create copy encoder failed");

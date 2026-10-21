@@ -1,5 +1,10 @@
 menu "Example Configuration"
 
+    config EXAMPLE_USING_ESP_TLS_MBEDTLS
+        bool
+        depends on ESP_TLS_USING_MBEDTLS
+        default y
+
     config EXAMPLE_CLIENT_SESSION_TICKETS
         bool "Enable Client session ticket support"
         default n
@@ -17,5 +22,12 @@ menu "Example Configuration"
     config EXAMPLE_LOCAL_SERVER_URL_FROM_STDIN
         bool
         default y if EXAMPLE_LOCAL_SERVER_URL = "FROM_STDIN"
+
+    config EXAMPLE_SSL_PROTO_TLS1_3_CLIENT
+        bool "Enable TLS 1.3 client test"
+        default n
+        select MBEDTLS_SSL_PROTO_TLS1_3
+        help
+            Enable TLS 1.3 client test support for the example.
 
 endmenu

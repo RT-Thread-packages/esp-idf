@@ -24,6 +24,10 @@ DRAM（数据 RAM）
 
    如果使用蓝牙堆栈，内部 DRAM 区域的可用大小将减少 64 KB（由于起始地址移动到 ``0x3FFC0000``）。如果使用内存跟踪功能，该区域的长度还会减少 16 KB 或 32 KB。由于 ROM 引起的一些内存碎片问题，不可能将所有可用的 DRAM 用于静态分配，但是剩余的 DRAM 在运行时仍可用作堆。
 
+   .. note::
+
+    ESP32 上有 520 KB 的可用 SRAM（320 KB 的 DRAM 和 200 KB 的 IRAM）。 但是，由于技术限制，用于静态分配的 DRAM 最多可为 160 KB。 剩余的 160 KB（DRAM 总共 320 KB）只能在运行时分配为堆。
+
 .. only:: not esp32
 
    .. note::
@@ -38,7 +42,7 @@ DRAM（数据 RAM）
 
 可以将 ``__NOINIT_ATTR`` 宏用作属性，从而将数据放入 ``.noinit`` 部分。放入该部分的值在启动时不会被初始化，在软件重启后也会保持值不变。
 
-.. only:: esp32
+.. only:: SOC_SPIRAM_SUPPORTED
 
    通过使用 ``EXT_RAM_NOINIT_ATTR`` 宏，noinit 数据也可以放入外部 RAM 中。为此，需要启用 :ref:`CONFIG_SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY`，可参考 :ref:`external_ram_config_noinit`。如果没有启用 :ref:`CONFIG_SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY`， ``EXT_RAM_NOINIT_ATTR`` 会和 ``__NOINIT_ATTR`` 一样，将数据放入内部 RAM 的 ``.noinit`` 部分。
 
@@ -88,12 +92,12 @@ IRAM（指令 RAM）
 
 或者，也可以通过使用 ``IRAM_ATTR`` 宏在源代码中指定需要放入 IRAM 的代码::
 
-	#include "esp_attr.h"
+    #include "esp_attr.h"
 
-	void IRAM_ATTR gpio_isr_handler(void* arg)
-	{
-		// ...
-	}
+    void IRAM_ATTR gpio_isr_handler(void* arg)
+    {
+        // ...
+    }
 
 放入 IRAM 后可能会导致 IRAM 安全中断处理程序出现问题：
 
@@ -123,7 +127,7 @@ IROM（代码从 flash 中运行）
 
 .. only:: esp32
 
-    允许从 flash 中执行代码的 Flash MMU 机制可参考 {IDF_TARGET_NAME} 技术参考手册* > *存储器管理和保护单元 (MMU, MPU)* [`PDF <{IDF_TARGET_TRM_CN_URL}#mpummu>`__]。
+    允许从 flash 中执行代码的 flash MMU 机制可参考 {IDF_TARGET_NAME} 技术参考手册* > *存储器管理和保护单元 (MMU, MPU)* [`PDF <{IDF_TARGET_TRM_CN_URL}#mpummu>`__]。
 
 在 :doc:`启动 <startup>` 过程中，从 IRAM 中运行的引导加载程序配置 MMU flash 缓存，将应用程序的指令代码区域映射到指令空间。通过 MMU 访问的 flash 使用一些内部 SRAM 进行缓存，访问缓存的 flash 数据与访问其他类型的内部存储器一样快。
 
@@ -139,14 +143,16 @@ DROM（数据存储在 flash 中）
 
 唯一没有默认放入 DROM 的常量数据是被编译器嵌入到应用程序代码中的字面常量。这些被放置在周围函数的可执行指令中。
 
-``DRAM_ATTR`` 属性可以用来强制将常量从 DRAM 放入 :ref:`dram` 部分（见上文）。
+``DRAM_ATTR`` 属性可以用来强制将常量从 DROM 放入 :ref:`dram` 部分（见上文）。
 
 .. only:: SOC_RTC_SLOW_MEM_SUPPORTED
 
     RTC Slow memory（RTC 慢速存储器）
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    从 RTC 存储器运行的代码中使用的全局和静态变量必须放入 RTC Slow memory 中。例如 :doc:`深度睡眠 <deep-sleep-stub>` 变量可以放在 RTC Slow memory 中，而不是 RTC FAST memory，或者也可以放入由 :doc:`/api-reference/system/ulp` 访问的代码和变量。
+    .. only:: ESP_ROM_SUPPORT_DEEP_SLEEP_WAKEUP_STUB
+
+        从 RTC 存储器运行的代码中使用的全局和静态变量必须放入 RTC Slow memory 中。例如 :doc:`深度睡眠 <deep-sleep-stub>` 变量可以放在 RTC Slow memory 中，而不是 RTC FAST memory，或者也可以放入由 :doc:`/api-reference/system/ulp` 访问的代码和变量。
 
     ``RTC_NOINIT_ATTR`` 属性宏可以用来将数据放入 RTC Slow memory。放入此类型存储器的值从深度睡眠模式中醒来后会保持值不变。
 
@@ -160,17 +166,33 @@ DROM（数据存储在 flash 中）
     RTC FAST memory（RTC 快速存储器）
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    RTC FAST memory 的同一区域既可以作为指令存储器也可以作为数据存储器进行访问。从深度睡眠模式唤醒后必须要运行的代码要放在 RTC 存储器中，更多信息请查阅文档 :doc:`深度睡眠 <deep-sleep-stub>`。
+    .. only:: esp32c6 or esp32h2
+
+        .. note::
+
+            对于 {IDF_TARGET_NAME}，RTC 存储器已被重新重命名为 LP（低功耗）存储器。在与 {IDF_TARGET_NAME} 相关的 IDF 代码、文档以及技术参考手册中，可能会出现这两个术语混用的情况。
+
+    .. only:: ESP_ROM_SUPPORT_DEEP_SLEEP_WAKEUP_STUB
+
+        RTC FAST memory 的同一区域既可以作为指令存储器也可以作为数据存储器进行访问。从深度睡眠模式唤醒后必须要运行的代码要放在 RTC 存储器中，更多信息请查阅文档 :doc:`深度睡眠 <deep-sleep-stub>`。
 
     .. only:: esp32
 
-        RTC FAST memory 只可以被 PRO CPU 访问。
+        在单核模式下 (:ref:`CONFIG_FREERTOS_UNICORE`)，除非禁用 :ref:`CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP` 选项，否则剩余的 RTC FAST memory 会被添加到堆中。该部分内存可以和 :ref:`DRAM` 互换使用，但是访问速度稍慢，且不具备 DMA 功能。
 
-        在单核模式下，除非禁用 :ref:`CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP` 选项，否则剩余的 RTC FAST memory 会被添加到堆中。该部分内存可以和 :ref:`DRAM` 互换使用，但是访问速度稍慢，且不具备 DMA 功能。
+        :ref:`CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP` 选项在双核模式下不可用，因为 {IDF_TARGET_NAME} 的 RTC FAST memory 只能由 PRO CPU 访问。
 
     .. only:: not esp32
 
         除非禁用 :ref:`CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP` 选项，否则剩余的 RTC FAST memory 会被添加到堆中。该部分内存可以和 :ref:`DRAM` 互换使用，但是访问速度稍慢一点。
+
+
+.. only:: SOC_MEM_SPM_SUPPORTED
+
+    SPM（暂存内存）
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    SPM (Scratchpad Memory) 是一种位于处理器核心附近的片上专用存储器，具备确定性的访问时序。SPM 不依赖硬件缓存机制，访问由软件显式管理，访问延迟可预测且稳定。具体访问延迟可能受硬件配置影响：启用奇偶校验功能时，访问延迟为 4 个时钟周期，带宽也会相应下降；关闭奇偶校验后，访问延迟可低至 1 个时钟周期。该内存通常用于存放对访问时序敏感的关键代码和数据，适用于对性能和响应时间要求严格的实时系统或嵌入式应用。
 
 
 具备 DMA 功能

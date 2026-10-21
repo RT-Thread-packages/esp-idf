@@ -11,7 +11,11 @@
 extern "C" {
 #endif
 
-#if SOC_ESP_NIMBLE_CONTROLLER
+#if !CONFIG_BT_NIMBLE_ENABLED
+#define MYNEWT_VAL(val)             (0)
+#endif // !CONFIG_BT_NIMBLE_ENABLED
+
+#if SOC_ESP_NIMBLE_CONTROLLER && CONFIG_BT_CONTROLLER_ENABLED
 
 struct os_mempool;
 struct os_mbuf_pool;

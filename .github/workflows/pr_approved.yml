@@ -1,4 +1,8 @@
 name: Sync approved PRs to internal codebase
+
+permissions:
+  contents: read
+
 on:
   pull_request_target:
     types: [labeled]
@@ -11,7 +15,7 @@ jobs:
         (github.event.label.name == 'PR-Sync-Rebase')  ||
         (github.event.label.name == 'PR-Sync-Update')
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Sync approved PRs to internal codebase
         uses: espressif/github-actions/github_pr_to_internal_pr@master
         env:

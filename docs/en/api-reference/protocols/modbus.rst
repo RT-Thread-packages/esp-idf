@@ -1,33 +1,27 @@
 ESP-Modbus
 ==========
 
-The Espressif ESP-Modbus Library (esp-modbus) supports Modbus communication in the networks based on RS485, Wi-Fi, Ethernet interfaces.
-The ESP-IDF component `freemodbus` has been moved from ESP-IDF since version v5.0 to a separate repository:
+:link_to_translation:`zh_CN:[中文]`
 
-* `ESP-Modbus component on GitHub <https://github.com/espressif/esp-modbus>`__
+The Espressif ESP-Modbus Library (esp-modbus) supports Modbus communication in the networks based on RS485, Wi-Fi, and Ethernet interfaces.
+The component ``esp-modbus v2 (v2.x.x)`` is the current supported component version:
+
+* `ESP-Modbus component on GitHub <https://github.com/espressif/esp-modbus/tree/main>`__
+* `ESP-Modbus component in component manager <https://components.espressif.com/components/espressif/esp-modbus>`__
 
 Hosted Documentation
 --------------------
 
-The documentation can be found on the link below:
+The documentation can be found through the link below:
 
-* `ESP-Modbus documentation (English) <https://docs.espressif.com/projects/esp-modbus>`__
+* `ESP-Modbus V2 documentation (English) <https://docs.espressif.com/projects/esp-modbus/en/stable>`__
 
-Application Example
--------------------
+Discussions
+~~~~~~~~~~~
 
-The examples below demonstrate the ESP-Modbus library of serial, TCP ports for slave and master implementations accordingly.
-
-- :example:`protocols/modbus/serial/mb_slave`
-- :example:`protocols/modbus/serial/mb_master`
-- :example:`protocols/modbus/tcp/mb_tcp_slave`
-- :example:`protocols/modbus/tcp/mb_tcp_master`
-
-Please refer to the specific example README.md for details.
+* `Discussions for version v2 <https://github.com/espressif/esp-modbus/discussions>`__
 
 Protocol References
 -------------------
 
-    -  ``https://modbus.org/specs.php``: Modbus Organization with protocol specifications.
-
-
+    - For the detailed protocol specifications, see `The Modbus Organization <https://modbus.org/specs.php>`_.

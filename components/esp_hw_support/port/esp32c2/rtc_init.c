@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2020-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,20 +9,21 @@
 #include "soc/soc.h"
 #include "soc/rtc.h"
 #include "soc/rtc_cntl_reg.h"
-#include "soc/efuse_periph.h"
 #include "soc/gpio_reg.h"
 #include "soc/spi_mem_reg.h"
 #include "soc/extmem_reg.h"
 #include "soc/system_reg.h"
 #include "hal/efuse_hal.h"
+#include "hal/efuse_ll.h"
 #include "regi2c_ctrl.h"
 #include "soc/regi2c_dig_reg.h"
 #include "soc/regi2c_lp_bias.h"
 #include "esp_hw_log.h"
-#include "esp_efuse.h"
-#include "esp_efuse_table.h"
+#ifndef BOOTLOADER_BUILD
+#include "esp_private/sar_periph_ctrl.h"
+#endif
 
-static const char *TAG = "rtc_init";
+ESP_HW_LOG_ATTR_TAG(TAG, "rtc_init");
 
 static void set_ocode_by_efuse(int ocode_scheme_ver);
 static void calibrate_ocode(void);
@@ -121,26 +122,17 @@ void rtc_init(rtc_config_t cfg)
     REG_WRITE(RTC_CNTL_INT_ENA_REG, 0);
     REG_WRITE(RTC_CNTL_INT_CLR_REG, UINT32_MAX);
     REGI2C_WRITE_MASK(I2C_ULP, I2C_ULP_IR_FORCE_XPD_CK, 1);
-}
 
-rtc_vddsdio_config_t rtc_vddsdio_get_config(void)
-{
-    rtc_vddsdio_config_t result = {0};
-    return result;
-}
-
-void rtc_vddsdio_set_config(rtc_vddsdio_config_t config)
-{
+#ifndef BOOTLOADER_BUILD
+    //initialise SAR related peripheral register settings
+    sar_periph_ctrl_init();
+#endif
 }
 
 static void set_ocode_by_efuse(int ocode_scheme_ver)
 {
     assert(ocode_scheme_ver == 1);
-    // use efuse ocode.
-    signed int ocode = 0;
-    esp_err_t err = esp_efuse_read_field_blob(ESP_EFUSE_OCODE, &ocode, ESP_EFUSE_OCODE[0]->bit_count);
-    assert(err == ESP_OK);
-    (void) err;
+    signed int ocode = efuse_ll_get_ocode();
 
     //recover efuse data
     ocode = ((ocode & BIT(6)) != 0)? -(ocode & 0x3f): ocode;
@@ -162,16 +154,9 @@ static void calibrate_ocode(void)
     4. wait o-code calibration done flag(odone_flag & bg_odone_flag) or timeout;
     5. set cpu to old-config.
     */
-    soc_rtc_slow_clk_src_t slow_clk_src = rtc_clk_slow_src_get();
-    rtc_cal_sel_t cal_clk = RTC_CAL_RTC_MUX;
-    if (slow_clk_src == SOC_RTC_SLOW_CLK_SRC_OSC_SLOW) {
-        cal_clk = RTC_CAL_EXT_CLK;
-    } else if (slow_clk_src == SOC_RTC_SLOW_CLK_SRC_RC_FAST_D256) {
-        cal_clk  = RTC_CAL_8MD256;
-    }
 
     uint64_t max_delay_time_us = 10000;
-    uint32_t slow_clk_period = rtc_clk_cal(cal_clk, 100);
+    uint32_t slow_clk_period = rtc_clk_cal(CLK_CAL_RTC_SLOW, 100);
     uint64_t max_delay_cycle = rtc_time_us_to_slowclk(max_delay_time_us, slow_clk_period);
     uint64_t cycle0 = rtc_time_get();
     uint64_t timeout_cycle = cycle0 + max_delay_cycle;
@@ -203,13 +188,7 @@ static void calibrate_ocode(void)
 static uint32_t get_dig_dbias_by_efuse(uint8_t dbias_scheme_ver)
 {
     assert(dbias_scheme_ver == 1);
-    uint32_t dig_dbias = 26;
-    esp_err_t err = esp_efuse_read_field_blob(ESP_EFUSE_DIG_DBIAS_HVT, &dig_dbias, ESP_EFUSE_DIG_DBIAS_HVT[0]->bit_count);
-    if (err != ESP_OK) {
-        dig_dbias = 26;
-        ESP_HW_LOGW(TAG, "efuse read fail, set default dig_dbias value: %d\n", dig_dbias);
-    }
-    return dig_dbias;
+    return efuse_ll_get_dig_dbias_hvt();
 }
 
 uint32_t get_rtc_dbias_by_efuse(uint8_t dbias_scheme_ver, uint32_t dig_dbias)
@@ -218,20 +197,14 @@ uint32_t get_rtc_dbias_by_efuse(uint8_t dbias_scheme_ver, uint32_t dig_dbias)
     uint32_t rtc_dbias = 31;
 
     //read efuse data
-    signed int dig_slp_dbias2 = 0, dig_slp_dbias26 = 0, dig_act_dbias26 = 0, dig_act_step = 0, rtc_slp_dbias29 = 0, rtc_slp_dbias31 = 0, rtc_act_dbias31 = 0, rtc_act_dbias13 = 0;
-    esp_err_t err0 = esp_efuse_read_field_blob(ESP_EFUSE_DIG_LDO_SLP_DBIAS2, &dig_slp_dbias2, ESP_EFUSE_DIG_LDO_SLP_DBIAS2[0]->bit_count);
-    esp_err_t err1 = esp_efuse_read_field_blob(ESP_EFUSE_DIG_LDO_SLP_DBIAS26, &dig_slp_dbias26, ESP_EFUSE_DIG_LDO_SLP_DBIAS26[0]->bit_count);
-    esp_err_t err2 = esp_efuse_read_field_blob(ESP_EFUSE_DIG_LDO_ACT_DBIAS26, &dig_act_dbias26, ESP_EFUSE_DIG_LDO_ACT_DBIAS26[0]->bit_count);
-    esp_err_t err3 = esp_efuse_read_field_blob(ESP_EFUSE_DIG_LDO_ACT_STEPD10, &dig_act_step, ESP_EFUSE_DIG_LDO_ACT_STEPD10[0]->bit_count);
-    esp_err_t err4 = esp_efuse_read_field_blob(ESP_EFUSE_RTC_LDO_SLP_DBIAS29, &rtc_slp_dbias29, ESP_EFUSE_RTC_LDO_SLP_DBIAS29[0]->bit_count);
-    esp_err_t err5 = esp_efuse_read_field_blob(ESP_EFUSE_RTC_LDO_SLP_DBIAS31, &rtc_slp_dbias31, ESP_EFUSE_RTC_LDO_SLP_DBIAS31[0]->bit_count);
-    esp_err_t err6 = esp_efuse_read_field_blob(ESP_EFUSE_RTC_LDO_ACT_DBIAS31, &rtc_act_dbias31, ESP_EFUSE_RTC_LDO_ACT_DBIAS31[0]->bit_count);
-    esp_err_t err7 = esp_efuse_read_field_blob(ESP_EFUSE_RTC_LDO_ACT_DBIAS13, &rtc_act_dbias13, ESP_EFUSE_RTC_LDO_ACT_DBIAS13[0]->bit_count);
-
-    if ((err0 != ESP_OK) | (err1 != ESP_OK) | (err2 != ESP_OK) | (err3 != ESP_OK) | (err4 != ESP_OK) | (err5 != ESP_OK) | (err6 != ESP_OK) | (err7 != ESP_OK)) {
-        ESP_HW_LOGW(TAG, "efuse read fail, set default rtc_dbias value: %d\n", rtc_dbias);
-        return rtc_dbias;
-    }
+    signed int dig_slp_dbias2 = efuse_ll_get_dig_ldo_slp_dbias2();
+    signed int dig_slp_dbias26 = efuse_ll_get_dig_ldo_slp_dbias26();
+    signed int dig_act_dbias26 = efuse_ll_get_dig_ldo_act_dbias26();
+    signed int dig_act_step = efuse_ll_get_dig_ldo_act_stepd10();
+    signed int rtc_slp_dbias29 = efuse_ll_get_rtc_ldo_slp_dbias29();
+    signed int rtc_slp_dbias31 = efuse_ll_get_rtc_ldo_slp_dbias31();
+    signed int rtc_act_dbias31 = efuse_ll_get_rtc_ldo_act_dbias31();
+    signed int rtc_act_dbias13 = efuse_ll_get_rtc_ldo_act_dbias13();
 
     //recover dig&rtc parameter
     dig_slp_dbias2 = ((dig_slp_dbias2 & BIT(6)) != 0)? -(dig_slp_dbias2 & 0x3f): dig_slp_dbias2;
@@ -279,7 +252,7 @@ uint32_t get_rtc_dbias_by_efuse(uint8_t dbias_scheme_ver, uint32_t dig_dbias)
 static void set_rtc_dig_dbias()
 {
     /*
-    1. a reasonable dig_dbias which by scaning pvt to make 120 CPU run successful stored in efuse;
+    1. a reasonable dig_dbias which by scanning pvt to make 120 CPU run successful stored in efuse;
     2. a reasonable rtc_dbias can be calculated by a certion formula.
     */
     uint32_t rtc_dbias = 31, dig_dbias = 26;

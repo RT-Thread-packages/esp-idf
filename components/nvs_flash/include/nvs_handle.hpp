@@ -1,5 +1,9 @@
-#ifndef NVS_HANDLE_HPP_
-#define NVS_HANDLE_HPP_
+/*
+ * SPDX-FileCopyrightText: 2019-2026 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#pragma once
 
 #include <string>
 #include <memory>
@@ -8,6 +12,18 @@
 #include "nvs.h"
 
 namespace nvs {
+
+#if defined(SEGGER_H) && defined(GLOBAL_H)
+NVS_GUARD_SYSVIEW_MACRO_EXPANSION_PUSH();
+#undef U8
+#undef I8
+#undef U16
+#undef I16
+#undef U32
+#undef I32
+#undef U64
+#undef I64
+#endif
 
 /**
  * The possible blob types. This is a helper definition for template functions.
@@ -21,6 +37,8 @@ enum class ItemType : uint8_t {
     I32  = NVS_TYPE_I32,
     U64  = NVS_TYPE_U64,
     I64  = NVS_TYPE_I64,
+    FLOAT  = NVS_TYPE_FLOAT,
+    DOUBLE = NVS_TYPE_DOUBLE,
     SZ   = NVS_TYPE_STR,
     BLOB = 0x41,
     BLOB_DATA = NVS_TYPE_BLOB,
@@ -28,6 +46,9 @@ enum class ItemType : uint8_t {
     ANY  = NVS_TYPE_ANY
 };
 
+#if defined(SEGGER_H) && defined(GLOBAL_H)
+NVS_GUARD_SYSVIEW_MACRO_EXPANSION_POP();
+#endif
 
 /**
  * @brief A handle allowing nvs-entry related operations on the NVS.
@@ -165,6 +186,21 @@ public:
     virtual esp_err_t get_item_size(ItemType datatype, const char *key, size_t &size) = 0;
 
     /**
+     * @brief Checks whether key exists and optionally returns also data type of associated entry.
+     *
+     * @param[in]     key        Key name. Maximum length is (NVS_KEY_NAME_MAX_SIZE-1) characters. Shouldn't be empty.
+     * @param[out]    nvstype    Nvs data type to of entry, if it exists.
+     *
+     * @return      - ESP_OK if NVS entry for key provided was found. Data type will be returned via \c nvstype.
+     *              - ESP_ERR_NVS_NOT_FOUND if the requested key doesn't exist.
+     *              - ESP_ERR_NVS_INVALID_HANDLE if handle has been closed or is NULL.
+     *              - ESP_FAIL if there is an internal error; most likely due to corrupted
+     *                NVS partition (only if NVS assertion checks are disabled).
+     *              - other error codes from the underlying storage driver.
+     */
+    virtual esp_err_t find_key(const char* key, nvs_type_t &nvstype) = 0;
+
+    /**
      * @brief Erases an entry.
      */
     virtual esp_err_t erase_item(const char* key) = 0;
@@ -175,6 +211,11 @@ public:
      * @not If you want to erase the whole nvs flash (partition), refer to \ref
      */
     virtual esp_err_t erase_all() = 0;
+
+    /**
+     * Purges all erased entries in the scope of this handle. The scope may vary, depending on the implementation.
+     */
+    virtual esp_err_t purge_all() = 0;
 
     /**
      * Commits all changes done through this handle so far.
@@ -209,7 +250,7 @@ protected:
 /**
  * @brief Opens non-volatile storage and returns a handle object.
  *
- * The handle is automatically closed on desctruction. The scope of the handle is the namespace ns_name
+ * The handle is automatically closed on destruction. The scope of the handle is the namespace ns_name
  * in a particular partition partition_name.
  * The parameters partition_name, ns_name and open_mode have the same meaning and restrictions as the parameters
  * part_name, name and open_mode in \ref nvs_open_from_partition, respectively.
@@ -222,9 +263,10 @@ protected:
  *             - ESP_ERR_NVS_NOT_FOUND id namespace doesn't exist yet and
  *               mode is NVS_READONLY
  *             - ESP_ERR_NVS_INVALID_NAME if namespace name doesn't satisfy constraints
+ *             - ESP_ERR_NOT_ALLOWED if the NVS partition is read-only and mode is NVS_READWRITE
  *             - other error codes from the underlying storage driver
  *
- * @return shared pointer of an nvs handle on success, an empty shared pointer otherwise
+ * @return unique pointer of an nvs handle on success, an empty unique pointer otherwise
  */
 std::unique_ptr<NVSHandle> open_nvs_handle_from_partition(const char *partition_name,
         const char *ns_name,
@@ -258,6 +300,15 @@ constexpr ItemType itemTypeOf()
     return static_cast<ItemType>(((std::is_signed<T>::value)?0x10:0x00) | sizeof(T));
 }
 
+/**
+ * Help to translate IEEE 754 floating-point types into ItemType.
+ */
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value, char>::type = 0>
+constexpr ItemType itemTypeOf()
+{
+    return static_cast<ItemType>(0x20 | sizeof(T));
+}
+
 template<typename T>
 constexpr ItemType itemTypeOf(const T&)
 {
@@ -276,5 +327,3 @@ esp_err_t NVSHandle::get_item(const char *key, T &value) {
 }
 
 } // nvs
-
-#endif // NVS_HANDLE_HPP_

@@ -1,14 +1,15 @@
 杂项系统 API
 =========================
+
 :link_to_translation:`en:[English]`
 
 {IDF_TARGET_BASE_MAC_BLOCK: default="BLK1", esp32="BLK0"}
-{IDF_TARGET_CPU_RESET_DES: default="两个 CPU 复位", esp32c3="CPU 复位", esp32c2="CPU 复位"}
+{IDF_TARGET_CPU_RESET_DES: default="CPU 复位", esp32="两个 CPU 均复位", esp32s3="两个 CPU 均复位", esp32p4="两个 CPU 均复位", esp32h4="两个 CPU 均复位"}
 
 软件复位
 ------------
 
-函数 :cpp:func:`esp_restart` 用于执行芯片的软件复位。调用此函数时，程序停止执行，{IDF_TARGET_CPU_RESET_DES}，应用程序由 bootloader 加载并重启。
+函数 :cpp:func:`esp_restart` 用于执行芯片的软件复位。调用此函数时，程序停止执行，{IDF_TARGET_CPU_RESET_DES}，应用程序由引导加载程序加载并重启。
 
 函数 :cpp:func:`esp_register_shutdown_handler` 用于注册复位前会自动调用的例程（复位过程由 :cpp:func:`esp_restart` 函数触发），这与 ``atexit`` POSIX 函数的功能类似。
 
@@ -36,16 +37,31 @@ MAC 地址
 
 要获取特定接口（如 Wi-Fi、蓝牙、以太网）的 MAC 地址，请调用函数 :cpp:func:`esp_read_mac`。
 
-在 ESP-IDF 中，各个网络接口的 MAC 地址是根据单个 *基准 MAC 地址 (Base MAC address)* 计算出来的。默认情况下使用乐鑫指定的基准 MAC 地址，该基准地址在产品生产过程中已预烧录至 {IDF_TARGET_NAME} eFuse。
+在 ESP-IDF 中，各个网络接口的 MAC 地址是根据单个 **基准 MAC 地址 (Base MAC address)** 计算出来的。默认情况下使用乐鑫指定的基准 MAC 地址，该基准地址在产品生产过程中已预烧录至 {IDF_TARGET_NAME} eFuse。
 
-.. only:: not esp32s2
+.. only:: esp32p4
+
+    .. list-table::
+        :widths: 20 80
+        :header-rows: 1
+
+        * - 接口
+          - MAC 地址（一个默认的通用管理地址）
+        * - 以太网
+          - base_mac
+
+    .. note::
+
+        在 ESP32-P4 上，:ref:`CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES` 固定为单个通用管理型 MAC 地址。
+
+.. only:: (not esp32s2) and (not esp32p4) and (not esp32h2) and (not esp32h21) and (not esp32h4) and (not esp32s31)
 
     .. list-table::
         :widths: 20 40 40
         :header-rows: 1
 
         * - 接口
-          - MAC 地址（默认 4 个全局地址)
+          - MAC 地址（默认 4 个全局地址）
           - MAC 地址（2 个全局地址）
         * - Wi-Fi Station
           - base_mac
@@ -64,6 +80,49 @@ MAC 地址
 
         :ref:`配置选项 <CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES>` 配置了乐鑫提供的全局 MAC 地址的数量。
 
+.. only:: esp32s31
+
+    .. list-table::
+        :widths: 20 40 40
+        :header-rows: 1
+
+        * - 接口
+          - MAC 地址（默认 2 个全局地址）
+          - MAC 地址（4 个全局地址）
+        * - Wi-Fi Station
+          - base_mac
+          - base_mac
+        * - Wi-Fi SoftAP
+          - :ref:`本地 MAC <local-mac-addresses>` （由 Wi-Fi Station MAC 生成）
+          - base_mac 最后一组字节后加 1
+        * - 蓝牙
+          - base_mac 最后一组字节后加 1
+          - base_mac 最后一组字节后加 2
+        * - 以太网
+          - :ref:`本地 MAC <local-mac-addresses>` （由蓝牙 MAC 生成）
+          - base_mac 最后一组字节后加 3
+
+    .. note::
+
+        {IDF_TARGET_NAME} 在 eFuse 中仅提供两个全局管理型 MAC 地址，因此 :ref:`CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES` 默认为两个。其中的“四个”选项仅在使用客户自定义基准 MAC 范围时可用（参见 :ref:`自定义基准 MAC <MAC-Address-Allocation>`），且该范围内每个设备需分配 4 个全局管理型 MAC 地址。若在使用乐鑫 eFuse 默认基准 MAC 时选择“四个”，SoftAP 和以太网会占用 base+1/+3 的全局 MAC 槽位，而这些槽位在本芯片上并未分配，可能与蓝牙 MAC 发生冲突。
+
+.. only:: esp32h2 or esp32h21 or esp32h4
+
+    .. list-table::
+        :widths: 20 80
+        :header-rows: 1
+
+        * - 接口
+          - MAC 地址（1 个默认的通用管理地址）
+        * - IEEE 802.15.4
+          - 由 base_mac 和 MAC_EXT 派生的 EUI-64（base_mac[0:2] ‖ MAC_EXT ‖ base_mac[3:5]，MAC_EXT 默认为 ff:fe）
+        * - 蓝牙
+          - base_mac
+
+    .. note::
+
+        {IDF_TARGET_NAME} 在 eFuse 中仅提供一个全局管理型 MAC 地址（MAC_FACTORY），以及用于构造 IEEE 802.15.4 EUI-64 的 MAC_EXT 字段。:ref:`CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES` 固定为 1。蓝牙直接复用基准 MAC —— 由于 {IDF_TARGET_NAME} 没有 Wi-Fi，BT 偏移不会生效，因此不需要第二个全局 MAC 槽位。
+
 .. only:: esp32s2
 
     .. list-table::
@@ -71,7 +130,7 @@ MAC 地址
         :header-rows: 1
 
         * - 接口
-          - MAC 地址（默认 2 个全局地址)
+          - MAC 地址（默认 2 个全局地址）
           - MAC 地址（1 个全局地址）
         * - Wi-Fi Station
           - base_mac
@@ -89,7 +148,14 @@ MAC 地址
 
 .. only:: not SOC_EMAC_SUPPORTED
 
-    .. note:: {IDF_TARGET_NAME} 内部未集成以太网 MAC 地址，但仍可以计算得出该地址。不过，以太网 MAC 地址只能与外部以太网接口（如 SPI 以太网设备）一起使用，具体请参阅 :doc:`/api-reference/network/esp_eth`。
+    .. note::
+
+      {IDF_TARGET_NAME} 内部未集成以太网 MAC 地址，但仍可以计算得出该地址。不过，以太网 MAC 地址只能与外部以太网接口（如 SPI 以太网设备）一起使用，具体请参阅 :doc:`/api-reference/network/esp_eth`。
+
+自定义接口 MAC
+^^^^^^^^^^^^^^^^
+
+有时用户可能需要自定义 MAC 地址，这些地址并不由基准 MAC 地址生成。如需设置自定义接口 MAC 地址，请使用 :cpp:func:`esp_iface_mac_addr_set` 函数。该函数用于覆盖由基准 MAC 地址设置（或尚未设置）的接口 MAC 地址。一旦设置某个接口 MAC 地址，即使更改基准 MAC 地址，也不会对其产生影响。
 
 自定义基准 MAC
 ^^^^^^^^^^^^^^^
@@ -106,7 +172,7 @@ MAC 地址
 eFuse 中的自定义 MAC 地址
 @@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-ESP-IDF 提供了 :cpp:func:`esp_efuse_mac_get_custom` 函数。从 eFuse 读取自定义 MAC 地址时，调用该函数将从 eFuse BLK3 加载 MAC 地址。此函数假定自定义基准 MAC 地址的存储格式如下：
+ESP-IDF 提供了 :cpp:func:`esp_efuse_mac_get_custom` 函数，从 eFuse 读取自定义 MAC 地址时，调用该函数将从 eFuse BLK3 加载 MAC 地址。用户也可以调用 :cpp:func:`esp_read_mac` 函数，此时需使用 ``ESP_MAC_EFUSE_CUSTOM`` 参数。:cpp:func:`esp_efuse_mac_get_custom` 函数假定自定义基准 MAC 地址的存储格式如下：
 
 .. only:: esp32
 
@@ -125,11 +191,11 @@ ESP-IDF 提供了 :cpp:func:`esp_efuse_mac_get_custom` 函数。从 eFuse 读取
         * - Reserved
           - 128
           - 183:56
-          - 
+          -
         * - MAC address
           - 48
           - 55:8
-          - 
+          -
         * - MAC address CRC
           - 8
           - 7:0
@@ -156,7 +222,10 @@ ESP-IDF 提供了 :cpp:func:`esp_efuse_mac_get_custom` 函数。从 eFuse 读取
 
         eFuse BLK3 在烧写时使用 RS 编码，这意味着必须同时烧写该块中的所有 eFuse 字段。
 
-调用 :cpp:func:`esp_efuse_mac_get_custom` 函数获得 MAC 地址后，请调用 :cpp:func:`esp_base_mac_addr_set` 函数将此 MAC 地址设置为基准 MAC 地址。
+调用 :cpp:func:`esp_efuse_mac_get_custom` 或 :cpp:func:`esp_read_mac` 函数获得自定义 eFuse MAC 地址后，请将此 MAC 地址设置为基准 MAC 地址。有以下两种方法：
+
+1. 使用原有 API：调用 :cpp:func:`esp_base_mac_addr_set`。
+2. 使用新 API：调用 :cpp:func:`esp_iface_mac_addr_set`，此时需使用 ``ESP_MAC_BASE`` 参数。
 
 
 .. _local-mac-addresses:
@@ -173,7 +242,7 @@ ESP-IDF 提供了 :cpp:func:`esp_efuse_mac_get_custom` 函数。从 eFuse 读取
 内部调用函数 :cpp:func:`esp_derive_local_mac`，可从全局 MAC 地址生成本地 MAC 地址。具体流程如下：
 
 1. 在全局 MAC 地址的第一个字节组中设置 U/L 位（位值为 0x2），创建本地 MAC 地址。
-2. 如果该位已存在于全局 MAC 地址中（即现有的 “全局” MAC 地址实际上已经是本地 MAC 地址），则本地 MAC 地址的第一个字节组与 0x4 异或。
+2. 如果该位已存在于全局 MAC 地址中（即现有的“全局”MAC 地址实际上已经是本地 MAC 地址），则本地 MAC 地址的第一个字节组与 0x4 异或。
 
 芯片版本
 ------------
@@ -202,6 +271,18 @@ SDK 版本
       #endif
 
 
+调试辅助功能
+-----------------
+
+``esp_debug_helpers.h`` 中的调试辅助 API 提供了运行时调试和堆栈回溯输出相关功能。
+
+- :cpp:func:`esp_backtrace_print` 用于打印当前堆栈回溯。
+- :cpp:func:`esp_backtrace_print_all_tasks` 用于打印所有任务的堆栈回溯。
+- :cpp:func:`esp_backtrace_get_start` 和 :cpp:func:`esp_backtrace_get_next_frame` 用于手动遍历回溯帧。
+
+这些 API 适用于诊断崩溃、看门狗超时或异常控制流等问题。
+
+
 .. _app-version:
 
 应用程序版本
@@ -213,6 +294,11 @@ SDK 版本
 
 如果设置了 :ref:`CONFIG_APP_PROJECT_VER_FROM_CONFIG` 选项，则将使用 :ref:`CONFIG_APP_PROJECT_VER` 的值。否则，如果在项目中未设置 ``PROJECT_VER`` 变量，则该变量将从 ``$(PROJECT_PATH)/version.txt`` 文件（若有）中检索，或使用 git 命令 ``git describe`` 检索。如果两者都不可用，则 ``PROJECT_VER`` 将被设置为 “1”。应用程序可通过调用 :cpp:func:`esp_app_get_description` 或 :cpp:func:`esp_ota_get_partition_description` 函数来获取应用程序的版本信息。
 
+应用示例
+--------------
+
+- :example:`system/base_mac_address` 演示了如何从非易失性存储器中检索、设置和派生 {IDF_TARGET_NAME} 上每个网络接口的基准 MAC 地址，可以使用 eFuse 或外部存储。
+
 API 参考
 -------------
 
@@ -221,4 +307,5 @@ API 参考
 .. include-build-file:: inc/esp_mac.inc
 .. include-build-file:: inc/esp_chip_info.inc
 .. include-build-file:: inc/esp_cpu.inc
+.. include-build-file:: inc/esp_debug_helpers.inc
 .. include-build-file:: inc/esp_app_desc.inc
