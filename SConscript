@@ -1271,12 +1271,20 @@ if GetDepend(['BSP_USING_BLE']):
         'components/vfs/include',
     ]
 
-# The RT-Thread scons build shims have to be searched before everything else,
-# including the FreeRTOS-Wrapper include dir: they forward
-# <freertos/FreeRTOS.h> to the wrapper kernel with #include_next and then append
-# ESP-IDF's FreeRTOS API additions, which upstream FreeRTOS V11 includes at the
-# end of its own FreeRTOS.h.
-Env.Prepend(CPPPATH = [os.path.join(cwd, 'components/rtthread/scons/include')])
+def _prioritize_freertos_headers():
+    # Package SConscripts may run in any order. Once all groups are registered,
+    # keep the shims, BSP port/config and wrapper ahead of IDF's kernel headers.
+    # In particular, #include_next in the shims must reach the BSP or wrapper.
+    include_paths = [os.path.join(cwd, 'components/rtthread/scons/include')]
+    for name in ('idf_port', 'FreeRTOS'):
+        for group in Projects:
+            if group['name'] == name:
+                include_paths += [os.path.abspath(os.path.join(group['path'], path))
+                                  for path in group.get('CPPPATH', [])]
+    Env.PrependUnique(CPPPATH = include_paths, delete_existing = True)
+
+
+RegisterPreBuildingAction(_prioritize_freertos_headers)
 
 esp32c3_path = []
 # Only the components the source lists above come from, plus what they pull in
